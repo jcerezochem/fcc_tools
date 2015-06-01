@@ -1,0 +1,27 @@
+#ifort ../modules/constants_mod.f90 ../modules/MatrixMod_red.f90 ../modules/alerts.f90 ../modules/line_preprocess.f90 ../modules/fcc_tools_routines.f90 ../modules/gaussian_manage_lowlevel.f90 ../modules/vibrational_analysis.f90 test_freq.f90 -o test_freq -llapack
+
+FC = gfortran
+OBJECTS = constants_mod.o\
+          alerts.o\
+          MatrixMod_red.o\
+          line_preprocess.o\
+          fcc_tools_routines.o\
+          gamess_manage.o\
+          gaussian_manage_lowlevel.o\
+          vibrational_analysis.o\
+          gen_fcc_state.o
+LIBS=-llapack
+.PHONY:clean
+
+gen_fcc_state:$(OBJECTS)
+	$(FC) $(OBJECTS) -o gen_fcc_state $(LIBS)
+
+gen_fcc_state.o:gen_fcc_state.f90
+	$(FC) -c $<
+
+%.o : ../modules/%.f90
+	$(FC) -c $<
+
+clean:
+	rm $(OBJECTS) *mod
+          
