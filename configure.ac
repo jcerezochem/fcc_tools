@@ -48,7 +48,6 @@ AS_IF([test "x$have_lapack_funct" != "xyes"],
       [have_lapack_funct=yes])
 
 AC_CONFIG_FILES([Makefile
-                 src/state_generator/Makefile
-                 src/dipfile_generator/Makefile])
+                 src/generators/Makefile])
 AC_OUTPUT
 

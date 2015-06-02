@@ -142,18 +142,24 @@ program gen_fcc_state
         print'(X,A,/)', "OK"
     endif
 
-    if (error == 0) then
-        print*, "** Successful end **"
-    else
-        print*, "** Finish with erors **"
-    endif
-
     !We profit to generate a first input template
+    print*, "Writting input template: 'fcc_template.inp'..."
     open(O_FCI,file="fcc_template.inp")
     DE = 2.d0
     T  = 1.d-3 
     call prepare_fccinput(O_FCI,Nat,Nvib,Mass,DE,T,error)
     close(O_FCI)
+    if (error /= 0) then
+        print*, "Error writting input template"
+        stop
+    else
+        print'(X,A,/)', "OK"
+    endif
+
+    print*, "** Successful end **"
+
+    !Deallocate
+    deallocate(X,Y,Z,Mass,Hlt,Freq,L)
 
     stop
 

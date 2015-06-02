@@ -14,13 +14,21 @@ program gen_fcc_dipfile
     !
     !===========================================================================
 
+    use constants
+    use line_preprocess
+    use fcc_basics
+    use fcc_io
+
     !Relevant data
     integer :: Nat
     character(len=250) :: jobname
     character(len=20)  :: jobtype,method,basis
     real(8),dimension(1:3) :: Dip
     real(8),dimension(:),allocatable :: DipD
-    logical :: derivatives
+    logical :: derivatives=.true.
+    !Default states are taken if =-1
+    integer :: Si=-1, &
+               Sf=-1
 
     !Auxiliars
     integer :: N
@@ -35,17 +43,19 @@ program gen_fcc_dipfile
     integer :: j,k, jj
 
     !I/O
-    character(len=100) :: inpfile, out_eldip, out_magdip
-    character(len=5)   :: ft
+    character(len=100) :: inpfile='input.log', &
+                          out_eldip='default', &
+                          out_magdip='default'
+    character(len=10)  :: ft='guess'
     integer :: ios
     integer :: I_INP=10,&
                O_DIP =20
 
     ! Read options
-    call parse_input(inpfile,ft,outfile)
+    call parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf)
 
     !Open input file
-    open(I_INP,file=inpfile,iostat=ios)
+    open(I_INP,file=inpfile,status="old",iostat=ios)
     if (ios /= 0) then
         print*, "Error opening "//trim(adjustl(inpfile))
         stop
@@ -60,14 +70,21 @@ program gen_fcc_dipfile
     call generic_natoms_reader(I_INP,ft,Nat,error)
 
     !Get eldip
-    call generic_eldip_reader(I_INP,ft,iGS,iES,Dip,error)
+    print*, "Reading transition electric dipole moment..."
     if (derivatives) then
         !Allocate output array
-        allocate(DipD(1:3*3*Nat)
-        call generic_eldipDer_reader(I_INP,ft,iGS,iES,Nat,DipD,error)
+        allocate(DipD(1:3*3*Nat))
+    endif
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",Dip,DipD,error)
+    if (error /= 0) then
+        print*, "Error reading input file"
+        stop
+    else
+        print'(X,A,/)', "OK"
     endif
 
     !WRITE ELDIP FILE
+    print*, "Writting transition electric dipole file..."
     open(O_DIP,file=out_eldip,status="replace")
 
     !One should replace one of these by that at the other state geom
@@ -77,22 +94,34 @@ program gen_fcc_dipfile
     if (derivatives) then
         do j=1,3*Nat
             jj=j*3-2
-            write(O_DIP,'(3(X,E18.9))') DipD(jj:jj+2)
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
         enddo
     endif
     close(O_DIP)
-
-    if (.not.get_magdip) then
+    if (ios /= 0) then
+        print*, "Error writting eldip file"
         stop
-     endif
+    else
+        print'(X,A,/)', "OK"
+    endif
+    
+    !============================================================
+    !Rewind input file
+    rewind(I_INP)
+    !============================================================
 
     !Get magdip
-    call generic_magdip_reader(I_INP,ft,iGS,iES,Dip,error)
-    if (derivatives) then
-        call generic_magdipDer_reader(I_INP,ft,iGS,iES,Nat,DipD,error)
+    print*, "Reading transition magnetic dipole moment..."
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",Dip,DipD,error)
+    if (error /= 0) then
+        print*, "Error reading input file"
+        stop
+    else
+        print'(X,A,/)', "OK"
     endif
 
-    !WRITE ELDIP FILE
+    !WRITE MAGDIP FILE
+    print*, "Writting transition magnetic dipole file..."
     open(O_DIP,file=out_magdip,status="replace")
 
     !One should replace one of these by that at the other state geom
@@ -102,20 +131,30 @@ program gen_fcc_dipfile
     if (derivatives) then
         do j=1,3*Nat
             jj=j*3-2
-            write(O_DIP,'(3(X,E18.9))') DipD(jj:jj+2)
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
         enddo
     endif
     close(O_DIP)
+    if (ios /= 0) then
+        print*, "Error writting eldip file"
+        stop
+    else
+        print'(X,A,/)', "OK"
+    endif
 
-    deallocate(DipD)
+    if (derivatives) deallocate(DipD)
+
+    print*, "** Successful end **"
 
     stop
 
     contains
 
-    subroutine parse_input(inpfile,ft,out_eldip,out_magdip)
+    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf)
 
         character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip
+        logical,intent(inout)          :: derivatives
+        integer,intent(inout)          :: Si, Sf
 
         ! Local
         logical :: argument_retrieved,  &
@@ -144,6 +183,21 @@ program gen_fcc_dipfile
 
                 case ("-om") 
                     call getarg(i+1, out_magdip)
+                    argument_retrieved=.true.
+
+                case ("der")
+                    derivatives=.true.
+                case ("noder")
+                    derivatives=.false.
+
+                case ("-Si") 
+                    call getarg(i+1, arg)
+                    read(arg,*) Si 
+                    argument_retrieved=.true.
+
+                case ("-Sf") 
+                    call getarg(i+1, arg)
+                    read(arg,*) Sf
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -186,7 +240,7 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) ' -ft      filetype         '//trim(adjustl(ft))
         write(0,'(A)'  ) ' -oe      out_eldip        '//trim(adjustl(out_eldip))
         write(0,'(A)'  ) ' -om      out_magdip       '//trim(adjustl(out_magdip))
-        write(0,'(A)'  ) ' -[no]der get derivatives  '
+        write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives
         write(0,'(A)'  ) ' -h       print help  '
         call supported_filetype_list('trdip')
 

@@ -15,6 +15,7 @@ module psi4_manage
     !===================
     use constants
     use line_preprocess
+    use alerts
     implicit none
 
     contains
@@ -310,6 +311,128 @@ module psi4_manage
 
     end subroutine read_psi4_hess
 
+    subroutine read_psi4_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        logical,intent(inout)           :: derivatives
+        character(len=*),intent(in)    :: dip_type
+        real(8),dimension(:),intent(out):: Dip 
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        character(len=240)               :: line=""
+        integer                          :: N
+        integer                          :: Sup, Sdw
+        character(len=41)                :: from_section, to_section
+        character(len=3)                 :: auxchar
+        !I/O
+        integer :: IOstatus
+        !Other local
+        integer                          :: i,j,k, ii, jj
+        !FCHK specific (to be move to the new sr)
+        integer :: Ntarget, Nes, Nat
+
+        ! Number of excited states computed
+        ! Search section
+        ii = 0
+        error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( INDEX(line,"Number of States") /= 0 ) then
+                    exit
+                endif
+        enddo
+        call split_line(line,"=",auxchar,line)
+        read(line,*) Nes
+        !The first state should be the GS, so:
+        Nes = Nes-1
+        
+        !Manage defaults and requests
+        if (Si == -1) Si = 0
+        if (Sf == -1) Sf = 1
+        if (Si > Nes .or. Sf > Nes) then
+            call alert_msg("warning","Requested state not computed in this Psi4 run.")
+            error_flag=1
+            return
+        endif
+        !To locate the data in file, we need the states ordered by value
+        Sup = max(Si,Sf)
+        Sdw = min(Si,Sf)
+        
+        !Get transition dipole (length gauge)
+        ! Set the line to find
+        if (Sdw /= 0) then
+            write(auxchar,'(I3)') Sdw
+        else
+            write(auxchar,'(I3)') Sup
+        endif
+        from_section="Length-Gauge Rotational Strength for "//trim(adjustl(auxchar))
+        if (Sdw /= 0) then
+            write(auxchar,'(I3)') Sup
+            to_section=" to "//trim(adjustl(auxchar))
+        else
+            to_section=""
+        endif
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( INDEX(line,trim(adjustl(from_section))) /= 0 .and. &
+                     INDEX(line,trim(adjustl(to_section)))   /= 0) then
+                    exit
+                endif
+        enddo
+
+        !Reported values are:
+        !1 (labels:    X Y Z). Read it now:
+        !2 <p|mu_e|q>   <= eldip  for abs (note)
+        !3 <q|mu_m|p>   <= magdip for emi (note)
+        !4 <p|mu_m|q>*  <= magdip for abs (note)
+        !5 <q|mu_e|p>*  <= eldip  for emi (note)
+        ! note: <> and <>* should be identical (Hermitian character),
+        ! but they are not within CC truncation
+        !
+        !Set line number to retrieve
+        if      (Sf > Si .and. dip_type == "eldip") then
+            k=2
+        else if (Sf > Si .and. dip_type == "magdip") then
+            k=4
+        else if (Sf < Si .and. dip_type == "eldip") then
+            k=5
+        else if (Sf > Si .and. dip_type == "magdip") then
+            k=3
+        endif
+
+        !Read trdip
+        print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
+        do i=1,k
+            read(unt,'(A)') line
+        enddo
+        read(line,*) auxchar, Dip(1:3)
+        if (dip_type == "magdip") Dip(1:3) = Dip(1:3)/(-2.d0)
+
+        return
+
+    end subroutine read_psi4_dip
 
 
 end module psi4_manage

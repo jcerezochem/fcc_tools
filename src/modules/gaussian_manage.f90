@@ -572,7 +572,7 @@ module gaussian_manage
                 ! Two possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
-                    print*, "Section '"//trim(adjustl(section))//"' not present in the FCHK file."
+                    call alert_msg("warning","Section '"//trim(adjustl(section))//"' not present in the FCHK file.")
                     error_flag=1
                     rewind(unt)
                     return
@@ -611,6 +611,130 @@ module gaussian_manage
         return
 
     end subroutine read_fchk
+
+    subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read transition electric or magnetic dipole moments
+        !  from G09 fchk files (corresponding to a ES calculation)
+        !  The information is in "ETran ..." sections:
+        !  *"ETran scalars" contains:
+        !    <number of ES> <?> <?> <?> <target state> <?>
+        !     0 0 0...
+        !  *"ETran state values"  contains
+        !    ·First the properties of each excited state (up to Nes):
+        !    1,  2   , 3  , 4  , 5     , 6     , 7     , 8    , 9    , 10   , 11 , 12 , 13 , 14 , 15 , 16 ...
+        !    E, {muNx,muNy,muNz,muvelNx,muvelNy,muvelNz,mmagNx,mmagNy,mmagNz,unkX,unkY,unkZ,unkX,unkY,unkZ}_N=1,Nes
+        !    ·Then, the derivates of each property with respect to Cartesian coordiates only for target state
+        !     For each Cartesian coordiate, all derivatives are shown:
+        !     dE/dx1 dmux/dx1 dmuy/dx1 ... unkZ/dx1
+        !     dE/dy1 dmux/dy1 dmuy/dy1 ... unkZ/dy1
+        !     ...
+        !     dE/dzN dmux/dzN dmuy/dzN ... unkZ/dzN
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !========================================================
+
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        logical,intent(inout)           :: derivatives
+        character(len=*),intent(in)     :: dip_type
+        real(8),dimension(:),intent(out):: Dip 
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !Other local
+        integer                          :: i,j,k, jj
+        !FCHK specific (to be move to the new sr)
+        integer :: Ntarget, Nes, Nat
+
+        ! Number of excited states computed
+        call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_flag)
+        if (error_flag == 0) then
+            Nes = IA(1)
+            Ntarget = IA(5)
+            deallocate(IA)
+        else
+            return
+        endif
+        
+        !Manage defaults and requests
+        if (Si == -1) Si = 0
+        if (Sf == -1) Sf = Ntarget
+        if (Si /= 0) then
+            call alert_msg("warning","TD-DFT calcs in G09 only provide trdip from GS. Setting Si=0")
+            Si=0
+            error_flag=-1
+        endif
+        if (Sf /= Ntarget) then
+            call alert_msg("note","Retrieving trdip from a state different from the target. Derivatives not available.")
+            derivatives=.false.
+        endif
+        
+        ! Read ETran state values
+        call read_fchk(unt,"ETran state values",data_type,N,A,IA,error_flag)
+        if (error_flag /= 0) then
+            print*, "ERROR: 'ETran state values' section not found"
+            stop
+        endif
+        
+        print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
+        if (adjustl(dip_type) == "eldip") then
+            j=(Ntarget-1)*16 + 2
+            Dip(1:3) = A(j:j+2)
+        else if (adjustl(dip_type) == "magdip") then
+            j=(Ntarget-1)*16 + 8
+            Dip(1:3) = A(j:j+2)/(-2.d0)
+        endif
+
+        if (derivatives) then
+            !Take Nat from allocated size of DipD
+            Nat = size(DipD)/9
+            if (N /= Nes*16+48+3*Nat*16) then
+                call alert_msg("warning","Dipole derivatives requested but not found in fchk")
+                return
+            else
+                print'(2X,A)', "Getting dipole derivatives"
+            endif
+           
+            !Note the order is not the same as needed for FCclasses
+            ! FCHK: dmux/dx1, dmuy/dx1, dmuz/dx1,  dmux/dy1, dmuy/dy1, dmuz/dy1,  ...
+            ! FCC : dmux/dx1, dmux/dy1, dmux/dz1,  dmuy/dx1, dmuy/dy1, dmuy/dz1,  ...
+            do j=1,3*Nat
+                k = 16*Nes+48 + 16*(j-1)
+                jj = j*3-2
+                if (adjustl(dip_type) == "eldip") then
+                    DipD(jj:jj+2) = A(k+2:k+4)
+                else if (adjustl(dip_type) == "magdip") then
+                    !Note that MagDip should be divided by -2 (see FCclasses manual)
+                    DipD(jj:jj+2) = A(k+8:k+10)/(-2.d0)
+                endif
+        
+                if (DipD(jj  ) == 0.d0 .and.&
+                    DipD(jj+1) == 0.d0 .and.&
+                    DipD(jj+2) == 0.d0) then
+                    !Symmetry is used
+                    call alert_msg("warning","Looks like the computation was done with symmetry. "//&
+                                             "If so, dipole ders. are not reliable!")
+                endif
+            enddo
+        endif
+        deallocate(A)
+
+        return
+
+    end subroutine read_gaussfchk_dip
 
 
 end module gaussian_manage

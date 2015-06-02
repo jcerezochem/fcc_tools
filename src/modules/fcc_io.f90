@@ -222,6 +222,60 @@ module fcc_io
     end subroutine generic_Hessian_reader
 
 
+    subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic dipole reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (io )  int /scalar   Number of atoms
+        ! X,Y,Z   (out)  real/vectors  Coordinates
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(inout)           :: Si, Sf
+        logical,intent(inout)           :: derivatives
+        character(len=*),intent(in)     :: dip_type
+        real(8),dimension(:),intent(out):: Dip 
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+
+        error_flag = 0
+        select case (adjustl(filetype))
+            case("log")
+             call alert_msg("warning","Not supported")
+            case("fchk")
+             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+            case("gms")
+             call alert_msg("warning","Not supported")
+            case("psi4")
+             call read_psi4_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+             !Derivatives not Currently available
+             derivatives=.false.
+            case("molcas")
+             call alert_msg("warning","Not supported")
+            case("molpro")
+             call alert_msg("warning","Not supported")
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('freq')
+             error_flag = 99
+         end select
+
+         return
+
+    end subroutine generic_dip_reader
+
+
     subroutine supported_filetype_list(properties)
 
         !List the supported filetypes for a given 
@@ -244,6 +298,7 @@ module fcc_io
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
             write(0,*)     "   fchk   : g09 fchk"
+            write(0,*)     "   psi4   : Psi4 out"
             write(0,*)     ""  
             write(0,'(A)') " Derivatives:"
             write(0,*)     "   fchk   : g09 fchk"      
