@@ -84,7 +84,7 @@ echo "****************************"
 echo "TEST $i: PSI4 "
 echo "****************************"
 echo "gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 Sf 2"
-../src/generators/gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 -Sf 2 -ft psi4
+../src/generators/gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 -Sf 2 -ft psi4 -noder
 echo ""
 
 cd ..

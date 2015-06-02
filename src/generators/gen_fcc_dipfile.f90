@@ -23,6 +23,7 @@ program gen_fcc_dipfile
     integer :: Nat
     character(len=250) :: jobname
     character(len=20)  :: jobtype,method,basis
+    real(8)                :: dx = 1.d-3 !\AA (as in D2Num in G09)
     real(8),dimension(1:3) :: Dip
     real(8),dimension(:),allocatable :: DipD
     logical :: derivatives=.true.
@@ -75,7 +76,7 @@ program gen_fcc_dipfile
         !Allocate output array
         allocate(DipD(1:3*3*Nat))
     endif
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",Dip,DipD,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,error)
     if (error /= 0) then
         print*, "Error reading input file"
         stop
@@ -112,7 +113,7 @@ program gen_fcc_dipfile
 
     !Get magdip
     print*, "Reading transition magnetic dipole moment..."
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",Dip,DipD,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,error)
     if (error /= 0) then
         print*, "Error reading input file"
         stop
@@ -185,9 +186,9 @@ program gen_fcc_dipfile
                     call getarg(i+1, out_magdip)
                     argument_retrieved=.true.
 
-                case ("der")
+                case ("-der")
                     derivatives=.true.
-                case ("noder")
+                case ("-noder")
                     derivatives=.false.
 
                 case ("-Si") 

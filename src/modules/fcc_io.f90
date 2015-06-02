@@ -222,7 +222,7 @@ module fcc_io
     end subroutine generic_Hessian_reader
 
 
-    subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+    subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,dx,Dip,DipD,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -245,6 +245,7 @@ module fcc_io
         integer,intent(inout)           :: Si, Sf
         logical,intent(inout)           :: derivatives
         character(len=*),intent(in)     :: dip_type
+        real(8),intent(in)              :: dx !Only for numerical diffs
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
         integer,intent(out),optional    :: error_flag
@@ -258,9 +259,9 @@ module fcc_io
             case("gms")
              call alert_msg("warning","Not supported")
             case("psi4")
-             call read_psi4_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
-             !Derivatives not Currently available
-             derivatives=.false.
+             call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+             if (derivatives) &
+              call read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
             case("molcas")
              call alert_msg("warning","Not supported")
             case("molpro")

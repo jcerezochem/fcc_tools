@@ -311,14 +311,37 @@ module psi4_manage
 
     end subroutine read_psi4_hess
 
-    subroutine read_psi4_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+    subroutine read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read transition electric or magnetic dipole moments
+        !  from Psi4 out files (corresponding to a EOM-CC calculation)
+        !  The information below "Length-Gauge Rotational Strength for" sections:
+        !  which can be:
+        !   * From GS to ES
+        !     "Length-Gauge Rotational Strength for <ES> <symm>"
+        !   * From ES1 to ES2
+        !     "Length-Gauge Rotational Strength for <ES1> <symm> to <ES2> <symm>"
+        !  Each section contains X Y Z components for:
+        !   <p|mu_e|q>   
+        !   <q|mu_m|p>   
+        !   <p|mu_m|q>*  
+        !   <q|mu_e|p>*  
+        ! note: <> and <>* should be identical (Hermitian character),
+        ! but they are not within CC truncation
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !  Tested fot CC code only
+        !========================================================
 
         integer,intent(in)              :: unt
         integer,intent(inout)           :: Si, Sf
-        logical,intent(inout)           :: derivatives
         character(len=*),intent(in)    :: dip_type
         real(8),dimension(:),intent(out):: Dip 
-        real(8),dimension(:),intent(out):: DipD
         integer,intent(out),optional    :: error_flag
 
         !Local
@@ -433,6 +456,64 @@ module psi4_manage
         return
 
     end subroutine read_psi4_dip
+
+
+    subroutine read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Compute dipole derivatives from a file containing the
+        !  steps for numerical differenciation (3-points fit):
+        !  EQ-BWD   EQ    EQ+FWD
+        !  der = [mu(EQ+FWD)-mu(EQ+BWD)]/2*dx
+        !  The step for num der is taken from sr arg "dx"
+        !  Data are extracted with read_psi4_dip, so that routine
+        !  must not rewind
+        !
+        ! Notes
+        !  Requirement of the input file:
+        !  The input file should contain the backward and forward steps
+        !  for numerical diferenciation for all Cartesian coordinates.
+        !  The reader tip should be place so that the first element to
+        !  get is the BWD step for coordinate 1 (NOT the equilibrium).
+        !  This is achieved if the eq trdip is read before (in case it
+        !  is contained in the file) 
+        !
+        !========================================================
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        character(len=*),intent(in)     :: dip_type
+        real(8),intent(in)              :: dx
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        real(8),dimension(1:3)           :: Dip_bwd, Dip_fwd
+        integer                          :: Nat
+        !Other local
+        integer                          :: i,j,k, ii, jj
+
+        !Take Nat from DipD allocation
+        Nat = size(DipD)/9
+
+        !Loop over all Cartesian
+        do i=1,3*Nat
+            j = 3*(i-1)
+            !Loop over bwd and fwd steps
+            call read_psi4_dip(unt,Si,Sf,dip_type,Dip_bwd,error_flag)
+            call read_psi4_dip(unt,Si,Sf,dip_type,Dip_fwd,error_flag)
+            DipD(j+1) = (Dip_fwd(1)-Dip_bwd(1))/2.d0*dx
+            DipD(j+2) = (Dip_fwd(2)-Dip_bwd(2))/2.d0*dx
+            DipD(j+3) = (Dip_fwd(3)-Dip_bwd(3))/2.d0*dx
+        enddo
+
+        return
+
+    end subroutine read_psi4_dipders
 
 
 end module psi4_manage
