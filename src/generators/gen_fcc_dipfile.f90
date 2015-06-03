@@ -23,7 +23,7 @@ program gen_fcc_dipfile
     integer :: Nat
     character(len=250) :: jobname
     character(len=20)  :: jobtype,method,basis
-    real(8)                :: dx = 1.d-3 !\AA (as in D2Num in G09)
+    real(8)                :: dx = -1.d0 
     real(8),dimension(1:3) :: Dip
     real(8),dimension(:),allocatable :: DipD
     logical :: derivatives=.true.
@@ -233,12 +233,17 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) 'from the output of a QM program'
 
         write(0,'(/,A)') 'SYNOPSIS'
-        write(0,'(A)'  ) 'gen_fcc_dipfile -i input_file [-ft filetype] [-oe out_eldip] [-om out_magdip] [-h]'
+        write(0,'(A)'  ) 'gen_fcc_dipfile -i input_file [-ft filetype] [-oe out_eldip]'//&
+                         ' [-om out_magdip] [-Si <initial state>] [-Sf <final state>] [-noder] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
         write(0,'(A)'  ) 'Flag      Description      Current Value'
         write(0,'(A)'  ) ' -i       input_file       '//trim(adjustl(inpfile))
         write(0,'(A)'  ) ' -ft      filetype         '//trim(adjustl(ft))
+        write(0,'(A,I0)')' -Si      initial state    ',Si
+        write(0,'(A)')   '          (-1=default)     '
+        write(0,'(A,I0)')' -Sf      final state      ',Sf
+        write(0,'(A)')   '          (-1=default)     '
         write(0,'(A)'  ) ' -oe      out_eldip        '//trim(adjustl(out_eldip))
         write(0,'(A)'  ) ' -om      out_magdip       '//trim(adjustl(out_magdip))
         write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives

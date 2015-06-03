@@ -245,27 +245,48 @@ module fcc_io
         integer,intent(inout)           :: Si, Sf
         logical,intent(inout)           :: derivatives
         character(len=*),intent(in)     :: dip_type
-        real(8),intent(in)              :: dx !Only for numerical diffs
+        real(8),intent(inout)           :: dx !Only for numerical diffs
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
         integer,intent(out),optional    :: error_flag
+        !Local
+        integer :: S
 
         error_flag = 0
         select case (adjustl(filetype))
             case("log")
-             call alert_msg("warning","Not supported")
+             !Get target state
+             call read_gausslog_targestate(unt,S,error_flag)
+             if (Si == -1) Si = 0
+             if (Sf == -1) Sf = S
+             !Need to rewind to read the first dip
+             rewind(unt)
+             !Now read dip
+             call read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+             if (derivatives) then
+                 print*, " Computing derivatives.."
+                 call read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+                 if (error_flag /= 0) derivatives=.false.
+                 !Done this, we can safely reset error_flag to 0
+                 error_flag = 0
+             endif
             case("fchk")
              call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
             case("gms")
-             call alert_msg("warning","Not supported")
+             call alert_msg("fatal","Filetype not supported")
             case("psi4")
              call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_flag)
-             if (derivatives) &
-              call read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+             if (derivatives) then
+                 print*, " Computing derivatives.."
+                 call read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+                 if (error_flag /= 0) derivatives=.false.
+                 !Done this, we can safely reset error_flag to 0
+                 error_flag = 0
+             endif
             case("molcas")
-             call alert_msg("warning","Not supported")
+             call alert_msg("fatal","Filetype not supported")
             case("molpro")
-             call alert_msg("warning","Not supported")
+             call alert_msg("fatal","Filetype not supported")
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -298,11 +319,14 @@ module fcc_io
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
+            write(0,*)     "   log    : g09 log"
             write(0,*)     "   fchk   : g09 fchk"
             write(0,*)     "   psi4   : Psi4 out"
             write(0,*)     ""  
             write(0,'(A)') " Derivatives:"
-            write(0,*)     "   fchk   : g09 fchk"      
+            write(0,*)     "   log    : g09 log  (freq)"
+            write(0,*)     "   fchk   : g09 fchk (freq)"   
+            write(0,*)     "   psi4   : Psi4 out (proper input)"   
 
         endif
 

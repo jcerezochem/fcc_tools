@@ -736,5 +736,291 @@ module gaussian_manage
 
     end subroutine read_gaussfchk_dip
 
+    subroutine read_gausslog_targestate(unt,S,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read transition electric or magnetic dipole moments
+        !  from G09 log files (corresponding to a TDDFT calculation)
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !========================================================
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: S
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        character(len=240)               :: line=""
+        character(len=3)                 :: auxchar
+        !I/O
+        integer :: IOstatus
+        !Other local
+        integer                          :: i,j,k, ii, jj
+
+        ! Number of excited states computed
+        ! Search section
+        ii = 0
+        error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found a Excited State section
+                if ( INDEX(line,"Excited State ") /= 0 ) then
+                    call split_line(line,":",line,auxchar)
+                    read(line,*) auxchar, auxchar, S
+                endif
+                ! 3) That was the target state
+                if (INDEX(line,"This state for optimization and/or second-order correction")/=0) then
+                    exit
+                endif
+        enddo
+
+        return
+
+    end subroutine read_gausslog_targestate
+
+    subroutine read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read transition electric or magnetic dipole moments
+        !  from G09 log files (corresponding to a TDDFT calculation)
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !========================================================
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        character(len=*),intent(in)     :: dip_type
+        real(8),dimension(:),intent(out):: Dip 
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        character(len=240)               :: line=""
+        integer                          :: N
+        integer                          :: Sup, Sdw
+        character(len=41)                :: section
+        character(len=3)                 :: auxchar
+        !I/O
+        integer :: IOstatus
+        !Other local
+        integer                          :: i,j,k, ii, jj
+        !FCHK specific (to be move to the new sr)
+        integer :: Nes, Nat
+
+        
+        !Manage defaults and requests
+        if (Si == -1) Si = 0
+        if (Sf == -1) Sf = 1
+        !To locate the data in file, we need the states ordered by value
+        Sup = max(Si,Sf)
+        Sdw = min(Si,Sf)
+        
+        if (dip_type == "eldip") then
+            section="Ground to excited state transition electric dipole moments (Au):"
+        else if (dip_type == "magdip") then
+            section="Ground to excited state transition magnetic dipole moments (Au):"
+        endif
+
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( INDEX(line,section) /= 0) then
+                    exit
+                endif
+        enddo
+
+        !Reported values are:
+        !1 (labels:    X Y Z Dip. S. Osc.)
+        !2 State1 
+        !3 State2
+        ! ...
+        !
+        !Set line number to retrieve
+        k = Sup+1
+
+        !Read trdip
+        print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
+        do i=1,k
+            read(unt,'(A)') line
+        enddo
+        read(line,*) i, Dip(1:3)
+        if (dip_type == "magdip") Dip(1:3) = Dip(1:3)/(-2.d0)
+
+        return
+
+    end subroutine read_gausslog_dip
+
+    subroutine get_d2num(unt,iat,ixyz,istep,error_flag)
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: iat,ixyz,istep
+        integer,intent(out) :: error_flag
+
+        !Local
+        !Variables for reading
+        character(len=240)               :: line=""
+        character(len=3)                 :: auxchar
+        !I/O
+        integer :: IOstatus
+        !Other local
+        integer                          :: i,j,k, ii, jj
+
+        ! Number of excited states computed
+        ! Search section
+        ii = 0
+        error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    return
+                endif
+                ! 3) Found
+                if (INDEX(line,"D2Numr:")/=0) then
+                    exit
+                endif
+        enddo
+
+        !Split line to get data
+        ! First remove trailing dot
+        call split_line(line,".",line,auxchar)
+        ! Get IAtom
+        call split_line(line,"=",auxchar,line)
+        read(line,*,iostat=IOstatus) iat
+        if (IOstatus /= 0) then
+            error_flag=1
+            call alert_msg("warnign","Error reading derivatives")
+            return   
+        endif
+        ! Get IXYZ
+        call split_line(line,"=",auxchar,line)
+        read(line,*) ixyz
+        ! Get IStep
+        call split_line(line,"=",auxchar,line)  
+        read(line,*) istep
+
+        return         
+
+    end subroutine get_d2num
+
+    subroutine read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Compute dipole derivatives from a file containing the
+        !  steps for numerical differenciation (3-points fit):
+        !  EQ-BWD   EQ    EQ+FWD
+        !  der = [mu(EQ+FWD)-mu(EQ+BWD)]/2*dx
+        !  The step for num der is taken from sr arg "dx"
+        !  Data are extracted with read_gausslog_dip, so that routine
+        !  must not rewind
+        !
+        ! Notes
+        !  Requirement of the input file:
+        !  The input file should contain the backward and forward steps
+        !  for numerical diferenciation for all Cartesian coordinates.
+        !  The reader tip should be place so that the first element to
+        !  get is the BWD step for coordinate 1 (NOT the equilibrium).
+        !  This is achieved if the eq trdip is read before (in case it
+        !  is contained in the file) 
+        !
+        !========================================================
+
+        use constants
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        character(len=*),intent(in)     :: dip_type
+        real(8),intent(inout)           :: dx
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        real(8),dimension(1:3)           :: Dip_bwd, Dip_fwd
+        integer                          :: Nat
+        integer                          :: iat,ixyz,istep
+        !Other local
+        integer                          :: i,j,k, ii, jj
+
+        !Use detault for G09 (in au)
+        if (dx == -1.d0) dx = 1.d-3/BOHRtoANGS
+
+        !Take Nat from DipD allocation
+        Nat = size(DipD)/9
+
+        !Loop over all Cartesian
+        do i=1,Nat
+        do k=1,3
+            j = 3*(3*(i-1)+(k-1))
+            !Loop over bwd and fwd steps
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,error_flag)
+            if (error_flag /= 0) then
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                return
+            endif
+            !Check D2Num
+            call get_d2num(unt,iat,ixyz,istep,error_flag)
+            if (iat /= i .or. ixyz /= k .or. istep /= 1) then
+                error_flag=1
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                return
+            endif
+
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,error_flag)
+            if (error_flag /= 0) then
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                return
+            endif
+            !Check D2Num
+            call get_d2num(unt,iat,ixyz,istep,error_flag)
+            if (iat /= i .or. ixyz /= k .or. istep /= 2) then
+                error_flag=1
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                return
+            endif
+
+            if (error_flag /= 0) return
+
+            DipD(j+1) = (Dip_fwd(1)-Dip_bwd(1))/2.d0/dx
+            DipD(j+2) = (Dip_fwd(2)-Dip_bwd(2))/2.d0/dx
+            DipD(j+3) = (Dip_fwd(3)-Dip_bwd(3))/2.d0/dx
+        enddo
+        enddo
+
+        return
+
+    end subroutine read_gausslog_dipders
+
 
 end module gaussian_manage

@@ -486,7 +486,7 @@ module psi4_manage
         integer,intent(in)              :: unt
         integer,intent(inout)           :: Si, Sf
         character(len=*),intent(in)     :: dip_type
-        real(8),intent(in)              :: dx
+        real(8),intent(inout)           :: dx
         real(8),dimension(:),intent(out):: DipD
         integer,intent(out),optional    :: error_flag
 
@@ -497,6 +497,9 @@ module psi4_manage
         !Other local
         integer                          :: i,j,k, ii, jj
 
+        !Use detault for Psi4 (in au)
+        if (dx == -1.d0) dx = 5.d-3
+
         !Take Nat from DipD allocation
         Nat = size(DipD)/9
 
@@ -505,10 +508,19 @@ module psi4_manage
             j = 3*(i-1)
             !Loop over bwd and fwd steps
             call read_psi4_dip(unt,Si,Sf,dip_type,Dip_bwd,error_flag)
+            if (error_flag /= 0) then
+                call alert_msg("warning","Derivatives requested, but cannot be computed from Psi4 output")
+                return
+            endif
             call read_psi4_dip(unt,Si,Sf,dip_type,Dip_fwd,error_flag)
-            DipD(j+1) = (Dip_fwd(1)-Dip_bwd(1))/2.d0*dx
-            DipD(j+2) = (Dip_fwd(2)-Dip_bwd(2))/2.d0*dx
-            DipD(j+3) = (Dip_fwd(3)-Dip_bwd(3))/2.d0*dx
+            if (error_flag /= 0) then
+                call alert_msg("warning","Derivatives requested, but cannot be computed from Psi4 output")
+                return
+            endif
+            if (error_flag /= 0) return
+            DipD(j+1) = (Dip_fwd(1)-Dip_bwd(1))/2.d0/dx
+            DipD(j+2) = (Dip_fwd(2)-Dip_bwd(2))/2.d0/dx
+            DipD(j+3) = (Dip_fwd(3)-Dip_bwd(3))/2.d0/dx
         enddo
 
         return

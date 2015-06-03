@@ -76,15 +76,22 @@ echo "****************************"
 (( i++ ))
 echo "TEST $i: GAUSSIAN (FCHK) "
 echo "****************************"
-echo "gen_fcc_dipfile -i carb_root03_cut.fchk"
-../src/generators/gen_fcc_dipfile -i carb_root03_cut.fchk
+echo "gen_fcc_dipfile -i azabenz-ccl4-s2-neq-fr.fchk"
+../src/generators/gen_fcc_dipfile -i azabenz-ccl4-s2-neq-fr.fchk
+echo ""
+echo "****************************"
+(( i++ ))
+echo "TEST $i: GAUSSIAN (FCHK) "
+echo "****************************"
+echo "gen_fcc_dipfile -i azabenz-ccl4-s2-neq-fr.log"
+../src/generators/gen_fcc_dipfile -i azabenz-ccl4-s2-neq-fr.log
 echo ""
 echo "****************************"
 (( i++ ))
 echo "TEST $i: PSI4 "
 echo "****************************"
-echo "gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 Sf 2"
-../src/generators/gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 -Sf 2 -ft psi4 -noder
+echo "gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 -Sf 2 -noder"
+../src/generators/gen_fcc_dipfile -i s-methyloxirane_gs_aug.out -ft psi4 -Si 1 -Sf 2 -noder
 echo ""
 
 cd ..

@@ -12,7 +12,7 @@ To compile, just type:
 ./configure [--with-mkl] [--prefix INSTALL_PATH]
 make
 
-The binary will be generated in src/state_generators
+The binary will be generated in src/generators
 
 To test the program, type:
 
@@ -28,11 +28,13 @@ make install
 =============
 2) USAGE
 ============
-Provided read_state_gms is in your path, type
+Provided gen_fcc_state and gen_fcc_dipfile are in your path, type
 
 gen_fcc_state -i input-file [-ft filetype] [-o state_file] [-h]
 
+gen_fcc_state -i input-file [-ft filetype] [-o state_file] [-Si <initial state>] [-Sf <final state>] [-noders] [-h]
+
 To know more about the supported filetypes, consult the help statements in:
 gen_fcc_state -h
-
+gen_fcc_dipfile -h
 
