@@ -162,136 +162,59 @@ module line_preprocess
 
     end subroutine read_list_int
 
-    subroutine set_upper_case(char)
+    subroutine set_upper_case(letter)
 
-        character(len=1),intent(inout) :: char
+        character(len=1),intent(inout) :: letter
 
-        select case (char)
-            case("a")
-            char="A"
-            case("b")
-            char="B"
-            case("c")
-            char="C"
-            case("d")
-            char="D"
-            case("e")
-            char="E"
-            case("f")
-            char="F"
-            case("g")
-            char="G"
-            case("h")
-            char="H"
-            case("i")
-            char="I"
-            case("j")
-            char="J"
-            case("k")
-            char="K"
-            case("l")
-            char="L"
-            case("m")
-            char="M"
-            case("n")
-            char="N"
-            case("o")
-            char="O"
-            case("p")
-            char="P"
-            case("q")
-            char="Q"
-            case("r")
-            char="R"
-            case("s")
-            char="S"
-            case("t")
-            char="T"
-            case("u")
-            char="U"
-            case("v")
-            char="V"
-            case("w")
-            char="W"
-            case("x")
-            char="X"
-            case("y")
-            char="Y"
-            case("z")
-            char="Z"
-            case default
-            char=char
-        end select
+        if ( (ichar(letter) >= 97) .and. &
+             (ichar(letter) <= 122) ) then
+            letter = char(ichar(letter)-32)
+        endif
         
         return
 
     end subroutine set_upper_case
 
-    subroutine set_lower_case(char)
+    subroutine set_lower_case(letter)
 
-        character(len=1),intent(inout) :: char
+        character(len=1),intent(inout) :: letter
 
-        select case (char)
-            case("A")
-            char="a"
-            case("B")
-            char="b"
-            case("C")
-            char="c"
-            case("D")
-            char="d"
-            case("E")
-            char="e"
-            case("F")
-            char="f"
-            case("G")
-            char="g"
-            case("H")
-            char="h"
-            case("I")
-            char="i"
-            case("J")
-            char="j"
-            case("K")
-            char="k"
-            case("L")
-            char="l"
-            case("M")
-            char="m"
-            case("N")
-            char="n"
-            case("O")
-            char="o"
-            case("P")
-            char="p"
-            case("Q")
-            char="q"
-            case("R")
-            char="r"
-            case("S")
-            char="s"
-            case("T")
-            char="t"
-            case("U")
-            char="u"
-            case("V")
-            char="v"
-            case("W")
-            char="w"
-            case("X")
-            char="x"
-            case("Y")
-            char="y"
-            case("Z")
-            char="z"
-            case default
-            char=char
-        end select
+        if ( (ichar(letter) >= 65) .and. &
+             (ichar(letter) <= 90) ) then
+            letter = char(ichar(letter)+32)
+        endif
         
         return
 
     end subroutine set_lower_case
 
+    subroutine set_word_lower_case(word)
+
+        character(len=*),intent(inout) :: word
+        !Local
+        integer :: i
+
+        do i=1,len_trim(word)
+            call set_lower_case(word(i:i))
+        enddo
+        
+        return
+
+    end subroutine set_word_lower_case
+
+    subroutine set_word_upper_case(word)
+
+        character(len=*),intent(inout) :: word
+        !Local
+        integer :: i
+
+        do i=1,len_trim(word)
+            call set_upper_case(word(i:i))
+        enddo
+        
+        return
+
+    end subroutine set_word_upper_case
 
     subroutine string2vector(raw_vector,array_vector,n_elem)
 
