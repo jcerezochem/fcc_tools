@@ -1,0 +1,20 @@
+AUTOMAKE_OPTIONS = subdir-objects
+# get *py files to the distribution with "make dist"
+EXTRA_DIST = fcc_analyzer.py version_tag.py
+
+# ADDITIONAL RECURSIVE TARGETS
+# (see http://www.gnu.org/software/automake/manual/html_node/Subdirectories.html)
+# This has been added by first including them in configure.ac through
+# AM_EXTRA_RECURSIVE_TARGETS([target1 target2...])
+
+# Build standalone binary with pyinstaller
+python-standalone-local:
+	pyinstaller fcc_analyzer.py --onefile
+
+python-update-version-local:
+	@echo "  "
+	@echo "Updating version_tag.py..."
+	@echo "Did you first git-commit your changes?"
+	@echo "  "
+	@./get_git_version.sh || echo "Reusing version file"
+

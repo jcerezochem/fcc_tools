@@ -4,6 +4,7 @@
 AC_PREREQ([2.68])
 AC_INIT([fcc_tools],[dev],[fabrizio.santoro@iccom.cnr.it])
 AM_INIT_AUTOMAKE
+AM_EXTRA_RECURSIVE_TARGETS([python-update-version python-standalone])
 AC_LANG([Fortran])
 
 # Checks for programs.
@@ -49,6 +50,7 @@ AS_IF([test "x$have_lapack_funct" != "xyes"],
 
 AC_CONFIG_FILES([Makefile
                  src/generators/Makefile
+                 python/Makefile
                  tests/Makefile])
 AC_OUTPUT
 

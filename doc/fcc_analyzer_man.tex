@@ -1,0 +1,182 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+
+%opening
+\title{\texttt{fcc\_analyzer}: a tool to visualize \fcc\ output}
+\date{\textsc{Version: 0.2}\\\today}
+\author{Javier Cerezo\\\texttt{j.cerezo@pi.iccom.cnr.it}}
+
+% Margins
+\textheight 22.0cm \textwidth 14.7cm \oddsidemargin 1cm
+\evensidemargin 1cm \topmargin -0.25cm
+
+%Packages
+\usepackage{graphics}
+\usepackage[pdftex]{graphicx}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{listings}
+  \usepackage{courier}
+ \lstset{
+         basicstyle=\footnotesize\ttfamily, % Standardschrift
+         %numbers=left,               % Ort der Zeilennummern
+         numberstyle=\tiny,          % Stil der Zeilennummern
+         %stepnumber=2,               % Abstand zwischen den Zeilennummern
+         numbersep=5pt,              % Abstand der Nummern zum Text
+         tabsize=2,                  % Groesse von Tabs
+         extendedchars=true,         %
+         breaklines=true,            % Zeilen werden Umgebrochen
+         keywordstyle=\color{red},
+            frame=b,         
+ %        keywordstyle=[1]\textbf,    % Stil der Keywords
+ %        keywordstyle=[2]\textbf,    %
+ %        keywordstyle=[3]\textbf,    %
+ %        keywordstyle=[4]\textbf,   \sqrt{\sqrt{}} %
+         stringstyle=\color{white}\ttfamily, % Farbe der String
+         showspaces=false,           % Leerzeichen anzeigen ?
+         showtabs=false,             % Tabs anzeigen ?
+         xleftmargin=17pt,
+         framexleftmargin=17pt,
+         framexrightmargin=5pt,
+         framexbottommargin=4pt,
+         %backgroundcolor=\color{lightgray},
+         showstringspaces=false      % Leerzeichen in Strings anzeigen ?        
+ }
+ \lstloadlanguages{% Check Dokumentation for further languages ...
+         %[Visual]Basic
+         %Pascal
+         %C
+         %C++
+         %XML
+         %HTML
+         Java
+ }
+    %\DeclareCaptionFont{blue}{\color{blue}} 
+
+  %\captionsetup[lstlisting]{singlelinecheck=false, labelfont={blue}, textfont={blue}}
+  \usepackage{caption}
+\DeclareCaptionFont{white}{\color{white}}
+\DeclareCaptionFormat{listing}{\colorbox[cmyk]{0.43, 0.35, 0.35,0.01}{\parbox{\textwidth}{\hspace{15pt}#1#2#3}}}
+\captionsetup[lstlisting]{format=listing,labelfont=white,textfont=white, singlelinecheck=false, margin=0pt, font={bf,footnotesize}}
+
+\begin{document}
+\newcommand{\fcc}{$\mathcal{FC}$\textit{classes}}
+
+\maketitle
+
+\section{Description}
+\texttt{fcc\_analyzer} is a python/matplotlib based tool that reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and fort.18 (spectrum), providing a graphical interface to get the assignments of the each individual transition.
+
+\section{Installation}
+No installation is required, but a proper version of the python interpreter along with numpy and matplotlib modules is needed. The program was developed using the following version of each element:
+
+\begin{itemize}
+ \item \texttt{python-2.7.5}\footnote{This program will \textbf{not} work with python-3.}
+ \item \texttt{numpy-1.9.1}
+ \item \texttt{matplotlib-1.4.2}
+\end{itemize}
+
+In most distributions, python-2.7 is already included (and is the default), but the modules numpy and matplotlib should be installed. Both modules are already available from Ubuntu or Fedora repositories (among many others), through either:
+
+\begin{minipage}{0.5\textwidth}
+ \begin{lstlisting}[label=ubuntu_repo,caption=\texttt{matplotlib} from Ubuntu]
+apt-get install python-matplotlib
+ \end{lstlisting}
+\end{minipage}
+\hspace*{0.1cm}
+\begin{minipage}{0.45\textwidth}
+  \begin{lstlisting}[label=fedora_repo,caption=\texttt{matplotlib} from Fedora]
+yum install python-matplotlib
+ \end{lstlisting}
+\end{minipage}
+
+However, these packaged versions might not be recent enough, and the script may behave wrongly\footnote{Attempts with \texttt{matplotlib-1.3.1} work, but with some capabilities disabled.}. Therefore, it is advisable to install them from the python setuptools (\texttt{pip}). Below, the installation steps followed in \textit{fresh}\footnote{Default installation plus the compilers (gcc, gfortran and g++).} Ubuntu 14.04 and Fedora 21 distributions are described.
+
+\begin{minipage}{0.46\textwidth}
+ \begin{lstlisting}[label=ubuntu_install,caption=Installing \texttt{matplotlib} in Ubuntu 14.04.]
+#Install python-pip package
+apt-get install python-pip
+#Install python-dev package
+apt-get install python-dev
+#Install numpy
+pip install numpy
+#freetype and png required
+apt-get install libfreetype6-dev
+#Install matplotlib
+pip install matplotlib
+ \end{lstlisting}
+\end{minipage}
+\hspace*{0.1cm}
+\begin{minipage}{0.46\textwidth}
+  \begin{lstlisting}[label=fedora_install,caption=Installing \texttt{matplotlib} in Fedora 21.]
+#Install python-pip package
+yum install python-pip
+#Install python-devel package
+yum install python-devel
+#Install numpy
+pip install numpy
+#freetype and png required
+yum install freetype-devel
+#Install matplotlib
+pip install numpy
+ \end{lstlisting}
+\end{minipage}
+
+After the above, you should have \texttt{matplotlib-1.4.2} (or above). If not, please, check the documentation of matplotlib, numpy and python in their respective websites. You can use \texttt{pip freeze} to see the version of all python modules installed.
+
+\section{Using \texttt{fcc\_analyzer}}
+After running a TI calculation with \fcc, and on the same folder, type (providing \texttt{fcc\_analyzer.py} is in your \texttt{PATH}):
+\vspace*{0.2cm}
+
+\texttt{fcc\_analyzer.py}
+\vspace*{0.2cm}
+
+\noindent This will open a \texttt{matplotlib} plot with all the transition divided by \textit{classes} (read from fort.21) and the final convoluted spectrum (read from fort.18). The following operations are possible:
+
+\subsection{Identifying transitions}
+\begin{itemize}
+ \item \textbf{Right-mouse click over a transition}: show assignment of the highlighted transition. The rest of the info for this transition on fort.21 is shown on console.
+ \item \textbf{Press \texttt{'+'} or \texttt{'-'}}: browse over the transitions, highlighting the following (\texttt{'+'}) or previous (\texttt{'-'}) one.
+  \item \textbf{Left-mouse click over the legend items (classes)}: hide the class on the plot.
+\end{itemize}
+
+\subsection{Managing labels}
+\begin{itemize}
+ \item \textbf{Left-mouse click over a transition}: place a label over the transition showing the final modes.
+ \item \textbf{Right-mouse click over a label (and hold)}: move the label. The pointer line will follow the label.
+ \item \textbf{Left-mouse click over a label}: erase the label
+\end{itemize}
+
+\subsection{Cleaning}
+\begin{itemize}
+ \item \textbf{Right-mouse click over the plot title}: erase all labels and transition info.
+ \item \textbf{Left-mouse click over a plot title}: erase transition info only.
+\end{itemize}
+
+\subsection{Using matplotlib functionalities\footnote{The availability of these options (and the aspect of the buttons) depends on the backend you are using for matplotlib. The ones shown here correspond to \textit{Qt4Agg} backend, which requires PyQt4 module (in Ubuntu and Fedora, it can be installed from the \texttt{python-qt4-dev} or \texttt{PyQt4-devel} packages.)}}
+\begin{itemize}
+ \item \textbf{Press \texttt{'o'} or zoom button, \includegraphics[width=0.5cm]{figs/butt_zoom.jpg}}: zoom into (left mouse click) or out (right mouse click) a rectangle.
+ \item \textbf{Press \texttt{'p'} or move button, \includegraphics[width=0.5cm]{figs/butt_move.jpg}}: move the spectrum (left mouse click) or zoom (right mouse click).
+ \item \textbf{Press save button, \includegraphics[width=0.5cm]{figs/butt_save.jpg}}: export image.
+ \item \textbf{Press edit button, \includegraphics[width=0.5cm]{figs/butt_edit.jpg}}: customize, among others, the plot title.
+\end{itemize}
+(Note: mouse-click interactions with the plot are not active in zoom or move modes).
+
+\subsection{Export plot to xmgrace}
+\begin{itemize}
+ \item \textbf{Central-mouse click over the plot title}: this will create a xmgrace file called \texttt{fcc\_analyzer.agr}, containing the convoluted and stick spectra and the labels selected in the plot. The axis ranges are kept.
+\end{itemize}
+
+\section{Error messages}
+
+\begin{itemize}
+ \item \texttt{ERROR: Check 0-0 transition}
+
+The program could not read the intensity for the 0-0 transition on fort.21. In old \fcc\ versions, there was a bug on the format for this value on fort.21, and it is not printed if it is over 10. You have to insert it manually below \texttt{SPECTRUM} on the \texttt{0-0 TRANSITION} section of the file. The actual value can be taken from fort.8. 
+\end{itemize}
+
+
+\end{document}
