@@ -112,7 +112,7 @@ module vibrational_analysis
         !  * Rotational coordinates should have m^1/2 factor multiplied, not divided
         ! Furthermore, there additional issues are  
         !  * Confusing  matrix indices. Note that X should be transposed first to use the
-        !    orther they use
+        !    order they use
         D(1:3*Nat,1:3*Nat+6) = 0.d0
         !Traslation
         do i=1,3*Nat,3
@@ -177,7 +177,7 @@ module vibrational_analysis
             ii = ii + 1
             !Initial guess: canonical vector (0,0,...0,1,0,...,0,0)
             D(i-Nrt,ii) = 1.d0
-            !Grand-Schmdit orthogonalization step. (we use H as work array)
+            !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
             H(1:3*Nat,1) = D(1:3*Nat,ii)
             do j=1,ii-1
                 H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
@@ -186,6 +186,7 @@ module vibrational_analysis
             !Check if the new vector was linearly independent, if so, normalize it
             pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
             if (abs(pes) < ZERO) then
+                !If not linear independent, shift columns
                 ii = ii - 1
             else 
                 D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)

@@ -138,11 +138,8 @@ module gaussian_manage
         ! This code is part of MOLECULAR_TOOLS
         !==============================================================
         !Description
-        ! New summary parser, that simply reads in the summary section 
-        ! and passes a piece of it back to the calling program as a string.
-        ! So, there is no need of any special types in the subroutine.
-        ! Only line_preprocess moudule is used.
-        ! The length of the summary lines is assumed to be 240
+        ! Estimate the length of the section. This ca be used to allocate
+        ! the character to hold the section content
         !
         !Arguments
         ! unt     (inp) int /scalar   unit for the file 
@@ -566,14 +563,14 @@ module gaussian_manage
         
         
         ! Search section
-        error_flag = 0
+        if (present(error_flag)) error_flag = 0
         do
                 read(unt,'(A)',IOSTAT=IOstatus) line
                 ! Two possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
                     call alert_msg("warning","Section '"//trim(adjustl(section))//"' not present in the FCHK file.")
-                    error_flag=1
+                    if (present(error_flag)) error_flag=1
                     rewind(unt)
                     return
                 endif
@@ -658,14 +655,17 @@ module gaussian_manage
         integer                          :: i,j,k, jj
         !FCHK specific (to be move to the new sr)
         integer :: Ntarget, Nes, Nat
+        ! Local error flag
+        integer :: error_local
 
         ! Number of excited states computed
-        call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_flag)
-        if (error_flag == 0) then
+        call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_local)
+        if (error_local == 0) then
             Nes = IA(1)
             Ntarget = IA(5)
             deallocate(IA)
         else
+            if (present(error_flag)) error_flag = error_local
             return
         endif
         
@@ -675,7 +675,7 @@ module gaussian_manage
         if (Si /= 0) then
             call alert_msg("warning","TD-DFT calcs in G09 only provide trdip from GS. Setting Si=0")
             Si=0
-            error_flag=-1
+            if (present(error_flag)) error_flag=-1
         endif
         if (Sf /= Ntarget) then
             call alert_msg("note","Retrieving trdip from a state different from the target. Derivatives not available.")
@@ -683,8 +683,9 @@ module gaussian_manage
         endif
         
         ! Read ETran state values
-        call read_fchk(unt,"ETran state values",data_type,N,A,IA,error_flag)
-        if (error_flag /= 0) then
+        call read_fchk(unt,"ETran state values",data_type,N,A,IA,error_local)
+        if (error_local /= 0) then
+            if (present(error_flag)) error_flag = error_local
             print*, "ERROR: 'ETran state values' section not found"
             stop
         endif
@@ -765,14 +766,14 @@ module gaussian_manage
         ! Number of excited states computed
         ! Search section
         ii = 0
-        error_flag = 0
+        if (present(error_flag)) error_flag = 0
         do
                 ii = ii + 1
                 read(unt,'(A)',IOSTAT=IOstatus) line
                 ! Possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
-                    error_flag = -ii
+                    if (present(error_flag)) error_flag = -ii
                     rewind(unt)
                     return
                 endif
@@ -844,7 +845,7 @@ module gaussian_manage
                 ! Two possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
-                    error_flag = -ii
+                    if (present(error_flag)) error_flag = -ii
                     rewind(unt)
                     return
                 endif
@@ -877,9 +878,9 @@ module gaussian_manage
 
     subroutine get_d2num(unt,iat,ixyz,istep,error_flag)
 
-        integer,intent(in)  :: unt
-        integer,intent(out) :: iat,ixyz,istep
-        integer,intent(out) :: error_flag
+        integer,intent(in)           :: unt
+        integer,intent(out)          :: iat,ixyz,istep
+        integer,intent(out),optional :: error_flag
 
         !Local
         !Variables for reading
@@ -893,14 +894,14 @@ module gaussian_manage
         ! Number of excited states computed
         ! Search section
         ii = 0
-        error_flag = 0
+        if (present(error_flag)) error_flag = 0
         do
                 ii = ii + 1
                 read(unt,'(A)',IOSTAT=IOstatus) line
                 ! Possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
-                    error_flag = -ii
+                    if (present(error_flag)) error_flag = -ii
                     return
                 endif
                 ! 3) Found
@@ -916,7 +917,7 @@ module gaussian_manage
         call split_line(line,"=",auxchar,line)
         read(line,*,iostat=IOstatus) iat
         if (IOstatus /= 0) then
-            error_flag=1
+            if (present(error_flag)) error_flag=1
             call alert_msg("warnign","Error reading derivatives")
             return   
         endif
@@ -972,6 +973,8 @@ module gaussian_manage
         integer                          :: iat,ixyz,istep
         !Other local
         integer                          :: i,j,k, ii, jj
+        !Local error flag
+        integer                          :: error_local
 
         !Use detault for G09 (in au)
         if (dx == -1.d0) dx = 1.d-3/BOHRtoANGS
@@ -984,33 +987,38 @@ module gaussian_manage
         do k=1,3
             j = 3*(3*(i-1)+(k-1))
             !Loop over bwd and fwd steps
-            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,error_flag)
-            if (error_flag /= 0) then
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,error_local)
+            if (error_local /= 0) then
+                if (present(error_flag)) error_flag = error_local
                 call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
                 return
             endif
             !Check D2Num
-            call get_d2num(unt,iat,ixyz,istep,error_flag)
+            call get_d2num(unt,iat,ixyz,istep,error_local)
             if (iat /= i .or. ixyz /= k .or. istep /= 1) then
-                error_flag=1
+                if (present(error_flag)) error_flag=1
                 call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
                 return
             endif
 
-            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,error_flag)
-            if (error_flag /= 0) then
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,error_local)
+            if (error_local /= 0) then
+                if (present(error_flag)) error_flag =  error_local
                 call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
                 return
             endif
             !Check D2Num
-            call get_d2num(unt,iat,ixyz,istep,error_flag)
+            call get_d2num(unt,iat,ixyz,istep,error_local)
             if (iat /= i .or. ixyz /= k .or. istep /= 2) then
-                error_flag=1
+                if (present(error_flag)) error_flag=1
                 call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
                 return
             endif
 
-            if (error_flag /= 0) return
+            if (error_local /= 0) then
+                if (present(error_flag)) error_flag = error_local
+                return
+            endif
 
             DipD(j+1) = (Dip_fwd(1)-Dip_bwd(1))/2.d0/dx
             DipD(j+2) = (Dip_fwd(2)-Dip_bwd(2))/2.d0/dx

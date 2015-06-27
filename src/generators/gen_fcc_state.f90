@@ -25,6 +25,7 @@ program gen_fcc_state
 
     !Additional info to prepare the input
     real(8) :: DE, T
+    logical :: is_hessian = .true.
 
     !Auxiliars
     character :: cnull
@@ -83,8 +84,8 @@ program gen_fcc_state
     print*, "Reading Hessian..."
     call generic_Hessian_reader(I_INP,ft,Nat,Hlt,error)
     if (error /= 0) then
-        print*, "Error reading the Hessian"
-        stop
+        print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
+        is_hessian = .false.
     else
         print'(X,A,/)', "OK"
     endif
@@ -93,25 +94,27 @@ program gen_fcc_state
     !Close input file
     close(I_INP)
 
-    !Perform vibrational analysis
-    print*, "Diagonalizing Hessian..."
-    call diag_int(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error)
-    if (error /= 0) then
-        print*, "Error in the diagonalization"
-        stop
-    endif
-    !Transform L to Cartesian/Normalized
-    call Lmwc_to_Lcart(Nat,Nvib,Mass,L,L,error)
-    call Lcart_to_LcartNrm(Nat,Nvib,L,L,error)
-    !Transform Force Constants to Freq
-    do i=1,Nvib
-        Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
-    enddo
-    if (error /= 0) then
-        print*, "Error in conversion to Cartesian"
-        stop
-    else
-        print'(X,A,/)', "OK"
+    if (is_hessian) then
+        !Perform vibrational analysis
+        print*, "Diagonalizing Hessian..."
+        call diag_int(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error)
+        if (error /= 0) then
+            print*, "Error in the diagonalization"
+            stop
+        endif
+        !Transform L to Cartesian/Normalized
+        call Lmwc_to_Lcart(Nat,Nvib,Mass,L,L,error)
+        call Lcart_to_LcartNrm(Nat,Nvib,L,L,error)
+        !Transform Force Constants to Freq
+        do i=1,Nvib
+            Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
+        enddo
+        if (error /= 0) then
+            print*, "Error in conversion to Cartesian"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
     endif
 
     !WRITE STATE FILE
@@ -125,14 +128,16 @@ program gen_fcc_state
     do j=1,Nat
         write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
     enddo
-    do j=1,3*Nat
-    do i=1,Nvib
-        write(O_STA,'(E17.8)',iostat=ios) L(j,i)
-    enddo
-    enddo
-    do j=1,Nvib
-        write(O_STA,'(F10.4)',iostat=ios) Freq(j)
-    enddo
+    if (is_hessian) then
+        do j=1,3*Nat
+        do i=1,Nvib
+            write(O_STA,'(E17.8)',iostat=ios) L(j,i)
+        enddo
+        enddo
+        do j=1,Nvib
+            write(O_STA,'(F10.4)',iostat=ios) Freq(j)
+        enddo
+    endif
     close(O_STA)
 
     if (ios /= 0) then
@@ -146,7 +151,7 @@ program gen_fcc_state
     print*, "Writting input template: 'fcc_template.inp'..."
     open(O_FCI,file="fcc_template.inp")
     DE = 2.d0
-    T  = 1.d-3 
+    T  = 0.d0
     call prepare_fccinput(O_FCI,Nat,Nvib,Mass,DE,T,error)
     close(O_FCI)
     if (error /= 0) then

@@ -181,7 +181,7 @@ module fcc_basics
         write(unt,'(F12.6,X,A)') DE, "Adiabatic/Vertical Energy (eV)"
         write(unt,*) "'abs' 'ECDNO ' 'FC'"
         write(unt,'(F8.3,X,A)') T, "1.d-1 ! Temp(K) / BoltzThr (for TI)"
-        write(unt,*) "'D ' 0 0.d0 0   Algorithm"
+        write(unt,*) "'TD' 2048 1000.d0 0   Algorithm"
         write(unt,*) "'state_file_1'"
         write(unt,*) "'state_file_2' 'AH'  -1.d5  1.d5"
         write(unt,*) "'eldip_file'"

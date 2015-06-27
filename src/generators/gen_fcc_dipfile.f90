@@ -78,7 +78,7 @@ program gen_fcc_dipfile
     endif
     call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,error)
     if (error /= 0) then
-        print*, "Error reading input file"
+        print*, "Error reading input file. Error code:", error
         stop
     else
         print'(X,A,/)', "OK"

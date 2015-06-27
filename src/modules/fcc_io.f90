@@ -199,6 +199,7 @@ module fcc_io
              read(section,*) Hlt(1:3*Nat*(3*Nat+1)/2)
             case("fchk")
              call read_fchk(unt,'Cartesian Force Constants',data_type,N,A,IA,error_flag)
+             if (error_flag /= 0) return
              do i=1,N
                  Hlt(i) = A(i)
              enddo
