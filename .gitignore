@@ -1,0 +1,15 @@
+Makefile
+Makefile.in
+configure
+aclocal.m4
+autom4te.cache/
+config.log
+config.status
+contribution_users/
+depcomp
+fcc_tools-dev.tar.gz
+install-sh
+missing
+.dirstamp
+src/test/
+
