@@ -35,15 +35,19 @@ program gen_fcc_state
 
     !I/O
     character(len=100) :: inpfile='input.log', &
-                          outfile='default'
+                          outfile='default',   &
+                          outhess='default',   &
+                          outmass='default'
     character(len=10)  :: ft='guess'
     integer :: ios
     integer :: I_INP = 11, &
                O_STA = 20, &
-               O_FCI = 21
+               O_FCI = 21, &
+               O_HES = 22, &
+               O_MAS = 23
 
     ! Read options
-    call parse_input(inpfile,ft,outfile)
+    call parse_input(inpfile,ft,outfile,outhess,outmass)
 
     !Open input file
     open(I_INP,file=inpfile,iostat=ios)
@@ -74,6 +78,13 @@ program gen_fcc_state
         print*, "Error reading the geometry"
         stop
     else
+        print*, "  and writting masses to file..."
+        open(O_MAS,file=outmass)
+        do i=1,Nat 
+            write(O_MAS,*) Mass(i)
+        enddo
+        write(O_MAS,*) ""
+        close(O_MAS)
         print'(X,A,/)', "OK"
     endif
 ! do i=1,Nat
@@ -87,9 +98,15 @@ program gen_fcc_state
         print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
         is_hessian = .false.
     else
+        print*, "  and writting hessian (lower triangular elements) to file..."
+        open(O_HES,file=outhess)
+        do i=1,3*Nat*(3*Nat+1)/2
+            write(O_HES,'(G16.8)') Hlt(i)
+        enddo
+        write(O_HES,*) ""
+        close(O_HES)
         print'(X,A,/)', "OK"
     endif
-! print*, Hlt(1) , Hlt(3*Nat*(3*Nat+1)/2)
 
     !Close input file
     close(I_INP)
@@ -170,9 +187,9 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(inpfile,ft,outfile)
+    subroutine parse_input(inpfile,ft,outfile,outhess,outmass)
 
-        character(len=*),intent(inout) :: inpfile,ft,outfile
+        character(len=*),intent(inout) :: inpfile,ft,outfile,outhess,outmass
 
         ! Local
         logical :: argument_retrieved,  &
@@ -198,6 +215,14 @@ program gen_fcc_state
                 case ("-o") 
                     call getarg(i+1, outfile)
                     argument_retrieved=.true.
+
+                case ("-oh") 
+                    call getarg(i+1, outhess)
+                    argument_retrieved=.true.
+
+                case ("-om") 
+                    call getarg(i+1, outmass)
+                    argument_retrieved=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -215,6 +240,16 @@ program gen_fcc_state
             if (adjustl(ft) /= 'guess') arg=ft
             outfile = "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
         endif
+        if (adjustl(outhess) == 'default') then
+            call split_line(inpfile,".",outhess,arg)
+            if (adjustl(ft) /= 'guess') arg=ft
+            outhess = "hessian_"//trim(adjustl(outhess))//'_'//trim(adjustl(arg))
+        endif
+        if (adjustl(outmass) == 'default') then
+            call split_line(inpfile,".",outmass,arg)
+            if (adjustl(ft) /= 'guess') arg=ft
+            outmass = "mass_"//trim(adjustl(outmass))//'_'//trim(adjustl(arg))
+        endif
 
 
        !Print options (to stderr)
@@ -228,13 +263,15 @@ program gen_fcc_state
         write(0,'(A)'  ) 'Additionally, an input template is also generated'
 
         write(0,'(/,A)') 'SYNOPSIS'
-        write(0,'(A)'  ) 'gen_fcc_state -i input_file [-ft filetype] [-o output_file] [-h]'
+        write(0,'(A)'  ) 'gen_fcc_state -i input_file [-ft filetype] [-o output_file] [-oh hessian_file] [-om mass_file] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
         write(0,'(A)'  ) 'Flag   Description      Current Value'
         write(0,'(A)'  ) ' -i    input_file       '//trim(adjustl(inpfile))
         write(0,'(A)'  ) ' -ft   filetype         '//trim(adjustl(ft))
         write(0,'(A)'  ) ' -o    output_file      '//trim(adjustl(outfile))
+        write(0,'(A)'  ) ' -oh   hessian_file     '//trim(adjustl(outhess))
+        write(0,'(A)'  ) ' -om   mass_file        '//trim(adjustl(outmass))
         write(0,'(A)'  ) ' -h    print help  '
         call supported_filetype_list('freq')
 
