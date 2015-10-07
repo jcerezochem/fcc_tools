@@ -423,6 +423,31 @@ def export_xmgrace(event):
     print >> f, "# Only data and labels. Format will"
     print >> f, "# be added by your default xmgrace"
     print >> f, "# defaults (including colors, fonts...)"
+    print >> f, "# Except the followins color scheme:"
+    print >> f, '@map color 0 to (255, 255, 255), "white"'
+    print >> f, '@map color 1 to (0, 0, 0), "black0"'
+    print >> f, '@map color 2 to (0, 0, 0), "black"'
+    print >> f, '@map color 3 to (0, 0, 255), "blue"'
+    print >> f, '@map color 4 to (255, 0, 0), "red"'
+    print >> f, '@map color 5 to (0, 139, 0), "green4"'
+    print >> f, '@map color 6 to (0, 255, 255), "cyan"'
+    print >> f, '@map color 7 to (255, 0, 255), "magenta"'
+    print >> f, '@map color 8 to (255, 255, 0), "yellow"'
+    print >> f, '@map color 9 to (188, 143, 143), "brown"'
+    print >> f, '@map color 10 to (220, 220, 220), "grey"'
+    print >> f, '@map color 11 to (0, 255, 0), "green"'
+    print >> f, '@map color 12 to (148, 0, 211), "violet"'
+    print >> f, '@map color 13 to (255, 165, 0), "orange"'
+    print >> f, '@map color 14 to (114, 33, 188), "indigo"'
+    print >> f, '@map color 15 to (103, 7, 72), "maroon"'
+    print >> f, '@map color 16 to (64, 224, 208), "turquoise"'
+    print >> f, '@map color 17 to (50, 50, 50), "gris2"'
+    print >> f, '@map color 18 to (100, 100, 100), "gris3"'
+    print >> f, '@map color 19 to (150, 150, 150), "gris4"'
+    print >> f, '@map color 20 to (200, 200, 200), "gris5"'
+    print >> f, '@map color 21 to (255, 150, 150), "red2"'
+    print >> f, '@map color 22 to (150, 255, 150), "green2"'
+    print >> f, '@map color 23 to (150, 150, 255), "blue2"'  
     # Without the @version, it makes auto-zoom (instead of taking world coords) 
     print >> f, "@version 50123"
     print >> f, "@page size 792, 612"
@@ -432,6 +457,7 @@ def export_xmgrace(event):
         print >> f, "@with line"
         print >> f, "@    line on"
         print >> f, "@    line loctype world"
+        print >> f, "@    line color 20"
         print >> f, "@    line ",lab.xy[0],",",lab.xy[1],",",lab.xyann[0],",",lab.xyann[1]
         print >> f, "@line def"
         print >> f, "@with string"
