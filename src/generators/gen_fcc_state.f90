@@ -34,35 +34,39 @@ program gen_fcc_state
     integer :: i, j
 
     !I/O
-    character(len=100) :: inpfile='input.log', &
+    character(len=100) :: strfile='input.log', &
+                          hessfile='default',&
                           outfile='default',   &
                           outhess='default',   &
                           outmass='default'
-    character(len=10)  :: ft='guess'
+    character(len=10)  :: fts='guess', &
+                          fth='guess'
     integer :: ios
     integer :: I_INP = 11, &
+               I_HES = 12, &
                O_STA = 20, &
                O_FCI = 21, &
                O_HES = 22, &
                O_MAS = 23
 
     ! Read options
-    call parse_input(inpfile,ft,outfile,outhess,outmass)
+    call parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass)
 
     !Open input file
-    open(I_INP,file=inpfile,iostat=ios)
+    open(I_INP,file=strfile,iostat=ios)
     if (ios /= 0) then
-        print*, "Error opening "//trim(adjustl(inpfile))
+        print*, "Error opening "//trim(adjustl(strfile))
         stop
     endif
 
     !Guess the file type if not given
-    if (adjustl(ft) == 'guess') then
-        call split_line_back(inpfile,'.',cnull,ft)
+    if (adjustl(fts) == 'guess') then
+        call split_line_back(strfile,'.',cnull,fts)
     endif
 
     !Read input data: natoms
-    call generic_natoms_reader(I_INP,ft,Nat,error)
+    call generic_natoms_reader(I_INP,fts,Nat,error)
+    rewind(I_INP)
 
     !Allocate input data
     allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
@@ -73,9 +77,9 @@ program gen_fcc_state
 
     !Read structure
     print*, "Reading structure..."
-    call generic_structure_reader(I_INP,ft,Nat,X,Y,Z,Mass,error)
+    call generic_structure_reader(I_INP,fts,Nat,X,Y,Z,Mass,error)
     if (error /= 0) then
-        print*, "Error reading the geometry"
+        print*, "Error reading the geometry", error
         stop
     else
         print*, "  and writting masses to file..."
@@ -90,10 +94,24 @@ program gen_fcc_state
 ! do i=1,Nat
 ! print*, X(i), Y(i), Z(i), Mass(i)
 ! enddo
+    close(I_INP)
+
+    ! We now read the allow to read the Hessian from another file
+    !Open hessian file
+    open(I_HES,file=hessfile,iostat=ios)
+    if (ios /= 0) then
+        print*, "Error opening "//trim(adjustl(hessfile))
+        stop
+    endif
+    !Guess the file type if not given
+    if (adjustl(fth) == 'guess') then
+        call split_line_back(hessfile,'.',cnull,fth)
+    endif
+    
 
     !Read Hessian
     print*, "Reading Hessian..."
-    call generic_Hessian_reader(I_INP,ft,Nat,Hlt,error)
+    call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
     if (error /= 0) then
         print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
         is_hessian = .false.
@@ -108,8 +126,8 @@ program gen_fcc_state
         print'(X,A,/)', "OK"
     endif
 
-    !Close input file
-    close(I_INP)
+    !Close hessian file
+    close(I_HES)
 
     if (is_hessian) then
         !Perform vibrational analysis
@@ -187,9 +205,10 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(inpfile,ft,outfile,outhess,outmass)
+    subroutine parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass)
 
-        character(len=*),intent(inout) :: inpfile,ft,outfile,outhess,outmass
+        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,&
+                                          outfile,outhess,outmass
 
         ! Local
         logical :: argument_retrieved,  &
@@ -206,10 +225,20 @@ program gen_fcc_state
             call getarg(i, arg) 
             select case (adjustl(arg))
                 case ("-i") 
-                    call getarg(i+1, inpfile)
+                    call getarg(i+1, strfile)
                     argument_retrieved=.true.
-                case ("-ft") 
-                    call getarg(i+1, ft)
+                case ("-ft") !for backward compatibility
+                    call getarg(i+1, fts)
+                    argument_retrieved=.true.
+                case ("-fts") 
+                    call getarg(i+1, fts)
+                    argument_retrieved=.true.
+
+                case ("-ih") 
+                    call getarg(i+1, hessfile)
+                    argument_retrieved=.true.
+                case ("-fth") 
+                    call getarg(i+1, fth)
                     argument_retrieved=.true.
 
                 case ("-o") 
@@ -235,19 +264,23 @@ program gen_fcc_state
 
         ! Post-processing
         !----------------------------
+        if (adjustl(hessfile) == 'default') then
+            ! The try to read the hessian from strfile
+            hessfile = strfile
+        endif
         if (adjustl(outfile) == 'default') then
-            call split_line(inpfile,".",outfile,arg)
-            if (adjustl(ft) /= 'guess') arg=ft
+            call split_line_back(strfile,".",outfile,arg)
+            if (adjustl(fts) /= 'guess') arg=fts
             outfile = "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(outhess) == 'default') then
-            call split_line(inpfile,".",outhess,arg)
-            if (adjustl(ft) /= 'guess') arg=ft
+            call split_line_back(strfile,".",outhess,arg)
+            if (adjustl(fts) /= 'guess') arg=fts
             outhess = "hessian_"//trim(adjustl(outhess))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(outmass) == 'default') then
-            call split_line(inpfile,".",outmass,arg)
-            if (adjustl(ft) /= 'guess') arg=ft
+            call split_line_back(strfile,".",outmass,arg)
+            if (adjustl(fts) /= 'guess') arg=fts
             outmass = "mass_"//trim(adjustl(outmass))//'_'//trim(adjustl(arg))
         endif
 
@@ -258,19 +291,22 @@ program gen_fcc_state
         write(0,'(/,A)') ' gen_fcc_state '
         write(0,'(A)'  ) '-----------------'
         write(0,'(A)'  ) 'Generates state_files for FCclasses from the output'
-        write(0,'(A)'  ) 'files obtained with different QM codes, reading the '
+        write(0,'(A)'  ) 'files obtained with different QM or MM codes, reading the '
         write(0,'(A)'  ) 'coordinates and the Hessian from them.'
         write(0,'(A)'  ) 'Additionally, an input template is also generated'
 
         write(0,'(/,A)') 'SYNOPSIS'
-        write(0,'(A)'  ) 'gen_fcc_state -i input_file [-ft filetype] [-o output_file] [-oh hessian_file] [-om mass_file] [-h]'
+        write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
+                         '[-o output_file] [-oh hessian_file] [-om mass_file] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
         write(0,'(A)'  ) 'Flag   Description      Current Value'
-        write(0,'(A)'  ) ' -i    input_file       '//trim(adjustl(inpfile))
-        write(0,'(A)'  ) ' -ft   filetype         '//trim(adjustl(ft))
+        write(0,'(A)'  ) ' -i    structure_file   '//trim(adjustl(strfile))
+        write(0,'(A)'  ) ' -fts  filetype(str)    '//trim(adjustl(fts))
+        write(0,'(A)'  ) ' -ih   hess_input_file  '//trim(adjustl(hessfile))
+        write(0,'(A)'  ) ' -fth  filetype(hess)   '//trim(adjustl(fth))
         write(0,'(A)'  ) ' -o    output_file      '//trim(adjustl(outfile))
-        write(0,'(A)'  ) ' -oh   hessian_file     '//trim(adjustl(outhess))
+        write(0,'(A)'  ) ' -oh   hess_out_file    '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om   mass_file        '//trim(adjustl(outmass))
         write(0,'(A)'  ) ' -h    print help  '
         call supported_filetype_list('freq')

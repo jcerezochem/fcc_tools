@@ -9,6 +9,7 @@ gen_fcc_state_SOURCES = ../modules/constants_mod.f90\
                         ../modules/fcc_basics.f90\
                         ../modules/gamess_manage.f90\
                         ../modules/gaussian_manage.f90\
+                        ../modules/gmx_manage.f90\
                         ../modules/psi4_manage.f90\
                         ../modules/molcas_manage.f90\
                         ../modules/molpro_manage.f90\
@@ -25,6 +26,7 @@ gen_fcc_dipfile_SOURCES = ../modules/constants_mod.f90\
                           ../modules/fcc_basics.f90\
                           ../modules/gamess_manage.f90\
                           ../modules/gaussian_manage.f90\
+                          ../modules/gmx_manage.f90\
                           ../modules/psi4_manage.f90\
                           ../modules/molcas_manage.f90\
                           ../modules/molpro_manage.f90\
