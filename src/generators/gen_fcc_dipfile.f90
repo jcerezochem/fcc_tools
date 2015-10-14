@@ -213,12 +213,12 @@ program gen_fcc_dipfile
         ! Post-processing
         !----------------------------
         if (adjustl(out_eldip) == 'default') then
-            call split_line(inpfile,".",out_eldip,arg)
+            call split_line_back(inpfile,".",out_eldip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
             out_eldip  = "eldip_"//trim(adjustl(out_eldip))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(out_magdip) == 'default') then
-            call split_line(inpfile,".",out_magdip,arg)
+            call split_line_back(inpfile,".",out_magdip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
             out_magdip  = "magdip_"//trim(adjustl(out_magdip))//'_'//trim(adjustl(arg))
         endif
