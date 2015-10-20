@@ -657,6 +657,7 @@ module gaussian_manage
         integer :: Ntarget, Nes, Nat
         ! Local error flag
         integer :: error_local
+        character(len=3) :: dummy_char
 
         ! Number of excited states computed
         call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_local)
@@ -673,9 +674,10 @@ module gaussian_manage
         if (Si == -1) Si = 0
         if (Sf == -1) Sf = Ntarget
         if (Si /= 0) then
-            call alert_msg("warning","TD-DFT calcs in G09 only provide trdip from GS. Setting Si=0")
-            Si=0
+            write(dummy_char,'(I0)') Si
+            call alert_msg("fatal","TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
             if (present(error_flag)) error_flag=-1
+            return
         endif
         if (Sf /= Ntarget) then
             call alert_msg("note","Retrieving trdip from a state different from the target. Derivatives not available.")

@@ -78,7 +78,7 @@ program gen_fcc_dipfile
     endif
     call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,error)
     if (error /= 0) then
-        print*, "Error reading input file. Error code:", error
+        print*, "Error getting eldip. Error code:", error
         stop
     else
         print'(X,A,/)', "OK"
@@ -115,7 +115,7 @@ program gen_fcc_dipfile
     print*, "Reading transition magnetic dipole moment..."
     call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,error)
     if (error /= 0) then
-        print*, "Error reading input file"
+        print*, "Error getting magdip. Error code:", error
         stop
     else
         print'(X,A,/)', "OK"

@@ -192,9 +192,6 @@ module molpro_manage
         !                                -i : Read error on line i
         !                                 2 : Wrong number of elements for Hlt
         ! Notes
-        !  Using variable format as suggested in:
-        !  http://stackoverflow.com/questions/9881186/fortran-output-format-dependent-on-a-variable
-        !  (Answer by eriktous)
         !==============================================================
 
         integer,intent(in) :: unt
@@ -209,7 +206,6 @@ module molpro_manage
         integer :: N
         !I/O
         integer :: IOstatus
-        character(len=100) :: fmt
         !Counters
         integer :: i, j, k, ii, jini, jfin, &
                    iblock, nblocks, icols

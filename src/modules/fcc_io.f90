@@ -260,37 +260,46 @@ module fcc_io
         integer,intent(out),optional    :: error_flag
         !Local
         integer :: S
+        integer :: error_local
+        character(len=3) :: dummy_char
 
-        error_flag = 0
+        error_local = 0
         select case (adjustl(filetype))
             case("log")
              !Get target state
-             call read_gausslog_targestate(unt,S,error_flag)
+             call read_gausslog_targestate(unt,S,error_local)
+             if (present(error_flag)) error_flag=error_local
              if (Si == -1) Si = 0
              if (Sf == -1) Sf = S
-             !Need to rewind to read the first dip
-             rewind(unt)
-             !Now read dip
-             call read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_flag)
-             if (derivatives) then
-                 print*, " Computing derivatives.."
-                 call read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
-                 if (error_flag /= 0) derivatives=.false.
-                 !Done this, we can safely reset error_flag to 0
-                 error_flag = 0
+             if (Si /= 0) then
+                 write(dummy_char,'(I0)') Si
+                 call alert_msg("fatal","TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
+                 error_local=-1
+             else
+                 !Need to rewind to read the first dip
+                 rewind(unt)
+                 !Now read dip
+                 call read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_local)
+                 if (derivatives) then
+                     print*, " Computing derivatives.."
+                     call read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_local)
+                     if (error_local /= 0) derivatives=.false.
+                     !Done this, we can safely reset error_flag to 0
+                     error_local = 0
+                 endif
              endif
             case("fchk")
-             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_local)
             case("gms")
              call alert_msg("fatal","Filetype not supported")
             case("psi4")
-             call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+             call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_local)
              if (derivatives) then
                  print*, " Computing derivatives.."
-                 call read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
-                 if (error_flag /= 0) derivatives=.false.
+                 call read_psi4_dipders(unt,Si,Sf,dip_type,dx,DipD,error_local)
+                 if (error_local /= 0) derivatives=.false.
                  !Done this, we can safely reset error_flag to 0
-                 error_flag = 0
+                 error_local = 0
              endif
             case("molcas")
              call alert_msg("fatal","Filetype not supported")
@@ -299,8 +308,9 @@ module fcc_io
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
-             error_flag = 99
+             error_local = 99
          end select
+         if (present(error_flag)) error_flag=error_local
 
          return
 
