@@ -20,8 +20,11 @@ program gen_fcc_state
     !Molecular info
     integer :: Nat, Nvib
     real(8),dimension(:),allocatable   :: X,Y,Z,Mass
-    real(8),dimension(:),allocatable   :: Hlt, Freq
+    real(8),dimension(:),allocatable   :: Hlt, Freq, Grad
     real(8),dimension(:,:),allocatable :: L
+
+    ! Harmonic model PES 
+    character(len=3) :: model_PES='AH'
 
     !Additional info to prepare the input
     real(8) :: DE, T
@@ -30,6 +33,7 @@ program gen_fcc_state
     !Auxiliars
     character :: cnull
     integer :: error
+    integer,dimension(:),allocatable :: IAux
     !Counters
     integer :: i, j
 
@@ -50,7 +54,8 @@ program gen_fcc_state
                O_MAS = 23
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass)
+    call parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass,model_pes)
+    call set_word_upper_case(model_pes)
 
     !Open input file
     open(I_INP,file=strfile,iostat=ios)
@@ -71,6 +76,7 @@ program gen_fcc_state
     !Allocate input data
     allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+    if (adjustl(model_pes) == "VH") allocate (Grad(1:3*Nat))
     !Allocate output data
     allocate(Freq(1:3*Nat))
     allocate(L(1:3*Nat,1:3*Nat))
@@ -109,6 +115,19 @@ program gen_fcc_state
     endif
     
 
+    !Read Gradient for VH (for now assume same file as Hess)
+    if (adjustl(model_pes) == "VH") then
+        print*, "Reading Gradient..."
+        call generic_gradient_reader(I_HES,fth,Nat,Grad,error)
+        if (error /= 0) then
+            print'(X,A,/)', "Error: Gradient not present in the file."
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+        rewind(I_HES)
+    endif
+
     !Read Hessian
     print*, "Reading Hessian..."
     call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
@@ -129,7 +148,7 @@ program gen_fcc_state
     !Close hessian file
     close(I_HES)
 
-    if (is_hessian) then
+    if (is_hessian .and. adjustl(model_pes) /= "VH") then
         !Perform vibrational analysis
         print*, "Diagonalizing Hessian..."
         call diag_int(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error)
@@ -160,18 +179,27 @@ program gen_fcc_state
         stop
     endif
 
-    do j=1,Nat
-        write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
-    enddo
-    if (is_hessian) then
-        do j=1,3*Nat
-        do i=1,Nvib
-            write(O_STA,'(E17.8)',iostat=ios) L(j,i)
+    if (adjustl(model_pes) == "AH") then
+        do j=1,Nat
+            write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
         enddo
-        enddo
-        do j=1,Nvib
-            write(O_STA,'(F10.4)',iostat=ios) Freq(j)
-        enddo
+        if (is_hessian) then
+            do j=1,3*Nat
+            do i=1,Nvib
+                write(O_STA,'(E17.8)',iostat=ios) L(j,i)
+            enddo
+            enddo
+            do j=1,Nvib
+                write(O_STA,'(F10.4)',iostat=ios) Freq(j)
+            enddo
+        endif
+    elseif (adjustl(model_pes) == "VH") then
+        
+        call write_fchk(O_STA,"Cartesian Gradient",'R',3*Nat,Grad,IAux,error)
+        call write_fchk(O_STA,"Cartesian Force Constants",'R',3*Nat*(3*Nat+1)/2,Hlt,IAux,error)
+    else
+        print*, "Error: Unkown model PES: "//adjustl(model_pes)
+        stop
     endif
     close(O_STA)
 
@@ -200,15 +228,16 @@ program gen_fcc_state
 
     !Deallocate
     deallocate(X,Y,Z,Mass,Hlt,Freq,L)
+    if (adjustl(model_pes) == "VH") deallocate(Grad)
 
     stop
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass)
+    subroutine parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass,model_pes)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,&
-                                          outfile,outhess,outmass
+                                          outfile,outhess,outmass,model_pes
 
         ! Local
         logical :: argument_retrieved,  &
@@ -251,6 +280,10 @@ program gen_fcc_state
 
                 case ("-om") 
                     call getarg(i+1, outmass)
+                    argument_retrieved=.true.
+
+                case ("-model") 
+                    call getarg(i+1, model_pes)
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -297,18 +330,19 @@ program gen_fcc_state
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
-                         '[-o output_file] [-oh hessian_file] [-om mass_file] [-h]'
+                         '[-o output_file] [-oh hessian_file] [-om mass_file] [-model model_PES] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
-        write(0,'(A)'  ) 'Flag   Description      Current Value'
-        write(0,'(A)'  ) ' -i    structure_file   '//trim(adjustl(strfile))
-        write(0,'(A)'  ) ' -fts  filetype(str)    '//trim(adjustl(fts))
-        write(0,'(A)'  ) ' -ih   hess_input_file  '//trim(adjustl(hessfile))
-        write(0,'(A)'  ) ' -fth  filetype(hess)   '//trim(adjustl(fth))
-        write(0,'(A)'  ) ' -o    output_file      '//trim(adjustl(outfile))
-        write(0,'(A)'  ) ' -oh   hess_out_file    '//trim(adjustl(outhess))
-        write(0,'(A)'  ) ' -om   mass_file        '//trim(adjustl(outmass))
-        write(0,'(A)'  ) ' -h    print help  '
+        write(0,'(A)'  ) 'Flag    Description      Current Value'
+        write(0,'(A)'  ) ' -i     structure_file   '//trim(adjustl(strfile))
+        write(0,'(A)'  ) ' -fts   filetype(str)    '//trim(adjustl(fts))
+        write(0,'(A)'  ) ' -ih    hess_input_file  '//trim(adjustl(hessfile))
+        write(0,'(A)'  ) ' -fth   filetype(hess)   '//trim(adjustl(fth))
+        write(0,'(A)'  ) ' -o     output_file      '//trim(adjustl(outfile))
+        write(0,'(A)'  ) ' -oh    hess_out_file    '//trim(adjustl(outhess))
+        write(0,'(A)'  ) ' -om    mass_file        '//trim(adjustl(outmass))
+        write(0,'(A)'  ) ' -model model_pes        '//trim(adjustl(model_pes))
+        write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
 
         stop    

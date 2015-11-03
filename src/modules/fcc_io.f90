@@ -163,6 +163,63 @@ module fcc_io
     end subroutine generic_structure_reader
 
 
+    subroutine generic_gradient_reader(unt,filetype,Nat,Grad,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic Hessian reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (int)  int /scalar   Number of atoms
+        ! Grad    (out)  real/vector   Gradient (AU)
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(in)              :: Nat
+        real(8),dimension(:),intent(out):: Grad
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !For gausslog read
+        character(12*size(Grad))         :: section
+        !Other auxiliar
+        integer                          :: i
+
+        error_flag = 0
+        select case (adjustl(filetype))
+            case("log")
+             call summary_parser(unt,7,section,error_flag)
+             read(section,*) Grad(1:3*Nat)
+            case("fchk")
+             call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_flag)
+             if (error_flag /= 0) return
+             do i=1,N
+                 Grad(i) = A(i)
+             enddo
+             deallocate(A)
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('grad')
+             error_flag = 99
+         end select
+
+         return
+
+    end subroutine generic_gradient_reader
+
     subroutine generic_Hessian_reader(unt,filetype,Nat,Hlt,error_flag)
 
         !==============================================================
@@ -328,14 +385,17 @@ module fcc_io
         write(0,'(A)') "Supported filetypes:"
 
         if (adjustl(properties) == 'freq') then
-            write(0,*)     " log    : g09 log"
-            write(0,*)     " fchk   : g09 fchk"
-            write(0,*)     " gms    : GAMESS out"
-            write(0,*)     " psi4   : Psi4 out"
-            write(0,*)     " molcas : MOLCAS (UnSym?)"
-            write(0,*)     " molpro : MOLPRO out"
-            write(0,*)     " gmx    : gromacs (g96 and dumped mtx)"
-
+            write(0,'(A)') " Frequencies:"
+            write(0,*)     "  log    : g09 log"
+            write(0,*)     "  fchk   : g09 fchk"
+            write(0,*)     "  gms    : GAMESS out"
+            write(0,*)     "  psi4   : Psi4 out"
+            write(0,*)     "  molcas : MOLCAS (UnSym?)"
+            write(0,*)     "  molpro : MOLPRO out"
+            write(0,*)     "  gmx    : gromacs (g96 and dumped mtx)"
+            write(0,'(A)') " Gradients:"
+            write(0,*)     "  log    : g09 log"
+            write(0,*)     "  fchk   : g09 fchk"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"

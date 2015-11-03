@@ -609,6 +609,68 @@ module gaussian_manage
 
     end subroutine read_fchk
 
+    subroutine write_fchk(unt,section,data_type,N,A,I,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+        !==============================================================
+        !Description
+        ! Generic SR to read any section of the checkpoint
+        ! Enter allocated arrays
+        !Arguments
+        ! unt (int;in): unit number of the log file
+        ! section(char,in): name of the section to be written
+        ! data_type(char,in): Integer (I) or Real (R) data write
+        ! N(int,in): Number of elements to be written
+        ! A(real,dimension(:)): Real array to store real data
+        ! I(integer,dimension(:)): Int array to store int data
+        ! error_flag(integer,out): 0: success
+        !                          1: write failure
+        !
+        ! NOTES
+        ! Should is_array be an input?
+        ! Not really, we can specify that is a scalar, e.g. by setting 
+        ! N=0 (so we let N=1 fro vectors with length equal 1, if this 
+        ! is ever the case)
+        !==============================================================
+
+        integer,intent(in) :: unt
+        character(len=*),intent(in) :: section
+        character(len=1),intent(in) :: data_type
+        integer,intent(in) :: N
+        double precision, dimension(:), intent(in) :: A
+        integer,dimension(:), allocatable, intent(in) :: I
+        integer,intent(out) :: error_flag
+
+        !Local stuff
+        !=============
+        character(len=43) :: section_full
+        !I/O
+        integer :: IOstatus
+        
+        error_flag = 0
+        section_full = adjustl(section)
+
+        !If N=0, it is an scalar
+        if (N == 0) then
+            if ( data_type == "I" ) then 
+                write(unt,'(A43,A,I17)') section_full, data_type, I(1)
+            elseif ( data_type == "R" ) then
+                write(unt,'(A43,A,ES27.15)') section_full, data_type, A(1)
+            endif
+        else
+            write(unt,'(A43,A,A5,I12)') section_full, data_type,"   N=",N
+            if ( data_type == "I" ) then 
+                write(unt,'(6I12)') I(1:N)
+            elseif ( data_type == "R" ) then
+                write(unt,'(5ES16.8)') A(1:N)
+            endif
+        endif 
+
+        return
+
+    end subroutine write_fchk
+
     subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
 
         !=====================================================
