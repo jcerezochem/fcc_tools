@@ -120,6 +120,8 @@ program gen_fcc_state
     !Guess the file type if not given
     if (adjustl(fth) == 'guess') then
         call split_line_back(hessfile,'.',cnull,fth)
+    else if (adjustl(fth) == 'fts') then
+        fth = fts
     endif
     
 
@@ -312,6 +314,7 @@ program gen_fcc_state
         if (adjustl(hessfile) == 'default') then
             ! The try to read the hessian from strfile
             hessfile = strfile
+            fth = "fts"
         endif
         if (adjustl(outfile) == 'default') then
             call split_line_back(strfile,".",outfile,arg)
