@@ -178,10 +178,18 @@ module fcc_basics
         do i=1,Nat
             write(unt,*) Mass(i)
         enddo
-        write(unt,'(F12.6,X,A)') DE, "Adiabatic/Vertical Energy (eV)"
+        if ( DE < 0.d0 ) then
+            write(unt,*) " <ENERGY> Adiabatic/Vertical Energy (eV)"
+        else    
+            write(unt,'(F12.6,X,A)') DE, "Adiabatic/Vertical Energy (eV)"
+        endif
         write(unt,*) "'abs' 'ECDNO ' 'FC'"
-        write(unt,'(F8.3,X,A)') T, "1.d-1 ! Temp(K) / BoltzThr (for TI)"
-        write(unt,*) "'TD' 2048 1000.d0 0   Algorithm"
+        if ( T < 0.d0 ) then
+            write(unt,*) "0.1d0 8.d-1 ! Temp(K) / BoltzThr (for TI)"
+        else
+            write(unt,'(F8.3,X,A)') T, "8.d-1 ! Temp(K) / BoltzThr (for TI)"
+        endif
+        write(unt,*) "'D ' 2048 1000.d0 0   Algorithm"
         write(unt,*) "'state_file_1'"
         write(unt,*) "'state_file_2' 'AH'  -1.d5  1.d5"
         write(unt,*) "'eldip_file'"

@@ -223,8 +223,8 @@ program gen_fcc_state
     !We profit to generate a first input template
     print*, "Writting input template: 'fcc_template.inp'..."
     open(O_FCI,file="fcc_template.inp")
-    DE = 2.d0
-    T  = 0.d0
+    DE = -1.d0
+    T  = -1.d0
     call prepare_fccinput(O_FCI,Nat,Nvib,Mass,DE,T,error)
     close(O_FCI)
     if (error /= 0) then
