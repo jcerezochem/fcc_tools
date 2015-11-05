@@ -4,7 +4,7 @@ SUBDIRS = src/generators tests/ python/
 
 EXTRA_DIST = LICENSE INSTRUCTIONS AUTHORS src/modules run_test.sh python/fort* doc 
 
-.PHONY: test
+.PHONY: test version.f90
 test:
 	./run_test.sh
 

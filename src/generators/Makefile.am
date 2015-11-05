@@ -2,7 +2,8 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 bin_PROGRAMS = gen_fcc_state gen_fcc_dipfile
 
-gen_fcc_state_SOURCES = ../modules/constants_mod.f90\
+gen_fcc_state_SOURCES = version.f90\
+                        ../modules/constants_mod.f90\
                         ../modules/alerts.f90\
                         ../modules/MatrixMod_red.f90\
                         ../modules/line_preprocess.f90\
@@ -19,7 +20,8 @@ gen_fcc_state_SOURCES = ../modules/constants_mod.f90\
 
 gen_fcc_state_LDFLAGS = @LIBS@
 
-gen_fcc_dipfile_SOURCES = ../modules/constants_mod.f90\
+gen_fcc_dipfile_SOURCES = version.f90\
+                          ../modules/constants_mod.f90\
                           ../modules/alerts.f90\
                           ../modules/MatrixMod_red.f90\
                           ../modules/line_preprocess.f90\
@@ -36,4 +38,9 @@ gen_fcc_dipfile_SOURCES = ../modules/constants_mod.f90\
 gen_fcc_dipfile_LDFLAGS = @LIBS@
 
 CLEANFILES=*.mod
+
+.PHONY: version.f90
+version.f90:
+	@bash ./get_git_version.sh $(FCFLAGS) $(LIBS) || echo "Reusing version file"
+
 

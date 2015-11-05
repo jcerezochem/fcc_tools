@@ -410,8 +410,6 @@ module fcc_io
 
         endif
 
-        write(0,*)     ""
-
         return
 
     end subroutine supported_filetype_list

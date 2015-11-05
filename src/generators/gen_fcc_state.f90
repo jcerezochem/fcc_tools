@@ -352,6 +352,8 @@ program gen_fcc_state
         write(0,'(A)'  ) 'the atom in amu) through -im flag. The Hessian and masses used in the calculations'
         write(0,'(A)'  ) 'are writen to files, which can be specified on input (-oh -om).'
 
+        call print_version()
+
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
                          '[-o output_file] [-oh hessian_file] [-om mass_file] [-model model_PES] [-h]'

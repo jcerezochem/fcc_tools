@@ -232,6 +232,8 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) 'Generates dipfiles (eldip, magdip) for FCclasses'
         write(0,'(A)'  ) 'from the output of a QM program'
 
+        call print_version()
+
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_dipfile -i input_file [-ft filetype] [-oe out_eldip]'//&
                          ' [-om out_magdip] [-Si <initial state>] [-Sf <final state>] [-noder] [-h]'
@@ -249,6 +251,16 @@ program gen_fcc_dipfile
         write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives
         write(0,'(A)'  ) ' -h       print help  '
         call supported_filetype_list('trdip')
+
+        write(0,'(/,A)') 'EXAMPLES'
+        write(0,'(A)'  ) ' get_fcc_dipfile -i qmfile.fchk'
+        write(0,'(A)'  ) '   A simple instruction as above is normally sufficient to get'
+        write(0,'(A)'  ) '   eldip_qmfile_fchk and magdip_qmfile_fchk (in this example)'
+        write(0,'(A)'  ) ''
+        write(0,'(A)'  ) ' get_fcc_dipfile -i qmfile-psi4,out -ft psi4 -Si 2 -Sf 3'
+        write(0,'(A)'  ) '   If the QM program computes them (e.g. Psi4 through EOM-CCSD)'
+        write(0,'(A)'  ) '   both the initial and final states can be selected'
+        write(0,'(A)'  ) ''
 
         stop    
         endif

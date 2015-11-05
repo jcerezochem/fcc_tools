@@ -39,3 +39,9 @@ python/build/
 python/dist/
 python/version_tag.py
 
+# Additional compilation files generated in-place
+version.f90
+
+# Other non-distributed things
+TODO
+
