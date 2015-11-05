@@ -40,6 +40,7 @@ program gen_fcc_state
     !I/O
     character(len=100) :: strfile='input.log', &
                           hessfile='default',&
+                          massfile='none',&
                           outfile='default',   &
                           outhess='default',   &
                           outmass='default'
@@ -48,13 +49,14 @@ program gen_fcc_state
     integer :: ios
     integer :: I_INP = 11, &
                I_HES = 12, &
+               I_MAS = 13, &
                O_STA = 20, &
                O_FCI = 21, &
                O_HES = 22, &
                O_MAS = 23
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass,model_pes)
+    call parse_input(strfile,fts,hessfile,fth,massfile,outfile,outhess,outmass,model_pes)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -87,19 +89,25 @@ program gen_fcc_state
     if (error /= 0) then
         print*, "Error reading the geometry", error
         stop
-    else
-        print*, "  and writting masses to file..."
-        open(O_MAS,file=outmass)
-        do i=1,Nat 
-            write(O_MAS,*) Mass(i)
-        enddo
-        write(O_MAS,*) ""
-        close(O_MAS)
-        print'(X,A,/)', "OK"
     endif
-! do i=1,Nat
-! print*, X(i), Y(i), Z(i), Mass(i)
-! enddo
+
+    if (adjustl(massfile) /= "none") then
+        open(I_MAS,file=massfile)
+        print*, "  but masses read from external massfile: "//trim(adjustl(massfile))
+        do i=1,Nat
+            read(I_MAS,*) Mass(i)
+        enddo
+        close(I_MAS)
+    endif
+    print*, "  and writting masses to file..."
+    open(O_MAS,file=outmass)
+    do i=1,Nat 
+        write(O_MAS,*) Mass(i)
+    enddo
+    write(O_MAS,*) ""
+    close(O_MAS)
+    print'(X,A,/)', "OK"
+
     close(I_INP)
 
     ! We now read the allow to read the Hessian from another file
@@ -234,9 +242,9 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,outfile,outhess,outmass,model_pes)
+    subroutine parse_input(strfile,fts,hessfile,fth,massfile,outfile,outhess,outmass,model_pes)
 
-        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,&
+        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,massfile,&
                                           outfile,outhess,outmass,model_pes
 
         ! Local
@@ -268,6 +276,10 @@ program gen_fcc_state
                     argument_retrieved=.true.
                 case ("-fth") 
                     call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-im") 
+                    call getarg(i+1, massfile)
                     argument_retrieved=.true.
 
                 case ("-o") 
@@ -327,6 +339,18 @@ program gen_fcc_state
         write(0,'(A)'  ) 'files obtained with different QM or MM codes, reading the '
         write(0,'(A)'  ) 'coordinates and the Hessian from them.'
         write(0,'(A)'  ) 'Additionally, an input template is also generated'
+        write(0,'(A)'  ) ''
+        write(0,'(A)'  ) 'The input structure (-i) is read from any of the supported QM output'
+        write(0,'(A)'  ) 'files or through the g96 (GROMOS) structure file. The file type is'
+        write(0,'(A)'  ) 'guessed based on the extension, but if this fails, it can be specified'
+        write(0,'(A)'  ) 'by -fts flag. If the structure file also contains the hessian, it will'
+        write(0,'(A)'  ) 'be read from that file by default. Otherwise, another file containing the'
+        write(0,'(A)'  ) 'Hessian should be indicated (-ih) with filetype detected based on extension'
+        write(0,'(A)'  ) 'of specified (-fth). The output is named automatiacally as state_{input}_{ext}'
+        write(0,'(A)'  ) 'or can be indicated (-o). Masses are taken from an internal database but you'
+        write(0,'(A)'  ) 'can specify different values in a file (with Nat lines, each with the mass of'
+        write(0,'(A)'  ) 'the atom in amu) through -im flag. The Hessian and masses used in the calculations'
+        write(0,'(A)'  ) 'are writen to files, which can be specified on input (-oh -om).'
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
@@ -338,12 +362,25 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -fts   filetype(str)    '//trim(adjustl(fts))
         write(0,'(A)'  ) ' -ih    hess_input_file  '//trim(adjustl(hessfile))
         write(0,'(A)'  ) ' -fth   filetype(hess)   '//trim(adjustl(fth))
+        write(0,'(A)'  ) ' -im    mass_file        '//trim(adjustl(massfile))
         write(0,'(A)'  ) ' -o     output_file      '//trim(adjustl(outfile))
         write(0,'(A)'  ) ' -oh    hess_out_file    '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om    mass_file        '//trim(adjustl(outmass))
-        write(0,'(A)'  ) ' -model model_pes        '//trim(adjustl(model_pes))
+!         write(0,'(A)'  ) ' -model model_pes        '//trim(adjustl(model_pes))
         write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
+
+        write(0,'(/,A)') 'EXAMPLES'
+        write(0,'(A)'  ) ' gen_fcc_state -i output.fchk'
+        write(0,'(A)'  ) '  In general simple instructions as above are required.'
+        write(0,'(A)'  ) '  That one will generate: state_output_fchk and a template'
+        write(0,'(A)'  ) '  input: fcc.inp from a valid gaussian fchk file.'
+        write(0,'(A)'  ) ''
+        write(0,'(A)'  ) ' gen_fcc_state -i output-psi4.out -fts psi4'
+        write(0,'(A)'  ) '  Some output files may need to specify the filetype.'
+        write(0,'(A)'  ) '  Note also that in the case of psi4, the print level'
+        write(0,'(A)'  ) '  must be set to 3 in order to get the Hessian printed'
+        write(0,'(A)'  ) '  in the output' 
 
         stop    
         endif

@@ -393,7 +393,7 @@ module fcc_io
             write(0,*)     "  molcas : MOLCAS (UnSym?)"
             write(0,*)     "  molpro : MOLPRO out"
             write(0,*)     "  gmx    : gromacs (g96 and dumped mtx)"
-            write(0,'(A)') " Gradients:"
+            write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log    : g09 log"
             write(0,*)     "  fchk   : g09 fchk"
 
@@ -412,7 +412,7 @@ module fcc_io
 
         write(0,*)     ""
 
-        stop
+        return
 
     end subroutine supported_filetype_list
 
