@@ -15,9 +15,9 @@ user=$USER
 cat <<EOF > version.f90
     subroutine print_version()
 
-        write(6,'(/A)') "GIT VERSION INFO"
-        write(6,'(A)')   " Commit id  : $git_hash"
-        write(6,'(A)')   " Commit date: $git_date"
+        write(0,'(/A)') "GIT VERSION INFO"
+        write(0,'(A)')   " Commit id  : $git_hash"
+        write(0,'(A)')   " Commit date: $git_date"
         
         return
     end subroutine 

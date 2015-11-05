@@ -377,6 +377,7 @@ module gaussian_manage
         !  len set the maximum number (len=3 => 999)
         !  dimension set the maximum different elements (50 seems enough)
         character(len=3),dimension(50) :: nel_char
+        character :: cnull
 
         call summary_parser(unt,1,info_section,error_flag)
 
@@ -385,12 +386,15 @@ module gaussian_manage
             call split_line(info_section,'\',formula,info_section)
         enddo
 
+        !Remove (charge,spin) tag
+        call split_line(formula,"(",formula,cnull)
+
         do i=1,len_trim(formula)
             !Convert to blank if it is not a number (48==0 to 57==9)
             if (ichar(formula(i:i)) < 48 .or. &
                 ichar(formula(i:i)) > 57) formula(i:i)=" "
         enddo
- 
+
         !Use line parser to get the numbers reparatelly
         call parse_line(formula,n,nel_char)
 
