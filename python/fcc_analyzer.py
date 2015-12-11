@@ -573,7 +573,10 @@ def export_xmgrace(event):
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    import version_tag
+    try:
+        import version_tag
+    except:
+        pass
     
     
     print "====================================================="

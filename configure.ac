@@ -4,7 +4,7 @@
 AC_PREREQ([2.68])
 AC_INIT([fcc_tools],[dev],[fabrizio.santoro@iccom.cnr.it])
 AM_INIT_AUTOMAKE
-AM_EXTRA_RECURSIVE_TARGETS([python-update-version python-standalone])
+# AM_EXTRA_RECURSIVE_TARGETS([python-update-version python-standalone])
 AC_LANG([Fortran])
 
 # Checks for programs.
