@@ -281,8 +281,11 @@ class LabelSet:
             label='$'
             agrlabel=''
             for i in range(0,len(tr[dataind].final)):
-                label = label+str(tr[dataind].final[i])+'_{'+str(tr[dataind].qfinal[i])+'},'
-                agrlabel = agrlabel+str(tr[dataind].final[i])+'\s'+str(tr[dataind].qfinal[i])+'\N,'
+                # Labels change: from  [Mode]_{v-state} to [v-State]_{Mode}
+                # label = label+str(tr[dataind].final[i])+'_{'+str(tr[dataind].qfinal[i])+'},'
+                # agrlabel = agrlabel+str(tr[dataind].final[i])+'\s'+str(tr[dataind].qfinal[i])+'\N,'
+                label = label+str(tr[dataind].qfinal[i])+'_{'+str(tr[dataind].final[i])+'},'
+                agrlabel = agrlabel+str(tr[dataind].qfinal[i])+'\s'+str(tr[dataind].final[i])+'\N,'
             #Remove trailing comma
             label = label[0:-1]+'$'
             agrlabel = agrlabel[0:-1]
@@ -576,7 +579,10 @@ if __name__ == "__main__":
     print "====================================================="
     print "                 FCC_ANALYZER:                  "
     print "  a python tool to analyze FCCLASSES (TI) output"
-    version_tag.print_version()
+    try: 
+        version_tag.print_version()
+    except:
+        print " (untracked version)"
     print "====================================================="
 
     #====================================================
@@ -584,7 +590,11 @@ if __name__ == "__main__":
     #====================================================
     tr=[]
     print "Loading transitions (fort.21)..."
-    f = open('fort.21','r')
+    try:
+        f = open('fort.21','r')
+    except:
+        exit("ERROR: Cannot open file 'fort.21'")
+        
     #First read 0-0 transition
     itrans = 0
     for line in f:
@@ -758,7 +768,10 @@ if __name__ == "__main__":
     x = []
     y = []
     print "Loading convoluted spectrum (fort.18)..."
-    f = open('fort.18','r')
+    try:
+        f = open('fort.18','r')
+    except:
+        exit("ERROR: Cannot open file 'fort.18'")
     read_spc = False
     for line in f:
         #We ensure that it do not stop at intermediate steps

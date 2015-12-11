@@ -71,6 +71,8 @@
 \texttt{fcc\_analyzer} is a python/matplotlib based tool that reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and fort.18 (spectrum), providing a graphical interface to get the assignments of the each individual transition.
 
 \section{Installation}
+
+\subsection{Local python installation}
 No installation is required, but a proper version of the python interpreter along with numpy and matplotlib modules is needed. The program was developed using the following version of each element:
 
 \begin{itemize}
@@ -127,6 +129,11 @@ pip install numpy
 
 After the above, you should have \texttt{matplotlib-1.4.2} (or above). If not, please, check the documentation of matplotlib, numpy and python in their respective websites. You can use \texttt{pip freeze} to see the version of all python modules installed.
 
+\subsection{Self-contained application}
+A binary produced with\\
+\texttt{pyinstaller fcc\_analyzer.py --onefile}\\ is also provided. This contains, in principle, all python modules incorporated and 
+would work on a machine without python installed. In practice, some dependencies make it not working for some cases, but one can give it a try.
+
 \section{Using \texttt{fcc\_analyzer}}
 After running a TI calculation with \fcc, and on the same folder, type (providing \texttt{fcc\_analyzer.py} is in your \texttt{PATH}):
 \vspace*{0.2cm}
@@ -156,7 +163,7 @@ After running a TI calculation with \fcc, and on the same folder, type (providin
  \item \textbf{Left-mouse click over a plot title}: erase transition info only.
 \end{itemize}
 
-\subsection{Using matplotlib functionalities\footnote{The availability of these options (and the aspect of the buttons) depends on the backend you are using for matplotlib. The ones shown here correspond to \textit{Qt4Agg} backend, which requires PyQt4 module (in Ubuntu and Fedora, it can be installed from the \texttt{python-qt4-dev} or \texttt{PyQt4-devel} packages.)}}
+\subsection{Using matplotlib backend functionalities\footnote{The availability of these options (and the aspect of the buttons) depends on the backend you are using for matplotlib. The ones shown here correspond to \textit{Qt4Agg} backend, which requires PyQt4 module (in Ubuntu and Fedora, it can be installed from the \texttt{python-qt4-dev} or \texttt{PyQt4-devel} packages.)}}
 \begin{itemize}
  \item \textbf{Press \texttt{'o'} or zoom button, \includegraphics[width=0.5cm]{figs/butt_zoom.jpg}}: zoom into (left mouse click) or out (right mouse click) a rectangle.
  \item \textbf{Press \texttt{'p'} or move button, \includegraphics[width=0.5cm]{figs/butt_move.jpg}}: move the spectrum (left mouse click) or zoom (right mouse click).
@@ -167,7 +174,14 @@ After running a TI calculation with \fcc, and on the same folder, type (providin
 
 \subsection{Export plot to xmgrace}
 \begin{itemize}
- \item \textbf{Central-mouse click over the plot title}: this will create a xmgrace file called \texttt{fcc\_analyzer.agr}, containing the convoluted and stick spectra and the labels selected in the plot. The axis ranges are kept.
+ \item \textbf{Central-mouse click over the plot title}: this will create a xmgrace file called \texttt{fcc\_analyzer.agr}, containing the convoluted and stick spectra and the labels selected in the plot. The axis ranges are kept. Note that the resulting file starts with the grace version number, which may be different in your case. The version number can be obtained by running:
+
+\begin{minipage}{1.0\textwidth}
+ \begin{lstlisting}[label=get_graceversion,caption=Getting \texttt{grace} version]
+xmgrace -version 2>/dev/null | grep Grace- | sed "s/\./0/" | sed "s/\.//" | sed "s/Grace-//"
+ \end{lstlisting}
+\end{minipage}
+
 \end{itemize}
 
 \section{Error messages}
@@ -178,5 +192,6 @@ After running a TI calculation with \fcc, and on the same folder, type (providin
 The program could not read the intensity for the 0-0 transition on fort.21. In old \fcc\ versions, there was a bug on the format for this value on fort.21, and it is not printed if it is over 10. You have to insert it manually below \texttt{SPECTRUM} on the \texttt{0-0 TRANSITION} section of the file. The actual value can be taken from fort.8. 
 \end{itemize}
 
+Any other error might be a result of a wrong input file (the sanity checks are generally performed). In case of getting an error with ``good'' output files, feel free to send my a mail to: \texttt{j.cerezo@pi.iccom.cnr.it}
 
 \end{document}

@@ -1,6 +1,10 @@
 # Compiled objects
 *.o
 *.mod
+# Latex garbage
+*.aux
+*.backup
+*.log
 # Specific bins for this project
 src/generators/gen_fcc_state
 src/generators/gen_fcc_dipfile
