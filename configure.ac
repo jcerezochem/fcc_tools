@@ -48,6 +48,14 @@ AS_IF([test "x$have_lapack_funct" != "xyes"],
       [AC_MSG_ERROR([No lapack library found])],
       [have_lapack_funct=yes])
 
+# # Checks for files in the distribution
+# AC_CHECK_FILE ([$srcdir/python/dist/fcc_analyzer]
+#                [install_pythonbin="yes"]
+#                [install_pythonbin="no"])
+# AM_CONDITIONAL([INSTALL_PYTHONBIN], [test "$install_pythonbin" = "yes"])
+
+
+
 AC_CONFIG_FILES([Makefile
                  src/generators/Makefile
                  python/Makefile

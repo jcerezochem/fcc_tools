@@ -73,7 +73,7 @@ class spectral_transition:
             self.init.remove(0)
         if len(self.init) > 0:
             for i in range(0,len(self.init)):
-                modesI = modesI+str(self.init[i])+'('+str(self.qinit[i])+'),'
+                modesI = modesI+str(self.qinit[i])+'('+str(self.init[i])+'),'
             #Remove trailing comma
             modesI = modesI[0:-1]
         else:
@@ -84,7 +84,7 @@ class spectral_transition:
             self.final.remove(0)
         if len(self.final) > 0:
             for i in range(0,len(self.final)):
-                modesF = modesF+str(self.final[i])+'('+str(self.qfinal[i])+'),'
+                modesF = modesF+str(self.qfinal[i])+'('+str(self.final[i])+'),'
             #Remove trailing comma
             modesF = modesF[0:-1]
         else:

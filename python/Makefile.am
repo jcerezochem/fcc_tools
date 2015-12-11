@@ -18,3 +18,14 @@ python-update-version-local:
 	@echo "  "
 	@./get_git_version.sh || echo "Reusing version file"
 
+all-local: python-update-version-local
+
+install-exec-local:
+	cp *.py $(prefix)/bin
+
+# if we want an additional install file
+#if INSTALL_PYTHONBIN
+#install-exec-local:
+#	cp *.py $(prefix)/bin
+#	cp dist/fcc_analyzer $(prefix)/bin
+#endif
