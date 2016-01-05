@@ -210,6 +210,10 @@ module fcc_io
                  Grad(i) = A(i)
              enddo
              deallocate(A)
+            case("molcas-ci")
+             call read_alaska_grad(unt,Nat,Grad,error_flag,symm="CI")
+            case("molcas")
+             call read_alaska_grad(unt,Nat,Grad,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('grad')
@@ -390,12 +394,13 @@ module fcc_io
             write(0,*)     "  fchk   : g09 fchk"
             write(0,*)     "  gms    : GAMESS out"
             write(0,*)     "  psi4   : Psi4 out"
-            write(0,*)     "  molcas : MOLCAS (UnSym?)"
+            write(0,*)     "  molcas : MOLCAS (UnSym)"
             write(0,*)     "  molpro : MOLPRO out"
             write(0,*)     "  gmx    : gromacs (g96 and dumped mtx)"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log    : g09 log"
             write(0,*)     "  fchk   : g09 fchk"
+            write(0,*)     "  molcas : grad file (no symm)"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"

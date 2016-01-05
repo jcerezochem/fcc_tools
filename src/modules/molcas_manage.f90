@@ -281,5 +281,100 @@ module molcas_manage
     end subroutine read_molcasUnSym_hess
 
 
+    subroutine read_alaska_grad(unt,Nat,Grad,error_flag,symm)
+
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Read Hessian from MOLCAS output. Returs the triangular part of the
+        ! Hessian matrix in AU
+        ! 
+        !Arguments
+        ! unt   (inp) scalar   unit for the file
+        ! Nat   (inp) scalar   Number of atoms
+        ! Grad  (out) vector   Gradient (AU)
+        ! error_flag (out) scalar  error_flag :
+        !                                 0 : Success
+        !                                -i : Read error on line i
+        !                                 2 : Wrong number of elements for Grad
+        ! symm  (inp,opt) scalar symmetry flag
+        !
+        !==============================================================
+
+        integer,intent(in) :: unt
+        integer,intent(in) :: Nat
+        real(kind=8), dimension(:), intent(out) :: Grad
+        integer,intent(out) :: error_flag
+        character(len=*),intent(in),optional :: symm
+
+        !Local stuff
+        !=============
+        character(len=240) :: line=""
+        character(len=2)   :: irrep, cnull
+        integer :: N, NN
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii
+        
+        
+        !Use N to store 3*Nat
+        N = 3*Nat
+
+        ! Search section
+        ii = 0
+        error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( adjustl(line) == "*              Molecular gradients               *" ) then
+                    read(unt,'(A)') line ! header box
+                    read(unt,'(A)') line ! header box
+                    read(unt,'(A)') line ! blank line
+                    read(unt,'(A)') line ! irrep info
+                    ! Get irrep
+                    call split_line(line,":",line,irrep)
+                    print*, "irrep: ", irrep
+                    read(unt,'(A)') line ! blank line
+                    exit
+                endif
+        enddo
+
+        if (present(symm).and.adjustl(symm)=="CI") then
+            if (mod(Nat,2) /= 0) then
+                print*, "ERROR: cannot read Ci with odd number of atoms"
+                stop 
+            endif
+            ii=0
+            do i=1,Nat/2
+                ii=ii+1
+                read(unt,*) cnull, cnull, Grad(3*ii-2)
+                read(unt,*) cnull, cnull, Grad(3*ii-1)
+                read(unt,*) cnull, cnull, Grad(3*ii  )
+                ii=ii+1
+                Grad(3*ii-2) = -Grad(3*ii-5)
+                Grad(3*ii-1) = -Grad(3*ii-4)
+                Grad(3*ii  ) = -Grad(3*ii-3)
+            enddo
+
+        else 
+            print*, "ERROR: molcas gradient reader under developent. Only molcas-ci available"
+            stop
+        endif
+
+        return
+
+    end subroutine read_alaska_grad
+
 end module molcas_manage
 

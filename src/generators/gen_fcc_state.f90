@@ -40,15 +40,18 @@ program gen_fcc_state
     !I/O
     character(len=100) :: strfile='input.log', &
                           hessfile='default',&
+                          gradfile='default',&
                           massfile='none',&
                           outfile='default',   &
                           outhess='default',   &
                           outmass='default'
     character(len=10)  :: fts='guess', &
-                          fth='guess'
+                          fth='guess', &
+                          ftg='guess'
     integer :: ios
     integer :: I_INP = 11, &
                I_HES = 12, &
+               I_GRD = 14, &
                I_MAS = 13, &
                O_STA = 20, &
                O_FCI = 21, &
@@ -56,7 +59,7 @@ program gen_fcc_state
                O_MAS = 23
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,massfile,outfile,outhess,outmass,model_pes)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -84,7 +87,7 @@ program gen_fcc_state
     allocate(L(1:3*Nat,1:3*Nat))
 
     !Read structure
-    print*, "Reading structure..."
+    print*, "Reading structure...", fts
     call generic_structure_reader(I_INP,fts,Nat,X,Y,Z,Mass,error)
     if (error /= 0) then
         print*, "Error reading the geometry", error
@@ -111,35 +114,42 @@ program gen_fcc_state
     close(I_INP)
 
     ! We now read the allow to read the Hessian from another file
-    !Open hessian file
-    open(I_HES,file=hessfile,iostat=ios)
-    if (ios /= 0) then
-        print*, "Error opening "//trim(adjustl(hessfile))
-        stop
-    endif
     !Guess the file type if not given
     if (adjustl(fth) == 'guess') then
         call split_line_back(hessfile,'.',cnull,fth)
     else if (adjustl(fth) == 'fts') then
         fth = fts
     endif
+    if (adjustl(ftg) == 'guess') then
+        call split_line_back(gradfile,'.',cnull,fth)
+    else if (adjustl(ftg) == 'fth') then
+        ftg = fth
+    endif
     
 
     !Read Gradient for VH (for now assume same file as Hess)
     if (adjustl(model_pes) == "VH") then
-        print*, "Reading Gradient..."
-        call generic_gradient_reader(I_HES,fth,Nat,Grad,error)
+        !Open gradient file
+        open(I_GRD,file=gradfile,iostat=ios)
+        if (ios /= 0) then
+            print*, "Error opening "//trim(adjustl(gradfile))
+            stop
+        endif
+        print*, "Reading Gradient...", ftg
+        call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
         if (error /= 0) then
             print'(X,A,/)', "Error: Gradient not present in the file."
             stop
         else
             print'(X,A,/)', "OK"
         endif
-        rewind(I_HES)
+        close(I_GRD)
     endif
 
+    !Open hessian file
+    open(I_HES,file=hessfile,iostat=ios)
     !Read Hessian
-    print*, "Reading Hessian..."
+    print*, "Reading Hessian...", fth
     call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
     if (error /= 0) then
         print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
@@ -244,9 +254,9 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,massfile,outfile,outhess,outmass,model_pes)
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes)
 
-        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,massfile,&
+        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
                                           outfile,outhess,outmass,model_pes
 
         ! Local
@@ -278,6 +288,13 @@ program gen_fcc_state
                     argument_retrieved=.true.
                 case ("-fth") 
                     call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-ig") 
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, ftg)
                     argument_retrieved=.true.
 
                 case ("-im") 
@@ -315,6 +332,11 @@ program gen_fcc_state
             ! The try to read the hessian from strfile
             hessfile = strfile
             fth = "fts"
+        endif
+        if (adjustl(gradfile) == 'default') then
+            ! The try to read the hessian from strfile
+            gradfile = hessfile
+            ftg = "fth"
         endif
         if (adjustl(outfile) == 'default') then
             call split_line_back(strfile,".",outfile,arg)
@@ -367,11 +389,13 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -fts   filetype(str)    '//trim(adjustl(fts))
         write(0,'(A)'  ) ' -ih    hess_input_file  '//trim(adjustl(hessfile))
         write(0,'(A)'  ) ' -fth   filetype(hess)   '//trim(adjustl(fth))
+        write(0,'(A)'  ) ' -ig    grad_input_file  '//trim(adjustl(gradfile))
+        write(0,'(A)'  ) ' -ftg   filetype(grad)   '//trim(adjustl(ftg))
         write(0,'(A)'  ) ' -im    mass_file        '//trim(adjustl(massfile))
         write(0,'(A)'  ) ' -o     output_file      '//trim(adjustl(outfile))
         write(0,'(A)'  ) ' -oh    hess_out_file    '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om    mass_file        '//trim(adjustl(outmass))
-!         write(0,'(A)'  ) ' -model model_pes        '//trim(adjustl(model_pes))
+        write(0,'(A)'  ) ' -model model_pes[AH|VH] '//trim(adjustl(model_pes))
         write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
 
