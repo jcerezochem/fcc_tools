@@ -19,6 +19,7 @@ module gaussian_manage
     !===================
     use line_preprocess
     use alerts
+    use verbosity
     implicit none
 
     contains
@@ -933,7 +934,8 @@ module gaussian_manage
         k = Sup+1
 
         !Read trdip
-        print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
+        if (verbose>0) &
+         print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
         do i=1,k
             read(unt,'(A)') line
         enddo
@@ -1043,6 +1045,11 @@ module gaussian_manage
         integer                          :: i,j,k, ii, jj
         !Local error flag
         integer                          :: error_local
+        !Local verbose flag
+        integer                          :: current_verbose
+
+        !Take current verbosity (it is changed within the subroutine)
+        current_verbose = verbose
 
         !Use detault for G09 (in au)
         if (dx == -1.d0) dx = 1.d-3/BOHRtoANGS
@@ -1055,31 +1062,49 @@ module gaussian_manage
         do k=1,3
             j = 3*(3*(i-1)+(k-1))
             !Loop over bwd and fwd steps
+            ! Perform the read_gausslog_dip step quietly
+            verbose=0
             call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,error_local)
+            verbose=current_verbose
             if (error_local /= 0) then
                 if (present(error_flag)) error_flag = error_local
-                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                call alert_msg("warning","Derivatives requested, but cannot be obtained.")
                 return
             endif
             !Check D2Num
             call get_d2num(unt,iat,ixyz,istep,error_local)
             if (iat /= i .or. ixyz /= k .or. istep /= 1) then
                 if (present(error_flag)) error_flag=1
-                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                print*, "Inconsistency when reading D2Num step:"
+                print*, "            Expected         Got"
+                print*, "  IAtom=", i,            iat
+                print*, "  IXYZ= ", k,            ixyz
+                print*, "  IStep=", 1,            istep
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. "//&
+                                          "Was symmetry off? are you using a restarted file?")
                 return
             endif
 
+            ! Perform the read_gausslog_dip step quietly
+            verbose=0
             call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,error_local)
+            verbose=current_verbose
             if (error_local /= 0) then
                 if (present(error_flag)) error_flag =  error_local
-                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                call alert_msg("warning","Derivatives requested, but cannot be obtained.")
                 return
             endif
             !Check D2Num
             call get_d2num(unt,iat,ixyz,istep,error_local)
             if (iat /= i .or. ixyz /= k .or. istep /= 2) then
                 if (present(error_flag)) error_flag=1
-                call alert_msg("warning","Derivatives requested, but cannot be obtained. Was symmetry off?")
+                print*, "Inconsistency when reading D2Num step:"
+                print*, "            Expected         Got"
+                print*, "  IAtom=", i,            iat
+                print*, "  IXYZ= ", k,            ixyz
+                print*, "  IStep=", 2,            istep
+                call alert_msg("warning","Derivatives requested, but cannot be obtained. "//&
+                                          "Was symmetry off? are you using a restarted file?")
                 return
             endif
 
