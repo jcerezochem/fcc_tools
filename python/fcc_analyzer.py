@@ -573,6 +573,7 @@ def export_xmgrace(event):
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    import sys
     try:
         import version_tag
     except:
@@ -587,6 +588,24 @@ if __name__ == "__main__":
     except:
         print " (untracked version)"
     print "====================================================="
+    
+    #====================================================
+    # Command line options
+    #====================================================
+    # Defaults
+    plot_intensity=True
+    plot_fcabs=False
+    for option in sys.argv:
+        if   option == "-fc":
+            plot_intensity=False
+        elif option == "-fc-abs":
+            plot_intensity=False
+            plot_fcabs=True
+        elif option == sys.argv[0]:
+            pass
+        else:
+            exit("ERROR: Unknown command line option: %s"%(option))
+
 
     #====================================================
     #Analyze fort.21 (this is the core of the script)
@@ -740,7 +759,18 @@ if __name__ == "__main__":
     else: nhot = nclass
 
     f.close()
-    print 'Loaded %s (C1); %s (C2); %s (C3); %s (C4); %s (C5); %s (C6); %s (C7); %s (Hot) transitions'%(nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7,nhot)
+    loadC=True
+    print 'Transitions read:'
+    print ' Class     N. trans.         Load?  '
+    print ' C1        {0:5d}             {1}   '.format(nclass1,loadC)
+    print ' C2        {0:5d}             {1}   '.format(nclass2,loadC)
+    print ' C3        {0:5d}             {1}   '.format(nclass3,loadC)
+    print ' C4        {0:5d}             {1}   '.format(nclass4,loadC)
+    print ' C5        {0:5d}             {1}   '.format(nclass5,loadC)
+    print ' C6        {0:5d}             {1}   '.format(nclass6,loadC)
+    print ' C7        {0:5d}             {1}   '.format(nclass7,loadC)
+    print ' Hot       {0:5d}             {1}   '.format(nhot   ,loadC)
+    print ''
     #========== Done with fort.21 ====================================
 
     #==================================================
@@ -759,7 +789,12 @@ if __name__ == "__main__":
     stickspc = []
     ind = dict()
     for i in range(0,len(tr)):
-        intens.append(tr[i].intensity)
+        if plot_intensity:
+            intens.append(tr[i].intensity)
+        elif plot_fcabs:
+            intens.append(abs(tr[i].fcfactor))
+        else: #plot FC factors
+            intens.append(tr[i].fcfactor)
         ener.append(tr[i].DE)
 
     # Build the np.arrays needed for plotting
@@ -773,36 +808,36 @@ if __name__ == "__main__":
     print "Loading convoluted spectrum (fort.18)..."
     try:
         f = open('fort.18','r')
-    except:
-        exit("ERROR: Cannot open file 'fort.18'")
-    read_spc = False
-    for line in f:
-        #We ensure that it do not stop at intermediate steps
-        if "Total spectrum at the chosen temperature up to now" in line:
-            continue
-        elif "Total spectrum at the chosen temperature" in line:
-            read_spc = True
-            continue
-        #Now read the file
-        if read_spc:
-            data = line.split()
-            if "integral" in line: break
-            x.append(float(data[0]))
-            y.append(float(data[1]))
-    f.close()
-    spc = np.array((x,y))
-    #Tranpose to use the same index order as in previous version
-    spc = spc.transpose()
-    try: 
-        spcmax = spc[:,1].max()
-        spcmin = spc[:,1].min()
-        if abs(spcmin) > spcmax:
-            spc[:,1] = spc[:,1]/spcmin*intens.min()
-        else:
-            spc[:,1] = spc[:,1]/spcmax*intens.max()
-        #Plot
-        spctot, = ax.plot(spc[:,0],spc[:,1],'--',color='k',label="spec")
-        stickspc.append(spctot)
+        read_spc = False
+        for line in f:
+            #We ensure that it do not stop at intermediate steps
+            if "Total spectrum at the chosen temperature up to now" in line:
+                continue
+            elif "Total spectrum at the chosen temperature" in line:
+                read_spc = True
+                continue
+            #Now read the file
+            if read_spc:
+                data = line.split()
+                if "integral" in line: break
+                x.append(float(data[0]))
+                y.append(float(data[1]))
+        f.close()
+        spc = np.array((x,y))
+        #Tranpose to use the same index order as in previous version
+        spc = spc.transpose()
+        try: 
+            spcmax = spc[:,1].max()
+            spcmin = spc[:,1].min()
+            if abs(spcmin) > spcmax:
+                spc[:,1] = spc[:,1]/spcmin*intens.min()
+            else:
+                spc[:,1] = spc[:,1]/spcmax*intens.max()
+            #Plot
+            spctot, = ax.plot(spc[:,0],spc[:,1],'--',color='k',label="spec")
+            stickspc.append(spctot)
+        except:
+            print "Spectra on fort.28 could not be loaded"
     except:
         print "Spectra on fort.28 could not be loaded"
     
