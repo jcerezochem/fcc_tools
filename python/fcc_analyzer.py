@@ -46,6 +46,42 @@ NOTES AND BUGS
 """
 import numpy as np
 
+def helptext():
+    print """
+    Description:
+    ------------
+    This python scripts parses fort.21 retrieving the informaition about the 
+    transitions and plot them using matplotlib. An interactive plot is generated
+    which allow the used to assign the stick transition by clicking on them.
+    The script can also export the plot to xmgrace format.
+    
+    Instructions:
+    ------------
+    * Interacting with the plot:
+      -Get info from a transition: right-mouse-click on a stick
+      -Set the next/previous indexed transiton: +/- keys
+      -Place a label: left-mouse-click on a stick
+      -Move a label: hold the label with the left-mouse-button
+      -Remove one label: on the label, right-mouse-click
+      -Deactivate a class: mouse-click on the legend
+      -Clean info about transitons: left-mouse-click on the title
+      -Clean all labels: right-mouse-click on the title
+      -Export to xmgrace: central-mouse-click on the title
+    
+    * Command line flags
+      By default the script plots the transitions for all classes in absolute intensity
+      but this behaviour can be tuned with command line flags
+      
+       Flag      Action
+      ---------------------
+       -fc       Plot FCfactors
+       -fc-abs   Plot absolute value of FCfactors
+       -fc-sqr   Plot square values of FCfactors
+       -v        Print version info and quit
+       -h        This help
+       
+    """
+
 class spectral_transition:
     """
     A class for spectral transitions
@@ -595,12 +631,21 @@ if __name__ == "__main__":
     # Defaults
     plot_intensity=True
     plot_fcabs=False
+    plot_fcsqr=False
     for option in sys.argv:
         if   option == "-fc":
             plot_intensity=False
         elif option == "-fc-abs":
             plot_intensity=False
             plot_fcabs=True
+        elif option == "-fc-sqr":
+            plot_intensity=False
+            plot_fcsqr=True
+        elif option == "-v":
+            sys.exit()
+        elif option == "-h":
+            helptext()
+            sys.exit()
         elif option == sys.argv[0]:
             pass
         else:
@@ -791,6 +836,8 @@ if __name__ == "__main__":
     for i in range(0,len(tr)):
         if plot_intensity:
             intens.append(tr[i].intensity)
+        elif plot_fcsqr:
+            intens.append((tr[i].fcfactor)**2)
         elif plot_fcabs:
             intens.append(abs(tr[i].fcfactor))
         else: #plot FC factors
