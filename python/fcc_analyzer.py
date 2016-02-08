@@ -523,7 +523,7 @@ def export_xmgrace(event):
     print >> f, "@    legend 0.95, 0.9"
     #Now include data
     counter=-1
-    if (spc[:,0].size != 0):
+    if (spc[:,:].size != 0):
         counter+=1
         print >> f, "# Spect"
         print >> f, "@    s"+str(counter),"line type 1"
@@ -884,9 +884,11 @@ if __name__ == "__main__":
             spctot, = ax.plot(spc[:,0],spc[:,1],'--',color='k',label="spec")
             stickspc.append(spctot)
         except:
-            print "Spectra on fort.28 could not be loaded"
+            print "Spectra on fort.18 could not be loaded"
     except:
-        print "Spectra on fort.28 could not be loaded"
+        print "Spectra on fort.18 could not be loaded"
+        spc = np.array((x,y))
+        read_spc = False
     
     #Now start plotting sticks (should be done with a list over the classes)
     # NOTE: ind[] stores the array indexes (from 0), not the fort.21 INDEX (from 1)
