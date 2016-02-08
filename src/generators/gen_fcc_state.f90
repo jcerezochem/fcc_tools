@@ -264,6 +264,7 @@ program gen_fcc_state
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=20)  :: prfx=""
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -339,19 +340,27 @@ program gen_fcc_state
             ftg = "fth"
         endif
         if (adjustl(outfile) == 'default') then
-            call split_line_back(strfile,".",outfile,arg)
+            ! Get relative path
+            call split_line_back(strfile,"./",prfx,outfile)
+            if (len_trim(prfx)/=0) then
+                prfx=trim(adjustl(prfx))//"./"
+            endif
+            call split_line_back(outfile,".",outfile,arg)
             if (adjustl(fts) /= 'guess') arg=fts
-            outfile = "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
+            outfile = trim(adjustl(prfx))//&
+                      "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(outhess) == 'default') then
-            call split_line_back(strfile,".",outhess,arg)
+            call split_line_back(outfile,"state_",arg,outhess)
             if (adjustl(fts) /= 'guess') arg=fts
-            outhess = "hessian_"//trim(adjustl(outhess))//'_'//trim(adjustl(arg))
+            outhess = trim(adjustl(prfx))//&
+                      "hessian_"//trim(adjustl(outhess))
         endif
         if (adjustl(outmass) == 'default') then
-            call split_line_back(strfile,".",outmass,arg)
+            call split_line_back(outfile,"state_",arg,outmass)
             if (adjustl(fts) /= 'guess') arg=fts
-            outmass = "mass_"//trim(adjustl(outmass))//'_'//trim(adjustl(arg))
+            outmass = trim(adjustl(prfx))//&
+                      "mass_"//trim(adjustl(outmass))
         endif
 
 
