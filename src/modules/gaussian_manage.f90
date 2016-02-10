@@ -725,6 +725,7 @@ module gaussian_manage
         ! Local error flag
         integer :: error_local
         character(len=3) :: dummy_char
+        logical :: symmetry_check=.true.
 
         ! Number of excited states computed
         call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_local)
@@ -790,13 +791,15 @@ module gaussian_manage
                     !Note that MagDip should be divided by -2 (see FCclasses manual)
                     DipD(jj:jj+2) = A(k+8:k+10)/(-2.d0)
                 endif
-        
+
                 if (DipD(jj  ) == 0.d0 .and.&
                     DipD(jj+1) == 0.d0 .and.&
-                    DipD(jj+2) == 0.d0) then
+                    DipD(jj+2) == 0.d0 .and. symmetry_check) then
                     !Symmetry is used
                     call alert_msg("warning","Looks like the computation was done with symmetry. "//&
                                              "If so, dipole ders. are not reliable!")
+                    ! This check is not done again
+                    symmetry_check=.false.
                 endif
             enddo
         endif
