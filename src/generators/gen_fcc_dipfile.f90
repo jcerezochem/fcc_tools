@@ -162,6 +162,7 @@ program gen_fcc_dipfile
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=20)  :: prfx=""
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -213,14 +214,26 @@ program gen_fcc_dipfile
         ! Post-processing
         !----------------------------
         if (adjustl(out_eldip) == 'default') then
-            call split_line_back(inpfile,".",out_eldip,arg)
+            ! Get relative path
+            call split_line_back(inpfile,"./",prfx,out_eldip)
+            if (len_trim(prfx)/=0) then
+                prfx=trim(adjustl(prfx))//"./"
+            endif
+            call split_line_back(out_eldip,".",out_eldip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
-            out_eldip  = "eldip_"//trim(adjustl(out_eldip))//'_'//trim(adjustl(arg))
+            out_eldip = trim(adjustl(prfx))//&
+                      "eldip_"//trim(adjustl(out_eldip))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(out_magdip) == 'default') then
-            call split_line_back(inpfile,".",out_magdip,arg)
+            ! Get relative path
+            call split_line_back(inpfile,"./",prfx,out_magdip)
+            if (len_trim(prfx)/=0) then
+                prfx=trim(adjustl(prfx))//"./"
+            endif
+            call split_line_back(out_magdip,".",out_magdip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
-            out_magdip  = "magdip_"//trim(adjustl(out_magdip))//'_'//trim(adjustl(arg))
+            out_magdip = trim(adjustl(prfx))//&
+                      "magdip_"//trim(adjustl(out_magdip))//'_'//trim(adjustl(arg))
         endif
 
 
