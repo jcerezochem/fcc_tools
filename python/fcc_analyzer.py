@@ -77,6 +77,7 @@ def helptext():
        -fc       Plot FCfactors
        -fc-abs   Plot absolute value of FCfactors
        -fc-sqr   Plot square values of FCfactors
+       -maxC     Maximum Class to show
        -v        Print version info and quit
        -h        This help
        
@@ -632,8 +633,12 @@ if __name__ == "__main__":
     plot_intensity=True
     plot_fcabs=False
     plot_fcsqr=False
-    for option in sys.argv:
-        if   option == "-fc":
+    skip_next=False
+    MaxClass=7
+    for i,option in enumerate(sys.argv):
+        if skip_next:
+            skip_next=False
+        elif option == "-fc":
             plot_intensity=False
         elif option == "-fc-abs":
             plot_intensity=False
@@ -641,6 +646,9 @@ if __name__ == "__main__":
         elif option == "-fc-sqr":
             plot_intensity=False
             plot_fcsqr=True
+        elif option == "-maxC":
+            MaxClass = int(sys.argv[i+1])
+            skip_next = True
         elif option == "-v":
             sys.exit()
         elif option == "-h":
@@ -650,7 +658,6 @@ if __name__ == "__main__":
             pass
         else:
             exit("ERROR: Unknown command line option: %s"%(option))
-
 
     #====================================================
     #Analyze fort.21 (this is the core of the script)
@@ -754,21 +761,22 @@ if __name__ == "__main__":
             fcclass = 0
         elif ("E+" in line) | ("E-" in line):
             nclass += 1
-            data = line.split()
-            itrans += 1
-            tr.append(spectral_transition())
-            tr[itrans].motherstate = motherstate
-            tr[itrans].fcclass     = fcclass
-            tr[itrans].index       = float(data[0])
-            tr[itrans].efin        = float(data[1])
-            tr[itrans].einit       = float(data[2])
-            tr[itrans].DE          = float(data[3])
-            tr[itrans].DE00cm      = float(data[4])
-            tr[itrans].fcfactor    = float(data[5])
-            tr[itrans].intensity   = float(data[6])
+            if fcclass<=MaxClass:
+                data = line.split()
+                itrans += 1
+                tr.append(spectral_transition())
+                tr[itrans].motherstate = motherstate
+                tr[itrans].fcclass     = fcclass
+                tr[itrans].index       = float(data[0])
+                tr[itrans].efin        = float(data[1])
+                tr[itrans].einit       = float(data[2])
+                tr[itrans].DE          = float(data[3])
+                tr[itrans].DE00cm      = float(data[4])
+                tr[itrans].fcfactor    = float(data[5])
+                tr[itrans].intensity   = float(data[6])
         #Indentify modes in the transition
         #Initial
-        elif 'state 1 = GROUND' in line:
+        elif 'state 1 = GROUND' in line and fcclass<=MaxClass:
             tr[itrans].init = [0]
         elif 'Osc1=' in line:
             A = line.split('Osc1=')
@@ -777,23 +785,23 @@ if __name__ == "__main__":
                 A[i] = int(A[i])
             tr[itrans].init = A 
         #Number of quanta involved
-        elif 'Nqu1=' in line:
+        elif 'Nqu1=' in line and fcclass<=MaxClass:
             A = line.split('Nqu1=')
             del A[0]
             for i in range(0,len(A)):
                 A[i] = int(A[i])
             tr[itrans].qinit = A 
         #Final
-        elif 'state 1 = GROUND' in line:
+        elif 'state 1 = GROUND' in line and fcclass<=MaxClass:
             tr[itrans].final = [0]
-        elif 'Osc2=' in line:
+        elif 'Osc2=' in line and fcclass<=MaxClass:
             A = line.split('Osc2=')
             del A[0]
             for i in range(0,len(A)):
                 A[i] = int(A[i])
             tr[itrans].final = A 
         #Number of quanta involved
-        elif 'Nqu2=' in line:
+        elif 'Nqu2=' in line and fcclass<=MaxClass:
             A = line.split('Nqu2=')
             del A[0]
             for i in range(0,len(A)):
@@ -805,17 +813,17 @@ if __name__ == "__main__":
 
     f.close()
     loadC=True
+    nclass_list = [nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7]
     print 'Transitions read:'
     print ' Class     N. trans.         Load?  '
-    print ' C1        {0:5d}             {1}   '.format(nclass1,loadC)
-    print ' C2        {0:5d}             {1}   '.format(nclass2,loadC)
-    print ' C3        {0:5d}             {1}   '.format(nclass3,loadC)
-    print ' C4        {0:5d}             {1}   '.format(nclass4,loadC)
-    print ' C5        {0:5d}             {1}   '.format(nclass5,loadC)
-    print ' C6        {0:5d}             {1}   '.format(nclass6,loadC)
-    print ' C7        {0:5d}             {1}   '.format(nclass7,loadC)
-    print ' Hot       {0:5d}             {1}   '.format(nhot   ,loadC)
+    for i,nclass in enumerate(nclass_list):
+        if MaxClass<i+1: loadC=False
+        print ' C{0}        {1:5d}             {2}   '.format(i+1,nclass,loadC)
+        if MaxClass<i+1: nclass_list[i]=0
+    print     ' Hot       {0:5d}                   '.format(nhot)
     print ''
+    print 'Loaded transitions: ',(itrans)
+    nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7 = nclass_list
     #========== Done with fort.21 ====================================
 
     #==================================================
