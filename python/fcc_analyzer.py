@@ -496,12 +496,14 @@ def export_xmgrace(event):
     for lab in labs:
         print >> f, "@with line"
         print >> f, "@    line on"
+        print >> f, "@    line g0"
         print >> f, "@    line loctype world"
         print >> f, "@    line color 20"
         print >> f, "@    line ",lab.xy[0],",",lab.xy[1],",",lab.xyann[0],",",lab.xyann[1]
         print >> f, "@line def"
         print >> f, "@with string"
         print >> f, "@    string on"
+        print >> f, "@    string g0"
         print >> f, "@    string loctype world"
         print >> f, "@    string ", lab.xyann[0],",",lab.xyann[1]
         print >> f, "@    string def \"",labs[lab],"\""

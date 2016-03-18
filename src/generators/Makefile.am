@@ -41,8 +41,9 @@ gen_fcc_dipfile_LDFLAGS = @LIBS@
 
 CLEANFILES=*.mod
 
-.PHONY: version.f90
-version.f90:
+# .PHONY: version.f90
+version.f90: get_git_version
+get_git_version:
 	@bash ./get_git_version.sh $(FCFLAGS) $(LIBS) || echo "Reusing version file"
 
 
