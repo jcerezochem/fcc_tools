@@ -318,11 +318,9 @@ class LabelSet:
             label='$'
             agrlabel=''
             for i in range(0,len(tr[dataind].final)):
-                # Labels change: from  [Mode]_{v-state} to [v-State]_{Mode}
-                # label = label+str(tr[dataind].final[i])+'_{'+str(tr[dataind].qfinal[i])+'},'
-                # agrlabel = agrlabel+str(tr[dataind].final[i])+'\s'+str(tr[dataind].qfinal[i])+'\N,'
-                label = label+str(tr[dataind].qfinal[i])+'_{'+str(tr[dataind].final[i])+'},'
-                agrlabel = agrlabel+str(tr[dataind].qfinal[i])+'\s'+str(tr[dataind].final[i])+'\N,'
+                # Labels changed to Mode^quata
+                label = label+str(tr[dataind].final[i])+'^{'+str(tr[dataind].qfinal[i])+'},'
+                agrlabel = agrlabel+str(tr[dataind].final[i])+'\S'+str(tr[dataind].qfinal[i])+'\N,'
             #Remove trailing comma
             label = label[0:-1]+'$'
             agrlabel = agrlabel[0:-1]
