@@ -91,7 +91,7 @@ class spectral_transition:
             self.init.remove(0)
         if len(self.init) > 0:
             for i in range(0,len(self.init)):
-                modesI = modesI+str(self.qinit[i])+'('+str(self.init[i])+'),'
+                modesI = modesI+str(self.init[i])+'('+str(self.qinit[i])+'),'
             #Remove trailing comma
             modesI = modesI[0:-1]
         else:
@@ -102,7 +102,7 @@ class spectral_transition:
             self.final.remove(0)
         if len(self.final) > 0:
             for i in range(0,len(self.final)):
-                modesF = modesF+str(self.qfinal[i])+'('+str(self.final[i])+'),'
+                modesF = modesF+str(self.final[i])+'('+str(self.qfinal[i])+'),'
             #Remove trailing comma
             modesF = modesF[0:-1]
         else:
@@ -135,6 +135,12 @@ class spectral_transition:
 
 class AppForm(QMainWindow):
     def __init__(self, parent=None):
+        """
+        The _init__ function takes care of:
+        1) Building the app window 
+        2) Load data (fort.21, fort.22)
+        3) Initialize some variables
+        """
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('FCclasses analyzer')
 
@@ -142,17 +148,10 @@ class AppForm(QMainWindow):
         self.create_main_frame()
         self.create_status_bar()
 
-        self.textbox.setText('0.3')
-        
-        # Data load
-        cml_args = get_args()
-        MaxClass=cml_args.get("-maxC")
-        MaxClass = int(MaxClass)
-        self.fcclass_list = read_fort21(MaxClass)
-        for i,tr in enumerate(self.fcclass_list):
-            print "Class %s. Size: %s"%(i,len(tr))
-
         # Initialize additional items
+        # HWHM box
+        self.broadening="Gau"
+        self.update_hwhm_from_slider(UpdateConvolute=False)
         # Line markers
         self.selected  = self.axes.vlines([0.0], [0.0], [0.0], linewidths=3,
                          color='yellow', visible=False)
@@ -160,9 +159,25 @@ class AppForm(QMainWindow):
         self.labs = dict()
         self.active_label = None
         self.active_tr = None
+        self.spectrum_exp = None
         
+        # Get command line arguments
+        cml_args = get_args()
+        MaxClass = cml_args.get("-maxC")
+        MaxClass = int(MaxClass)
+        self.spc_type = cml_args.get("-type")
+        self.spc_type = self.spc_type.lower()
+        # Data load
+        self.fcclass_list = read_fort21(MaxClass)
+        for i,tr in enumerate(self.fcclass_list):
+            print "Class %s. Size: %s"%(i,len(tr))
+        print ""
+        self.xbin,self.ybin = read_spc_xy('fort.22')
+        
+        # This is the load driver
         self.load_sticks()
         self.load_sticks_legend()
+        self.load_convoluted()
         
         
     #==========================================================
@@ -177,6 +192,18 @@ class AppForm(QMainWindow):
         if path:
             self.canvas.print_figure(path, dpi=self.dpi)
             self.statusBar().showMessage('Saved to %s' % path, 2000)
+            
+    def open_plot(self):
+        file_choices = "DAT (*.dat)|*.dat"
+        
+        path = unicode(QFileDialog.getOpenFileName(self, 
+                        'Open spectrum', '', 
+                        file_choices))
+        if path:
+            self.statusBar().showMessage('Opened %s' % path, 2000)    
+            x,y = read_spc_xy(path)
+            self.load_experiment_spc(x,y)
+        
             
     def xmgr_export(self):
         file_choices = ".agr (*.agr)|*.agr"
@@ -202,7 +229,186 @@ class AppForm(QMainWindow):
         """
         QMessageBox.about(self, "About the app", msg.strip())
         
-    
+    #==========================================================
+    # ANALYSIS FUNCTIONS
+    #==========================================================
+    def compute_moments(self):
+        """
+        Compute First and Second moments for the convoluted spectrum
+        """
+        x = self.spectrum_sim[0].get_xdata()
+        y = self.spectrum_sim[0].get_ydata()
+        
+        # Zero
+        m0 = np.trapz(y, x)
+        y /= m0
+        # First
+        y = y*x
+        m1 = np.trapz(y, x)
+        # Second
+        y = y*x
+        m2 = np.trapz(y, x)
+        # Sigma
+        sgm = np.sqrt(m2-m1**1)
+        
+        result = """
+  MOMENTA ANALYSIS
+  =========================
+  
+  * Covoluted Spectrum
+  ---------------------------------
+  1st Moment (eV) = %.3f
+  
+  2nd Moment (eV^2) = %.3f
+  
+  Sigma (eV) = %.3f
+  ---------------------------------
+        """ % (m1, m2, sgm)
+        self.analysis_box.setText(result)
+        
+        
+    #==========================================================
+    # LOAD DATA AND ELEMENTS
+    #==========================================================
+    def load_sticks(self):
+        """ 
+        Load stick spectra for all classes (C0,C1...,CHot)
+        - The spectra objects are stored in a list: self.stickspc
+        """
+        # clear the axes and redraw the plot anew
+        # 
+        self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
+        self.axes.set_xlabel('Energy (eV)',fontsize=16)
+        self.axes.set_ylabel('Inensity',fontsize=16)
+        self.axes.tick_params(direction='out',top=False, right=False)
+        
+        
+        #Plotting sticks and store objects
+        # Set labels and colors
+        label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
+        color_list = ['k', 'b', 'r', 'g', 'c', 'm', 'brown', 'pink', 'orange' ]
+
+
+        #Inialize variables
+        self.stickspc = []
+        xmin =  999.
+        xmax = -999
+        for iclass in range(9):
+            x = np.array([ self.fcclass_list[iclass][i].DE        for i in range(len(self.fcclass_list[iclass])) ])
+            y = np.array([ self.fcclass_list[iclass][i].intensity for i in range(len(self.fcclass_list[iclass])) ])
+            z = np.zeros(len(x))
+            if len(x) == 0:
+                self.stickspc.append(None)
+            else:
+                self.stickspc.append(self.axes.vlines(x,z,y,linewidths=1,color=color_list[iclass],
+                                                      label=label_list[iclass],picker=5))
+                f = open('class'+str(iclass)+'.dat','w')
+                f.write(str(x))
+                f.close
+                xmin = min([xmin,min(x)])
+                xmax = max([xmax,max(x)])
+                
+        self.axes2.set_xlim([xmin-0.15,xmax+0.15])
+        
+        self.canvas.draw()
+        
+        
+    def load_sticks_legend(self):
+        """
+        Plot legend, which is pickable so as to turn plots on/off
+        """
+        
+        #Legends management
+        self.legend = self.axes.legend(loc='upper right', fancybox=True, shadow=True)
+        self.legend.get_frame().set_alpha(0.4)
+        self.legend.set_picker(5)
+        # we will set up a dict mapping legend line to orig line, and enable
+        # picking on the legend line (from legend_picking.py)
+        self.legend_lines = dict()
+        # Note: mechanism to get rid out of None elements in the list
+        #  filter(lambda x:x,lista)) evaluates every member in the list, and only take if
+        #  the result of the evaluation is True. None gives a False
+        for legline, origline in zip(self.legend.get_lines(), list(filter(lambda x:x,self.stickspc))):
+            legline.set_picker(5)  # 5 pts tolerance
+            self.legend_lines[legline] = origline
+            
+            
+    def load_convoluted(self):
+        str = unicode(self.textbox.text())
+        hwhm = float(str)
+        
+        if self.spc_type == 'abs':
+            self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
+        elif self.spc_type == 'ecd':
+            self.axes2.set_ylabel(r'$\Delta\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
+        else:
+            self.axes2.set_ylabel('I',fontsize=16)
+        self.axes2.set_xlabel('Energy (eV)',fontsize=16)
+        #self.axes.tick_params(direction='out',top=False, right=False)
+        
+        #Convolution (in energy(eV))
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
+        if self.spc_type == 'abs':
+            factor = 703.300
+        elif self.spc_type == 'ecd':
+            factor = 20.5288
+        else:
+            factor = 1.
+        yc = yc * factor
+        # Plot convoluted
+        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
+        ymax2 = yc.max()*1.05
+        ymin,ymax = self.axes.get_ylim()
+        ymin2 = ymax2/ymax * ymin
+        self.axes2.set_ylim([ymin2,ymax2])
+        
+        self.canvas.draw()
+        
+        
+    def update_convolute(self):
+        str = unicode(self.textbox.text())
+        hwhm = float(str)
+        
+        #Convolution (in energy(eV))
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
+        if self.spc_type == 'abs':
+            factor = 703.300
+        elif self.spc_type == 'emi':
+            factor = 20.5288
+        else:
+            factor = 1.
+        yc = yc * factor
+        # Plot convoluted
+        self.spectrum_sim[0].remove()
+        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
+        # Set the range so as to keep the same zero as in the case of the sticks
+        ymax2 = yc.max()*1.05
+        ymin,ymax = self.axes.get_ylim()
+        ymin2 = ymax2/ymax * ymin
+        self.axes2.set_ylim([ymin2,ymax2])
+        
+        self.canvas.draw()
+        
+        
+    def load_experiment_spc(self,x,y):
+        
+        x,y = [np.array(x), np.array(y)]
+        # Plot experiment (only one experiment is allowed)
+        if self.spectrum_exp != None:
+            self.spectrum_exp[0].remove()
+        self.spectrum_exp = self.axes2.plot(x,y,'-',color='gray')
+        # Set the range so as to keep the same zero as in the case of the sticks
+        #ymin2,ymax2 = self.axes2.get_ylim()
+        #if y.max() > ymax2 or y.min() < ymin2:
+            #pass
+        #ymax2 = y.max()*1.05
+        #ymin,ymax = self.axes.get_ylim()
+        #ymin2 = ymax2/ymax * ymin
+        #self.axes2.set_ylim([ymin2,ymax2])
+        
+        self.canvas.draw()
+        
+        
     #==========================================================
     # FUNCTIONS TO INTERACT WITH THE PLOT
     #==========================================================
@@ -361,76 +567,7 @@ class AppForm(QMainWindow):
         #We deactivate the lab. Otherwise, if we reclikc on the same point, it raises an error
         self.active_label.set_visible(False)
         self.canvas.draw()
-            
-    
-    def load_sticks(self):
-        """ 
-        Load stick spectra for all classes (C0,C1...,CHot)
-        - The spectra objects are stored in a list: self.stickspc
-        """      
 
-        #str = unicode(self.textbox.text())
-        #sgm = float(str)
-        
-        # Check if this is the first round. This can be retrieved 
-        # from the x_label
-        label_check=self.axes.get_xaxis().get_label_text()
-        x_range=self.axes.get_xlim()
-        y_range=self.axes.get_ylim()
-
-        # clear the axes and redraw the plot anew
-        #
-        self.axes.clear()  
-        self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
-        self.axes.set_xlabel('Energy (eV)',fontsize=16)
-        self.axes.set_ylabel('Inensity',fontsize=16)
-        self.axes.tick_params(direction='out',top=False, right=False)
-        self.axes.grid(self.grid_cb.isChecked())
-        
-        
-        #Plotting sticks and store objects
-        # Set labels and colors
-        label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
-        color_list = ['k', 'b', 'r', 'g', 'c', 'm', 'brown', 'pink', 'orange' ]
-
-
-        #Inialize variables
-        self.stickspc = []
-        for iclass in range(9):
-            x = np.array([ self.fcclass_list[iclass][i].DE        for i in range(len(self.fcclass_list[iclass])) ])
-            y = np.array([ self.fcclass_list[iclass][i].intensity for i in range(len(self.fcclass_list[iclass])) ])
-            z = np.zeros(len(x))
-            if len(x) == 0:
-                self.stickspc.append(None)
-            else:
-                self.stickspc.append(self.axes.vlines(x,z,y,linewidths=1,color=color_list[iclass],
-                                                      label=label_list[iclass],picker=5))
-                f = open('class'+str(iclass)+'.dat','w')
-                f.write(str(x))
-                f.close
-        
-        self.canvas.draw()
-        
-        
-    def load_sticks_legend(self):
-        """
-        Plot legend, which is pickable so as to turn plots on/off
-        """
-        
-        #Legends management
-        self.legend = self.axes.legend(loc='upper right', fancybox=True, shadow=True)
-        self.legend.get_frame().set_alpha(0.4)
-        self.legend.set_picker(5)
-        # we will set up a dict mapping legend line to orig line, and enable
-        # picking on the legend line (from legend_picking.py)
-        self.legend_lines = dict()
-        # Note: mechanism to get rid out of None elements in the list
-        #  filter(lambda x:x,lista)) evaluates every member in the list, and only take if
-        #  the result of the evaluation is True. None gives a False
-        for legline, origline in zip(self.legend.get_lines(), list(filter(lambda x:x,self.stickspc))):
-            legline.set_picker(5)  # 5 pts tolerance
-            self.legend_lines[legline] = origline
-            
 
     def interact_with_legend(self,event):
         """
@@ -458,7 +595,7 @@ class AppForm(QMainWindow):
             
         self.canvas.draw()
             
-        
+    # FUNCTIONS WITHOUT EVENT
     def set_stick_marker(self):
         if self.active_tr is None: return
         
@@ -476,10 +613,18 @@ class AppForm(QMainWindow):
         
     
     def del_stick_marker(self):
-        if self.active_tr is None: return
         
+        self.analysis_box.setText("")
         self.active_tr = None 
         self.selected.set_visible(False)
+        self.canvas.draw()
+        
+    def reset_labels(self):
+        #We need a local copy of labs to iterate while popping
+        labs_local = [ lab for lab in self.labs ]
+        for lab in labs_local:
+            lab.remove()
+            self.labs.pop(lab)
         self.canvas.draw()
         
         
@@ -545,11 +690,40 @@ class AppForm(QMainWindow):
             labelref.remove()
            
         
-    def update_sgm(self):
-        sgm=self.slider.value()/ 100.0
-        self.textbox.setText(str(sgm))
-        self.load_sticks()
-    
+    def update_hwhm_from_slider(self,UpdateConvolute=True):
+        hwhmmin = 0.01
+        hwhmmax = 0.1
+        slidermin = 1   # this is not changed
+        slidermax = 100 # this is not changed
+        hwhm = float((hwhmmax-hwhmmin)/(slidermax-slidermin) * (self.slider.value()-slidermin) + hwhmmin)
+        hwhm = round(hwhm,3)
+        self.textbox.setText(str(hwhm))
+        if (UpdateConvolute):
+            self.update_convolute()
+        
+        
+    def update_hwhm_from_textbox(self):
+        hwhmmin = 0.01
+        hwhmmax = 0.1
+        slidermin = 1   # this is not changed
+        slidermax = 100 # this is not changed
+        str = unicode(self.textbox.text())
+        hwhm = float(str)
+        sliderval = int((slidermax-slidermin)/(hwhmmax-hwhmmin) * (hwhm-hwhmmin) + slidermin)
+        sliderval = min(sliderval,slidermax)
+        sliderval = max(sliderval,slidermin)
+        self.slider.setValue(sliderval)
+        self.update_convolute()
+        
+        
+    def update_broad_function(self):
+        self.broadening = self.select_broad.currentText()
+        self.update_convolute()
+        
+        
+    #==========================================================
+    # MAIN FRAME, CONNECTIONS AND MENU ACTIONS
+    #==========================================================    
     def create_main_frame(self):
         self.main_frame = QWidget()
         
@@ -561,9 +735,13 @@ class AppForm(QMainWindow):
         # (lo de arriba, estaba en el original)
         # 
         # Usamos la figura/ejes creados com subplots
-        self.fig, self.axes = plt.subplots()
+        self.fig, self.axes2 = plt.subplots()
+        # Second axis for the convoluted graph
+        self.axes = self.axes2.twinx()
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
+        #self.canvas.setMaximumWidth(1000)
+        # The following allows the interaction with the keyboard
         self.canvas.setFocusPolicy( Qt.ClickFocus )
         self.canvas.setFocus()
         
@@ -592,37 +770,82 @@ class AppForm(QMainWindow):
         # Other GUI controls
         # 
         self.textbox = QLineEdit()
-        self.textbox.setMinimumWidth(200)
-        self.connect(self.textbox, SIGNAL('editingFinished ()'), self.load_sticks)
+        self.textbox.setMinimumWidth(50)
+        self.textbox.setMaximumWidth(50)
+        self.connect(self.textbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
         
-        self.draw_button = QPushButton("&Draw")
-        self.connect(self.draw_button, SIGNAL('clicked()'), self.load_sticks)
+        self.clean_button1 = QPushButton("&Clean(Panel)")
+        self.connect(self.clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
+        self.clean_button2 = QPushButton("&Clean(Labels)")
+        self.connect(self.clean_button2, SIGNAL('clicked()'), self.reset_labels)
         
-        self.grid_cb = QCheckBox("Show &Grid")
-        self.grid_cb.setChecked(False)
-        self.connect(self.grid_cb, SIGNAL('stateChanged(int)'), self.load_sticks)
+        self.select_broad = QComboBox()
+        self.select_broad.addItems(["Gau","Lor"])
+        self.select_broad.currentIndexChanged.connect(self.update_broad_function)
         
-        slider_label = QLabel('HWHM bar:')
         self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMaximumWidth(200)
         self.slider.setRange(1, 100)
         self.slider.setValue(30)
         self.slider.setTracking(True)
         self.slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.update_sgm)
+        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.update_hwhm_from_slider)
+        
+        # Labels
+        hwhm_label  = QLabel('   HWHM')
+        eV_label    = QLabel('(eV)')
+        broad_label = QLabel('Broadening')
+        # Splitter
+        vline = QFrame()
+        vline.setFrameStyle(QFrame.VLine)
+        vline.setLineWidth(1)
         
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
         self.analysis_box.setReadOnly(True)
+        self.analysis_box.setMinimumWidth(150)
+        self.analysis_box.setMaximumWidth(200)
         
         #
         # Layout with box sizers
         # 
+        # Broad selector
+        vbox_select = QVBoxLayout()
+        vbox_select.addWidget(broad_label)
+        vbox_select.addWidget(self.select_broad)
+        # HWHM slider
+        hbox_slider = QHBoxLayout()
+        hbox_slider.addWidget(self.slider)
+        hbox_slider.addWidget(self.textbox)
+        hbox_slider.addWidget(eV_label)
+        # Complete HWHM slider (<- HWHM slider)
+        vbox_slider = QVBoxLayout()
+        vbox_slider.addWidget(hwhm_label)
+        vbox_slider.addLayout(hbox_slider)
+        # Clean button
+        vbox_cleaner = QVBoxLayout()
+        vbox_cleaner.addWidget(self.clean_button1)
+        vbox_cleaner.addWidget(self.clean_button2)
+        ## MAIN LOWER BOX
         hbox = QHBoxLayout()
+        hbox.addLayout(vbox_cleaner)
+        hbox.setAlignment(self.clean_button1, Qt.AlignVCenter)
+        hbox.addWidget(vline)
+        hbox.addLayout(vbox_select)
+        hbox.setAlignment(vbox_select, Qt.AlignTop)
+        hbox.addLayout(vbox_slider)
+        hbox.setAlignment(vbox_slider, Qt.AlignTop)
+            
+        #hbox_plot = QHBoxLayout()
+        #hbox_plot.addWidget(self.canvas)
+        #hbox_plot.addWidget(self.analysis_box)
+        #hbox_plot.addStretch(1)
         
-        for w in [  self.textbox, self.draw_button, self.grid_cb,
-                    slider_label, self.slider]:
-            hbox.addWidget(w)
-            hbox.setAlignment(w, Qt.AlignVCenter)
+        #VMainBox = QVBoxLayout()
+        #VMainBox.addLayout(hbox_plot)
+        #VMainBox.addWidget(self.mpl_toolbar)
+        #VMainBox.setAlignment(self.mpl_toolbar, Qt.AlignLeft)
+        #VMainBox.addLayout(hbox)
 
         grid = QGridLayout()
         grid.setSpacing(10)
@@ -630,11 +853,6 @@ class AppForm(QMainWindow):
         grid.addWidget(self.canvas,      0,0 ,1,15)
         grid.addWidget(self.analysis_box,0,15,1,1)
         grid.addWidget(self.mpl_toolbar, 1,0 ,1,16)
-        #grid.addWidget(self.textbox,     2,0 ,1,4)
-        #grid.addWidget(self.draw_button, 2,4 ,1,2)
-        #grid.addWidget(self.grid_cb,     2,6 ,1,1)
-        #grid.addWidget(slider_label,     2,8 ,1,2)
-        #grid.addWidget(self.slider,      2,10,1,5)
         grid.addLayout(hbox,             2,0 ,1,16)
         
         self.main_frame.setLayout(grid)
@@ -646,8 +864,8 @@ class AppForm(QMainWindow):
         self.statusBar().addWidget(self.status_text, 1)
         
     def create_menu(self):        
+        # /File
         self.file_menu = self.menuBar().addMenu("&File")
-        
         load_file_action = self.create_action("&Save plot",
             shortcut="Ctrl+S", slot=self.save_plot, 
             tip="Save the plot")
@@ -655,15 +873,26 @@ class AppForm(QMainWindow):
             shortcut="Ctrl+Q", tip="Close the application")
         xmgr_export_action = self.create_action("&Export to xmgrace", slot=self.xmgr_export, 
             shortcut="Ctrl+E", tip="Export to xmgrace format")
-        
+        spc_import_action = self.create_action("&Import plot", slot=self.open_plot, 
+            shortcut="Ctrl+N", tip="Import spectrum")
+        # Now place the actions in the menu
         self.add_actions(self.file_menu, 
-            (load_file_action, xmgr_export_action, None, quit_action))
+            (load_file_action, xmgr_export_action, spc_import_action, None, quit_action))
+        
+        # /Analyze
+        self.anlyze_menu = self.menuBar().addMenu("&Analyze")
+        momenta_action = self.create_action("&Momenta", 
+            slot=self.compute_moments, 
+            tip='Compute moments')
+        self.add_actions(self.anlyze_menu, (momenta_action,))
+        
+        # /Manipulate
+        self.manip_menu = self.menuBar().addMenu("&Manipulate")
         
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", 
             shortcut='F1', slot=self.on_about, 
             tip='About the demo')
-        
         self.add_actions(self.help_menu, (about_action,))
 
     def add_actions(self, target, actions):
@@ -691,10 +920,15 @@ class AppForm(QMainWindow):
         return action
     
     
+#==========================================================
+# GLOBAL FUNCTIONS
+#==========================================================
+# FILE READERS
 def read_fort21(MaxClass):
     """
-    Description:
     Function to extract transtion infor from fort.21 file
+    The content is taken from the standard version and may
+    need some polish
     
     Arguments:
      MaxClass (int): maximum class to be loaded (0 to 7)
@@ -876,7 +1110,36 @@ def read_fort21(MaxClass):
     return class_list
 
 
-def gauss_convolute(spc_stick,npoints=1000,sigma=0.1):
+def read_spc_xy(filename):
+    """
+    Function to read fort.22, whic contains the bins to reconstruct
+    the convoluted spectrum_sim.
+    This is a simple [x,y] file
+    """
+    # Open and read file
+    print "Loading spectral data from '"+filename+"'..."
+    try:
+        f = open(filename,'r')
+    except:
+        exit("ERROR: Cannot open file '"+filename+"'")
+    i = 0
+    x = []
+    y = []
+    
+    for line in f:
+        data = line.split()
+        try:
+            x.append(float(data[0]))
+            y.append(float(data[1]))
+        except:
+            continue
+
+    f.close()
+
+    return x,y
+
+# CONVOLUTION
+def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau"):
     """
     Make a Gaussian convolution of the stick spectrum
     The spectrum must be in energy(eV) vs Intens (LS?)
@@ -885,7 +1148,7 @@ def gauss_convolute(spc_stick,npoints=1000,sigma=0.1):
     spc_stick  list of list  stick spectrum as [x,y]
                list of array
     npoints    int           number of points
-    sigma      float         standard deviation
+    hwhm       float         half width at half maximum
     
     Retunrs a list of arrays [xconv,yconv]
     """
@@ -899,6 +1162,7 @@ def gauss_convolute(spc_stick,npoints=1000,sigma=0.1):
     # Make the histogram for an additional 20% (if the baseline is not recovered, enlarge this)
     extra_factor = 0.2
     recovered_baseline=False
+    sigma = np.sqrt(2.*np.log(2.)) * hwhm
     while not recovered_baseline:
         extra_x = (x[-1] - x[0])*extra_factor
         yhisto, bins =np.histogram(x,range=[x[0]-extra_x,x[-1]+extra_x],bins=npoints,weights=y)
@@ -912,14 +1176,19 @@ def gauss_convolute(spc_stick,npoints=1000,sigma=0.1):
         dxgau = (xhisto[-1] - xhisto[0])/(npoints-1)
         # The same range as xhisto should be used
         # this is bad. We can get the same using 
-        # a narrower range and playing with sigma.. (TODO)
+        # a narrower range and playing with hwhm.. (TODO)
         # Note we set the start with npoints-1 to comply
         # with the definition of np.arange (i.e. to actually
         # generate npoints with that function with same +/-limits)
         xgau_min = -dxgau*(npoints-1)/2
         xgau_max = +dxgau*(npoints)/2
         xgau = np.arange(xgau_min,xgau_max,dxgau)
-        ygau = np.exp(-xgau**2/2./sigma**2)
+        if broad=="Gau":
+            ygau = np.exp(-xgau**2/2./sigma**2)/sigma/np.sqrt(2.*np.pi)
+        elif broad=="Lor":
+            ygau = hwhm/(xgau**2+hwhm**2)/np.pi
+        else:
+            sys.exit("ERROR: Unknown broadening function: "+broad)
         
         # ------------
         # Convolute
@@ -938,7 +1207,7 @@ def gauss_convolute(spc_stick,npoints=1000,sigma=0.1):
 
     return [xconv,yconv]
     
-    
+# GENERATE XMGR
 def export_xmgrace(filename,ax,class_list,labs):
     """
     DESCRIPTION
@@ -1054,11 +1323,13 @@ def export_xmgrace(filename,ax,class_list,labs):
     f.close()
 
 
+# INPUT PARSER
 def get_args():
     
     # Default default options 
     final_arguments = dict()
     final_arguments["-maxC"]="7"
+    final_arguments["-type"]="abs"
     final_arguments["-h"]=False
     
     # Get list of input args
@@ -1098,8 +1369,8 @@ def get_args():
         
         print """
  ----------------------------------------
-           UV analyzer
-   A GUI to analyze TDDFT transitions
+           FCclasses analyzer
+   A GUI to analyze FCclasses output 
  ----------------------------------------
         """
         print "Options"
