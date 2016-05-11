@@ -251,9 +251,8 @@ class AppForm(QMainWindow):
         # Sigma
         sgm = np.sqrt(m2-m1**1)
         
-        result = """
-  MOMENTA ANALYSIS
-  =========================
+        result = """  MOMENTA ANALYSIS
+  ====================
   
   * Covoluted Spectrum
   ---------------------------------
@@ -264,6 +263,35 @@ class AppForm(QMainWindow):
   Sigma (eV) = %.3f
   ---------------------------------
         """ % (m1, m2, sgm)
+        
+        if self.spectrum_exp != None:
+            x = self.spectrum_exp[0].get_xdata()
+            y = self.spectrum_exp[0].get_ydata()
+            
+            # Zero
+            m0 = np.trapz(y, x)
+            y /= m0
+            # First
+            y = y*x
+            m1 = np.trapz(y, x)
+            # Second
+            y = y*x
+            m2 = np.trapz(y, x)
+            # Sigma
+            sgm = np.sqrt(m2-m1**1)
+            # Add to message
+            result = result+"""
+
+  * Experimental Spectrum
+  ---------------------------------
+  1st Moment (eV) = %.3f
+  
+  2nd Moment (eV^2) = %.3f
+  
+  Sigma (eV) = %.3f
+  ---------------------------------
+        """ % (m1, m2, sgm)
+        
         self.analysis_box.setText(result)
         
         
@@ -279,7 +307,7 @@ class AppForm(QMainWindow):
         # 
         self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
         self.axes.set_xlabel('Energy (eV)',fontsize=16)
-        self.axes.set_ylabel('Inensity',fontsize=16)
+        self.axes.set_ylabel('Stick Intensity',fontsize=16)
         self.axes.tick_params(direction='out',top=False, right=False)
         
         
@@ -336,6 +364,7 @@ class AppForm(QMainWindow):
     def load_convoluted(self):
         str = unicode(self.textbox.text())
         hwhm = float(str)
+        fixaxes = self.fixaxes_cb.isChecked()
         
         if self.spc_type == 'abs':
             self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
@@ -357,10 +386,8 @@ class AppForm(QMainWindow):
         yc = yc * factor
         # Plot convoluted
         self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
-        ymax2 = yc.max()*1.05
-        ymin,ymax = self.axes.get_ylim()
-        ymin2 = ymax2/ymax * ymin
-        self.axes2.set_ylim([ymin2,ymax2])
+        if not fixaxes:
+            self.rescale_yaxis()
         
         self.canvas.draw()
         
@@ -368,6 +395,7 @@ class AppForm(QMainWindow):
     def update_convolute(self):
         str = unicode(self.textbox.text())
         hwhm = float(str)
+        fixaxes = self.fixaxes_cb.isChecked()
         
         #Convolution (in energy(eV))
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
@@ -381,32 +409,50 @@ class AppForm(QMainWindow):
         # Plot convoluted
         self.spectrum_sim[0].remove()
         self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
-        # Set the range so as to keep the same zero as in the case of the sticks
-        ymax2 = yc.max()*1.05
-        ymin,ymax = self.axes.get_ylim()
-        ymin2 = ymax2/ymax * ymin
-        self.axes2.set_ylim([ymin2,ymax2])
-        
+        if not fixaxes:
+            self.rescale_yaxis()
+
         self.canvas.draw()
         
         
     def load_experiment_spc(self,x,y):
+        fixaxes = self.fixaxes_cb.isChecked()
         
         x,y = [np.array(x), np.array(y)]
         # Plot experiment (only one experiment is allowed)
         if self.spectrum_exp != None:
             self.spectrum_exp[0].remove()
         self.spectrum_exp = self.axes2.plot(x,y,'-',color='gray')
-        # Set the range so as to keep the same zero as in the case of the sticks
-        #ymin2,ymax2 = self.axes2.get_ylim()
-        #if y.max() > ymax2 or y.min() < ymin2:
-            #pass
-        #ymax2 = y.max()*1.05
-        #ymin,ymax = self.axes.get_ylim()
-        #ymin2 = ymax2/ymax * ymin
-        #self.axes2.set_ylim([ymin2,ymax2])
+        if not fixaxes:
+            self.rescale_yaxis()
         
         self.canvas.draw()
+        
+    def rescale_yaxis(self):
+        """"
+        Set the range so as to keep the same zero as in the case of the sticks
+        getting the maximum between exp and sim
+        """
+        ysim = self.spectrum_sim[0].get_ydata()
+        if self.spectrum_exp != None:
+            yexp = self.spectrum_exp[0].get_ydata()
+            ymax2 = max(ysim.max(),yexp.max())
+            ymin2 = min(ysim.min(),yexp.min())
+        else:
+            ymax2 = ysim.max()
+            ymin2 = ysim.min()
+            
+        ymin,ymax = self.axes.get_ylim()
+        if abs(ymin2) > abs(ymax2):
+            ymin2 *= 1.05
+            ymax2 = ymin2/ymin * ymax
+        else:
+            ymax2 *= 1.05
+            ymin2 = ymax2/ymax * ymin
+            
+        self.axes2.set_ylim([ymin2,ymax2])
+        
+        return
         
         
     #==========================================================
@@ -791,6 +837,10 @@ class AppForm(QMainWindow):
         self.slider.setTickPosition(QSlider.TicksBothSides)
         self.connect(self.slider, SIGNAL('valueChanged(int)'), self.update_hwhm_from_slider)
         
+        self.fixaxes_cb = QCheckBox("Fix y-axis")
+        self.fixaxes_cb.setChecked(False)
+        self.fixaxes_cb.setMaximumWidth(100)
+        
         # Labels
         hwhm_label  = QLabel('   HWHM')
         eV_label    = QLabel('(eV)')
@@ -835,6 +885,13 @@ class AppForm(QMainWindow):
         hbox.setAlignment(vbox_select, Qt.AlignTop)
         hbox.addLayout(vbox_slider)
         hbox.setAlignment(vbox_slider, Qt.AlignTop)
+        
+        # Hbox below plot
+        hbox2 = QHBoxLayout()
+        hbox2.addWidget(self.fixaxes_cb)
+        hbox2.setAlignment(self.fixaxes_cb, Qt.AlignLeft)
+        hbox2.addWidget(self.mpl_toolbar)
+        hbox2.setAlignment(self.mpl_toolbar, Qt.AlignLeft)
             
         #hbox_plot = QHBoxLayout()
         #hbox_plot.addWidget(self.canvas)
@@ -850,10 +907,12 @@ class AppForm(QMainWindow):
         grid = QGridLayout()
         grid.setSpacing(10)
         
+        #                   (row-i,col-i,row-expand,col-expand)     
         grid.addWidget(self.canvas,      0,0 ,1,15)
         grid.addWidget(self.analysis_box,0,15,1,1)
-        grid.addWidget(self.mpl_toolbar, 1,0 ,1,16)
+        grid.addLayout(hbox2,            1,0 ,1,15)
         grid.addLayout(hbox,             2,0 ,1,16)
+        grid.setAlignment(hbox2,  Qt.AlignLeft)
         
         self.main_frame.setLayout(grid)
         
