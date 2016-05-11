@@ -212,7 +212,7 @@ class AppForm(QMainWindow):
                         'Export to file', '', 
                         file_choices))
         if path:
-            export_xmgrace(path,self.axes,self.fcclass_list,self.labs)
+            export_xmgrace(path,self.axes,self.fcclass_list,self.spectrum_sim[0],self.labs)
     
     def on_about(self):
         msg = """ 
@@ -376,7 +376,7 @@ class AppForm(QMainWindow):
         #self.axes.tick_params(direction='out',top=False, right=False)
         
         #Convolution (in energy(eV))
-        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
         if self.spc_type == 'abs':
             factor = 703.300
         elif self.spc_type == 'ecd':
@@ -398,7 +398,7 @@ class AppForm(QMainWindow):
         fixaxes = self.fixaxes_cb.isChecked()
         
         #Convolution (in energy(eV))
-        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
         if self.spc_type == 'abs':
             factor = 703.300
         elif self.spc_type == 'emi':
@@ -841,6 +841,10 @@ class AppForm(QMainWindow):
         self.fixaxes_cb.setChecked(False)
         self.fixaxes_cb.setMaximumWidth(100)
         
+        self.inputBins_cb = QCheckBox("Input bins")
+        self.inputBins_cb.setChecked(False)
+        self.inputBins_cb.setMaximumWidth(100)
+        
         # Labels
         hwhm_label  = QLabel('   HWHM')
         eV_label    = QLabel('(eV)')
@@ -868,10 +872,18 @@ class AppForm(QMainWindow):
         hbox_slider.addWidget(self.slider)
         hbox_slider.addWidget(self.textbox)
         hbox_slider.addWidget(eV_label)
+        # HWHM label
+        hbox_hwhmlab = QHBoxLayout()
+        hbox_hwhmlab.addWidget(hwhm_label)
+        hbox_hwhmlab.setAlignment(hwhm_label, Qt.AlignLeft)
+        hbox_hwhmlab.addWidget(self.inputBins_cb)
+        hbox_hwhmlab.setAlignment(self.inputBins_cb, Qt.AlignLeft)
         # Complete HWHM slider (<- HWHM slider)
         vbox_slider = QVBoxLayout()
-        vbox_slider.addWidget(hwhm_label)
+        vbox_slider.addLayout(hbox_hwhmlab)
+        vbox_slider.setAlignment(hbox_hwhmlab, Qt.AlignLeft)
         vbox_slider.addLayout(hbox_slider)
+        vbox_slider.setAlignment(hbox_slider, Qt.AlignLeft)
         # Clean button
         vbox_cleaner = QVBoxLayout()
         vbox_cleaner.addWidget(self.clean_button1)
@@ -1198,7 +1210,7 @@ def read_spc_xy(filename):
     return x,y
 
 # CONVOLUTION
-def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau"):
+def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
     """
     Make a Gaussian convolution of the stick spectrum
     The spectrum must be in energy(eV) vs Intens (LS?)
@@ -1206,7 +1218,8 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau"):
     Arguments:
     spc_stick  list of list  stick spectrum as [x,y]
                list of array
-    npoints    int           number of points
+    npoints    int           number of points (for the final graph)
+                             Can be a bit more if input_bins is False
     hwhm       float         half width at half maximum
     
     Retunrs a list of arrays [xconv,yconv]
@@ -1221,27 +1234,38 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau"):
     # Make the histogram for an additional 20% (if the baseline is not recovered, enlarge this)
     extra_factor = 0.2
     recovered_baseline=False
-    sigma = np.sqrt(2.*np.log(2.)) * hwhm
+    sigma = hwhm / np.sqrt(2.*np.log(2.))
     while not recovered_baseline:
-        extra_x = (x[-1] - x[0])*extra_factor
-        yhisto, bins =np.histogram(x,range=[x[0]-extra_x,x[-1]+extra_x],bins=npoints,weights=y)
-        # Use bin centers as x points
-        width = (bins[1] - bins[0])
-        xhisto = bins[0:-1] + width/2
+        if input_bins:
+            # Backup npoints
+            npts = npoints
+            npoints = len(x)
+            xhisto = x
+            yhisto = y
+            width = (x[1] - x[0])
+        else:
+            extra_x = (x[-1] - x[0])*extra_factor
+            yhisto, bins =np.histogram(x,range=[x[0]-extra_x,x[-1]+extra_x],bins=npoints,weights=y)
+            # Use bin centers as x points
+            width = (bins[1] - bins[0])
+            xhisto = bins[0:-1] + width/2
         
         # ----------------------------------------
         # Build Gaussian (centered around zero)
         # ----------------------------------------
-        dxgau = (xhisto[-1] - xhisto[0])/(npoints-1)
+        dxgau = width
         # The same range as xhisto should be used
         # this is bad. We can get the same using 
-        # a narrower range and playing with hwhm.. (TODO)
-        # Note we set the start with npoints-1 to comply
-        # with the definition of np.arange (i.e. to actually
-        # generate npoints with that function with same +/-limits)
-        xgau_min = -dxgau*(npoints-1)/2
-        xgau_max = +dxgau*(npoints)/2
-        xgau = np.arange(xgau_min,xgau_max,dxgau)
+        # a narrower range and playing with sigma.. (TODO)
+        if npoints%2 == 1:
+            # Zero is included in range
+            xgau_min = -dxgau*(npoints/2)
+            xgau_max = +dxgau*(npoints/2)
+        else:
+            # Zero is not included
+            xgau_min = -dxgau/2. - dxgau*((npoints/2)-1)
+            xgau_max = +dxgau/2. + dxgau*((npoints/2)-1)
+        xgau = np.linspace(xgau_min,xgau_max,npoints)
         if broad=="Gau":
             ygau = np.exp(-xgau**2/2./sigma**2)/sigma/np.sqrt(2.*np.pi)
         elif broad=="Lor":
@@ -1252,22 +1276,31 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau"):
         # ------------
         # Convolute
         # ------------
-        # with mode="same", we get the original xhisto range (shifted one position?)
+        # with mode="same", we get the original xhisto range.
+        # Since the first moment of the Gaussian is zero, 
+        # xconv is exactly xhisto (no shifts)
         yconv = np.convolve(yhisto,ygau,mode="same")
-        xconv = xhisto # for allocation only
-        xconv[1:-1] = xhisto[0:-2]
-        xconv[0] = xhisto[0]-(xhisto[1]-xhisto[0])
+        xconv = xhisto
 
-        # Check baseline recovery
+        # Check baseline recovery (only with automatic bins
         if yconv[0] < yconv.max()/100.0 and yconv[-1] < yconv.max()/100.0:
             recovered_baseline=True
+        if input_bins:
+            recovered_baseline=True
+            # If the input_bins are larger than npts, then reduce the grid to npts
+            if (len(xconv) > npts):
+                skip = len(xconv)/npts + 1
+                x = xconv[0::skip]
+                y = yconv[0::skip]
+                xconv = x
+                yconv = y
 
         extra_factor = extra_factor + 0.05
 
     return [xconv,yconv]
     
 # GENERATE XMGR
-def export_xmgrace(filename,ax,class_list,labs):
+def export_xmgrace(filename,ax,class_list,spc,labs):
     """
     DESCRIPTION
     ------------
@@ -1276,12 +1309,10 @@ def export_xmgrace(filename,ax,class_list,labs):
     
     Variables
     * filename string : path to the file to save the export
-    * ax,    mpl.axes : graphic info
-    * xc
-    * yc
-    * xs
-    * ys
-    * labs,  dict     : labels in xmgr format (arg: labels as annotation Class)
+    * ax,         mpl.axes        : graphic info
+    * class_list  list of vlines  : stick spectra (classes)
+    * spc         Line2D          : convoluted spectrum
+    * labs        dict            : labels in xmgr format (arg: labels as annotation Class)
     """
 
     f = open(filename,'w')
@@ -1352,22 +1383,15 @@ def export_xmgrace(filename,ax,class_list,labs):
     print >> f, "@    legend loctype view"
     print >> f, "@    legend 0.95, 0.9"
     #Now include data
-    #counter=-1
-    #if (spc[:,:].size != 0):
-        #counter+=1
-        #print >> f, "# Spect"
-        #print >> f, "@    s"+str(counter),"line type 1"
-        #print >> f, "@    s"+str(counter),"line linestyle 3"
-        #print >> f, "@    s"+str(counter),"legend  \"Spec\""
-        #for i in range(0,spc[:,0].size):
-            #print >> f, spc[i,0], spc[i,1]
-            
     label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
     color_list = [ 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    k=0
+    k=-1
+    ymax = -999.
+    ymin =  999.
     for iclass in range(9):
         if (len(class_list[iclass]) == 0):
             continue
+        k += 1
         x = np.array([ class_list[iclass][i].DE        for i in range(len(class_list[iclass])) ])
         y = np.array([ class_list[iclass][i].intensity for i in range(len(class_list[iclass])) ])
         print >> f, "& %s"%(label_list[iclass])
@@ -1377,7 +1401,27 @@ def export_xmgrace(filename,ax,class_list,labs):
         print >> f, "@    s"+str(k)," symbol color %s"%(color_list[iclass])
         for i in range(len(x)):
             print >> f, x[i], y[i]
-        k += 1
+        ymax = max(ymax,y.max())
+        ymin = max(ymin,y.min())
+            
+    # Convoluted spectrum. scaled TODO: use the alternative axis
+    # This can be done either with another Graph or using alt-x axis
+    k += 1
+    x = spc.get_xdata()
+    y = spc.get_ydata()
+    if abs(ymax) > abs(ymin):
+        scale_factor = ymax/y.max()
+    else:
+        scale_factor = abs(ymax)/abs(y.max())
+    y *= scale_factor
+    print >> f, "& Spect"
+    print >> f, "@type xy"
+    print >> f, "@    s"+str(k)," line type 1"
+    print >> f, "@    s"+str(k)," line linestyle 3"
+    print >> f, "@    s"+str(k)," line color %s"%(1)
+    print >> f, "@    s"+str(k)," legend  \"Spec\""
+    for i in range(len(x)):
+        print >> f, x[i], y[i]
             
     f.close()
 
