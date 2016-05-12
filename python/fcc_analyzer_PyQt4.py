@@ -149,9 +149,11 @@ class AppForm(QMainWindow):
         self.create_status_bar()
 
         # Initialize additional items
-        # HWHM box
+        # Broadening info
         self.broadening="Gau"
         self.update_hwhm_from_slider(UpdateConvolute=False)
+        # Data type
+        self.data_type ="Intensity"
         # Line markers
         self.selected  = self.axes.vlines([0.0], [0.0], [0.0], linewidths=3,
                          color='yellow', visible=False)
@@ -160,6 +162,7 @@ class AppForm(QMainWindow):
         self.active_label = None
         self.active_tr = None
         self.spectrum_exp = None
+        self.spectrum_sim = None
         
         # Get command line arguments
         cml_args = get_args()
@@ -173,6 +176,8 @@ class AppForm(QMainWindow):
             print "Class %s. Size: %s"%(i,len(tr))
         print ""
         self.xbin,self.ybin = read_spc_xy('fort.22')
+        self.xbin = np.array(self.xbin)
+        self.ybin = np.array(self.ybin)
         
         # This is the load driver
         self.load_sticks()
@@ -194,7 +199,7 @@ class AppForm(QMainWindow):
             self.statusBar().showMessage('Saved to %s' % path, 2000)
             
     def open_plot(self):
-        file_choices = "DAT (*.dat)|*.dat"
+        file_choices = r"Data file (*.dat) (*.dat);; All files (*)"
         
         path = unicode(QFileDialog.getOpenFileName(self, 
                         'Open spectrum', '', 
@@ -202,11 +207,54 @@ class AppForm(QMainWindow):
         if path:
             self.statusBar().showMessage('Opened %s' % path, 2000)    
             x,y = read_spc_xy(path)
+            x = np.array(x)
+            y = np.array(y)
+            # Pop-up a selector to indicate units of Xaxis
+            ok, units = self.spc_import_assitant_Xaxis()
+            if not ok:
+                self.statusBar().showMessage('Load data aborted', 2000)
+                return
+            # Transform X axis if needed
+            if units == "cm^-1":
+                x = x / 1.23981e-4
+            elif units == "nm":
+                x = 1239.81/x
+                
+            # Pop-up a selector to indicate units of Yaxis
+            ok, data_type = self.spc_import_assitant_Yaxis()
+            if not ok:
+                self.statusBar().showMessage('Load data aborted', 2000)
+                return
+                
             self.load_experiment_spc(x,y)
+
+
+    def spc_import_assitant_Xaxis(self):
+        unit_list = ("eV", "cm^-1", "nm")
+                 
+        units, ok = QInputDialog.getItem(self, "X axis selection", 
+                    "X-Units", unit_list, 0, False)
+                         
+        if not ok or not units:
+            units = ""
+        
+        return ok, units
+        
+        
+    def spc_import_assitant_Yaxis(self):
+        data_type_list = ("Intensity","Lineshape")
+                 
+        data_type, ok = QInputDialog.getItem(self, "Y axis selection", 
+                            "Data type", data_type_list, 0, False)
+                         
+        if not ok or not data_type:
+            data_type = ""
+                
+        return ok, data_type
         
             
     def xmgr_export(self):
-        file_choices = ".agr (*.agr)|*.agr"
+        file_choices = "xmgrace graph (*.agr) (*.agr);; All files (*)"
         
         path = unicode(QFileDialog.getSaveFileName(self, 
                         'Export to file', '', 
@@ -219,7 +267,7 @@ class AppForm(QMainWindow):
        A python application to analyze FCclasses TI spectra
        J.Cerezo, May 2016
         
-       INSTRUCTIONS:
+       SHORT INSTRUCTIONS:
          -Get info from a transition: right-mouse-click on a stick
          -Set the next/previous indexed transiton: +/- keys
          -Place a label: left-mouse-click on a stick
@@ -282,7 +330,7 @@ class AppForm(QMainWindow):
             # Add to message
             result = result+"""
 
-  * Experimental Spectrum
+  * Loaded Spectrum
   ---------------------------------
   1st Moment (eV) = %.3f
   
@@ -366,7 +414,9 @@ class AppForm(QMainWindow):
         hwhm = float(str)
         fixaxes = self.fixaxes_cb.isChecked()
         
-        if self.spc_type == 'abs':
+        if self.data_type == "Lineshape":
+            self.axes2.set_ylabel(r'Lineshape (a.u.)',fontsize=16)
+        elif self.spc_type == 'abs':
             self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
         elif self.spc_type == 'ecd':
             self.axes2.set_ylabel(r'$\Delta\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
@@ -385,7 +435,9 @@ class AppForm(QMainWindow):
             factor = 1.
         yc = yc * factor
         # Plot convoluted
-        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
+        if self.spectrum_sim:
+            self.spectrum_sim[0].remove()
+        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k')
         if not fixaxes:
             self.rescale_yaxis()
         
@@ -408,7 +460,7 @@ class AppForm(QMainWindow):
         yc = yc * factor
         # Plot convoluted
         self.spectrum_sim[0].remove()
-        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='b')
+        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k')
         if not fixaxes:
             self.rescale_yaxis()
 
@@ -767,6 +819,20 @@ class AppForm(QMainWindow):
         self.update_convolute()
         
         
+    def update_data_type(self):
+        current_data_type = self.data_type
+        self.data_type = self.select_data_type.currentText()
+        
+        if current_data_type != self.data_type:
+            exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
+            n = exp[self.spc_type]
+            if self.data_type == "Lineshape":
+                self.ybin /= (self.xbin / 27.2116)**n * 703.30
+            elif self.data_type == "Intensity":
+                self.ybin *= (self.xbin / 27.2116)**n * 703.30
+            self.load_convoluted()
+      
+        
     #==========================================================
     # MAIN FRAME, CONNECTIONS AND MENU ACTIONS
     #==========================================================    
@@ -829,6 +895,10 @@ class AppForm(QMainWindow):
         self.select_broad.addItems(["Gau","Lor"])
         self.select_broad.currentIndexChanged.connect(self.update_broad_function)
         
+        self.select_data_type = QComboBox()
+        self.select_data_type.addItems(["Intensity","Lineshape"])
+        self.select_data_type.currentIndexChanged.connect(self.update_data_type)
+        
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMaximumWidth(200)
         self.slider.setRange(1, 100)
@@ -849,10 +919,14 @@ class AppForm(QMainWindow):
         hwhm_label  = QLabel('   HWHM')
         eV_label    = QLabel('(eV)')
         broad_label = QLabel('Broadening')
-        # Splitter
+        datatype_label = QLabel('Data Type')
+        # Splitters
         vline = QFrame()
         vline.setFrameStyle(QFrame.VLine)
         vline.setLineWidth(1)
+        vline2 = QFrame()
+        vline2.setFrameStyle(QFrame.VLine)
+        vline2.setLineWidth(1)
         
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
@@ -867,18 +941,18 @@ class AppForm(QMainWindow):
         vbox_select = QVBoxLayout()
         vbox_select.addWidget(broad_label)
         vbox_select.addWidget(self.select_broad)
-        # HWHM slider
+        # HWHM slider with textbox
         hbox_slider = QHBoxLayout()
         hbox_slider.addWidget(self.slider)
         hbox_slider.addWidget(self.textbox)
         hbox_slider.addWidget(eV_label)
-        # HWHM label
+        # HWHM label with inputBins checkbox
         hbox_hwhmlab = QHBoxLayout()
         hbox_hwhmlab.addWidget(hwhm_label)
         hbox_hwhmlab.setAlignment(hwhm_label, Qt.AlignLeft)
         hbox_hwhmlab.addWidget(self.inputBins_cb)
         hbox_hwhmlab.setAlignment(self.inputBins_cb, Qt.AlignLeft)
-        # Complete HWHM slider (<- HWHM slider)
+        # Complete HWHM widget merging all box here
         vbox_slider = QVBoxLayout()
         vbox_slider.addLayout(hbox_hwhmlab)
         vbox_slider.setAlignment(hbox_hwhmlab, Qt.AlignLeft)
@@ -888,15 +962,24 @@ class AppForm(QMainWindow):
         vbox_cleaner = QVBoxLayout()
         vbox_cleaner.addWidget(self.clean_button1)
         vbox_cleaner.addWidget(self.clean_button2)
+        # DataType sector
+        vbox_datatype = QVBoxLayout()
+        vbox_datatype.addWidget(datatype_label)
+        vbox_datatype.setAlignment(datatype_label, Qt.AlignLeft)
+        vbox_datatype.addWidget(self.select_data_type)
+        vbox_datatype.setAlignment(self.select_data_type, Qt.AlignLeft)
         ## MAIN LOWER BOX
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_cleaner)
-        hbox.setAlignment(self.clean_button1, Qt.AlignVCenter)
         hbox.addWidget(vline)
         hbox.addLayout(vbox_select)
         hbox.setAlignment(vbox_select, Qt.AlignTop)
         hbox.addLayout(vbox_slider)
         hbox.setAlignment(vbox_slider, Qt.AlignTop)
+        hbox.addWidget(vline2)
+        hbox.setAlignment(vline2, Qt.AlignLeft)
+        hbox.addLayout(vbox_datatype)
+        hbox.setAlignment(vbox_datatype, Qt.AlignTop)
         
         # Hbox below plot
         hbox2 = QHBoxLayout()
@@ -923,7 +1006,8 @@ class AppForm(QMainWindow):
         grid.addWidget(self.canvas,      0,0 ,1,15)
         grid.addWidget(self.analysis_box,0,15,1,1)
         grid.addLayout(hbox2,            1,0 ,1,15)
-        grid.addLayout(hbox,             2,0 ,1,16)
+        grid.addLayout(hbox,             2,0 ,1,13)
+        grid.setAlignment(hbox,   Qt.AlignLeft)
         grid.setAlignment(hbox2,  Qt.AlignLeft)
         
         self.main_frame.setLayout(grid)
