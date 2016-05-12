@@ -383,6 +383,8 @@ class AppForm(QMainWindow):
                 f.close
                 xmin = min([xmin,min(x)])
                 xmax = max([xmax,max(x)])
+                # Getting the type from the objects when loaded for future use
+                self.LineCollectionType = type(self.stickspc[-1])
                 
         self.axes2.set_xlim([xmin-0.15,xmax+0.15])
         
@@ -407,6 +409,8 @@ class AppForm(QMainWindow):
         for legline, origline in zip(self.legend.get_lines(), list(filter(lambda x:x,self.stickspc))):
             legline.set_picker(5)  # 5 pts tolerance
             self.legend_lines[legline] = origline
+            # Get type from the object for future use
+            self.Line2DType = type(legline)
             
             
     def load_convoluted(self):
@@ -518,15 +522,24 @@ class AppForm(QMainWindow):
         matplotlib.backend_bases.PickEvent, they
         differeciate the artist
         
-        "Pickable" opjects are labels and sticks
+        "Pickable" opjects are labels, sticks and legend lines
         but they have different attributes and, thus,
         need to be handled differently
+        NOTE: The matplotlib.collections.LineCollection requires 
+        to load matplotlib apart from matplotlib.pyplot (which is 
+        al ready used). Not a problem as it does not affect the weight
+        of the final app
+        * with matplotlib: 223MB
+        * only matplotlib.pyplot: 223MB
+        Anyway, it might be useful to get the types from the objects
+        so as to avoid the need of knowing them
+        So, we get the type from the object when it is called
         """
-        if type(event.artist) == matplotlib.collections.LineCollection:
+        if type(event.artist) == self.LineCollectionType:
             self.select_stick(event)
-        elif type(event.artist) == matplotlib.text.Annotation:
+        elif type(event.artist) == self.AnnotationType:
             self.active_label = event.artist
-        elif type(event.artist) == matplotlib.lines.Line2D:
+        elif type(event.artist) == self.Line2DType:
             self.del_stick_marker()
             self.interact_with_legend(event)
             
@@ -557,7 +570,7 @@ class AppForm(QMainWindow):
         elif event.mouseevent.button == 1:
             # The transition info need to be gathered
             self.fcclass_list[iclass][dataind].info()
-            self.add_Label(tr)
+            self.add_label(tr)
 
 
     def on_press_key(self, event):
@@ -726,7 +739,7 @@ class AppForm(QMainWindow):
         self.canvas.draw()
         
         
-    def add_Label(self,tr):
+    def add_label(self,tr):
         
         stick_x = tr.DE
         stick_y = tr.intensity
@@ -770,6 +783,7 @@ class AppForm(QMainWindow):
         labelref = self.axes.annotate(label, xy=(xd, yd), xytext=(xl, yl),picker=1,
                             arrowprops=dict(arrowstyle="-",
                                             color='grey'))
+        self.AnnotationType = type(labelref)
 
         #Check whether the label was already assigned or not
         set_lab = True
