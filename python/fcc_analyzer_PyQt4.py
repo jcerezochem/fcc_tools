@@ -18,6 +18,7 @@ Last modified: 19.01.2009
 import sys, os, random
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from PyQt4 import QtCore, QtGui
 
 import numpy as np
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -62,6 +63,11 @@ def helptext():
        -h        This help
        
     """
+
+class SpcConstants:
+    exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
+    factor = {"abs":703.30,"ecd":20.5288,"emi":1.,"cpl":1.}
+
 
 class spectral_transition:
     """
@@ -161,7 +167,7 @@ class AppForm(QMainWindow):
         self.labs = dict()
         self.active_label = None
         self.active_tr = None
-        self.spectrum_exp = None
+        self.spectrum_ref = None
         self.spectrum_sim = None
         
         # Get command line arguments
@@ -169,33 +175,40 @@ class AppForm(QMainWindow):
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
         self.spc_type = cml_args.get("-type")
-        self.spc_type = self.spc_type.lower()
+        # Get spc_type if not given on input
+        if not self.spc_type:
+            get_option = self.start_assistant()
+            if not get_option:
+                sys.exit()
+        self.spc_type = str(self.spc_type).lower()
         # Data load
         self.fcclass_list = read_fort21(MaxClass)
-        for i,tr in enumerate(self.fcclass_list):
-            print "Class %s. Size: %s"%(i,len(tr))
-        print ""
         self.xbin,self.ybin = read_spc_xy('fort.22')
         self.xbin = np.array(self.xbin)
-        self.ybin = np.array(self.ybin)
+        # ybin is in intensity and atomic inits. Changed to "experimental" units
+        factor = SpcConstants.factor[self.spc_type]
+        self.ybin = np.array(self.ybin)*factor
         
         # This is the load driver
         self.load_sticks()
         self.load_sticks_legend()
         self.load_convoluted()
         
+        if cml_args.get("--test"):
+            sys.exit()
+        
         
     #==========================================================
     # FUNCTIONS CONNECTED WITH THE MENU OPTIONS
     #==========================================================
     def save_plot(self):
-        file_choices = "PNG (*.png)|*.png"
+        file_choices = r"Portable Network Graphics (*.png) (*.png);; All files (*)"
         
         path = unicode(QFileDialog.getSaveFileName(self, 
                         'Save file', '', 
                         file_choices))
         if path:
-            self.canvas.print_figure(path, dpi=self.dpi)
+            self.canvas.print_figure(path, dpi=100)
             self.statusBar().showMessage('Saved to %s' % path, 2000)
             
     def open_plot(self):
@@ -225,14 +238,50 @@ class AppForm(QMainWindow):
             if not ok:
                 self.statusBar().showMessage('Load data aborted', 2000)
                 return
+            if data_type != self.data_type:
+                # If data_type is not the same as the graph, transform the data
+                n = SpcConstants.exp[self.spc_type]
+                factor = SpcConstants.factor[self.spc_type]
+                if self.data_type == "Lineshape":
+                    y /= (x / 27.2116)**n * factor
+                elif self.data_type == "Intensity":
+                    y *= (x / 27.2116)**n * factor
+            
+            # Update Table
+            self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
+            cell = self.refspc_table.item(1,1)
+            cell.setTextColor(Qt.black)
+            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
                 
             self.load_experiment_spc(x,y)
+            
+            # Initialize shift an scale
+            self.ref_shift = 0.0
+            self.ref_scale = 1.0
+            self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
+            self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
+            
+            # Enable manipulations
+            self.shiftref_action.setEnabled(True)
+            self.scaleref_action.setEnabled(True)
 
 
+    #==========================================================
+    # POP-UP WINDOWS
+    #==========================================================
+    def start_assistant(self):
+        calc_type_list = ("abs","emi","ecd","cpl")
+                 
+        self.spc_type, ok = QInputDialog.getItem(self, "Select type of calculation", 
+                            "Type of calculation", calc_type_list, 0, False)
+        
+        return ok
+    
+    
     def spc_import_assitant_Xaxis(self):
         unit_list = ("eV", "cm^-1", "nm")
                  
-        units, ok = QInputDialog.getItem(self, "X axis selection", 
+        units, ok = QInputDialog.getItem(self, "Import Assistant", 
                     "X-Units", unit_list, 0, False)
                          
         if not ok or not units:
@@ -244,7 +293,7 @@ class AppForm(QMainWindow):
     def spc_import_assitant_Yaxis(self):
         data_type_list = ("Intensity","Lineshape")
                  
-        data_type, ok = QInputDialog.getItem(self, "Y axis selection", 
+        data_type, ok = QInputDialog.getItem(self, "Import Assistant", 
                             "Data type", data_type_list, 0, False)
                          
         if not ok or not data_type:
@@ -263,10 +312,19 @@ class AppForm(QMainWindow):
             export_xmgrace(path,self.axes,self.fcclass_list,self.spectrum_sim[0],self.labs)
     
     def on_about(self):
-        msg = """ 
+        msg = """
        A python application to analyze FCclasses TI spectra
        J.Cerezo, May 2016
         
+       This program is free software; you can redistribute it and/or modify  
+       it under the terms of the GNU General Public License as published by 
+       the Free Software Foundation; either version 2 of the License, or
+       (at your option) any later version.
+        """
+        QMessageBox.about(self, "About the app", msg.strip())
+        
+    def on_man(self):
+        msg = """ 
        SHORT INSTRUCTIONS:
          -Get info from a transition: right-mouse-click on a stick
          -Set the next/previous indexed transiton: +/- keys
@@ -275,7 +333,7 @@ class AppForm(QMainWindow):
          -Remove one label: on the label, right-mouse-click
          -Export to xmgrace using the 'File->Export to xmagrace' option
         """
-        QMessageBox.about(self, "About the app", msg.strip())
+        QMessageBox.about(self, "Instructions", msg.strip())
         
     #==========================================================
     # ANALYSIS FUNCTIONS
@@ -291,11 +349,9 @@ class AppForm(QMainWindow):
         m0 = np.trapz(y, x)
         y /= m0
         # First
-        y = y*x
-        m1 = np.trapz(y, x)
+        m1 = np.trapz(y*x, x)
         # Second
-        y = y*x
-        m2 = np.trapz(y, x)
+        m2 = np.trapz(y*x**2, x)
         # Sigma
         sgm = np.sqrt(m2-m1**1)
         
@@ -312,25 +368,23 @@ class AppForm(QMainWindow):
   ---------------------------------
         """ % (m1, m2, sgm)
         
-        if self.spectrum_exp != None:
-            x = self.spectrum_exp[0].get_xdata()
-            y = self.spectrum_exp[0].get_ydata()
+        if self.spectrum_ref:
+            x = self.spectrum_ref[0].get_xdata()
+            y = self.spectrum_ref[0].get_ydata()
             
             # Zero
             m0 = np.trapz(y, x)
             y /= m0
             # First
-            y = y*x
-            m1 = np.trapz(y, x)
+            m1 = np.trapz(y*x, x)
             # Second
-            y = y*x
-            m2 = np.trapz(y, x)
+            m2 = np.trapz(y*x**2, x)
             # Sigma
             sgm = np.sqrt(m2-m1**1)
             # Add to message
             result = result+"""
 
-  * Loaded Spectrum
+  * Reference Spectrum
   ---------------------------------
   1st Moment (eV) = %.3f
   
@@ -341,6 +395,70 @@ class AppForm(QMainWindow):
         """ % (m1, m2, sgm)
         
         self.analysis_box.setText(result)
+        
+        
+    def shift_to_simulated(self):
+        """
+        Shift the reference expectrum to match the first moment or Emax of the simulated one
+        The type of match is set through a pop-up question
+        """
+        match_options = ("First Moment","Peak Maximum")
+        match, ok = QInputDialog.getItem(self, "Shift assistant", 
+                    "Reference for shifting", match_options, 0, False)
+        if match == "First Moment":
+            x = self.spectrum_sim[0].get_xdata()
+            y = self.spectrum_sim[0].get_ydata()
+            # Load simulated data
+            # Zero
+            m0 = np.trapz(y, x)
+            # First
+            x0_sim = np.trapz(y*x/m0, x)
+            
+            # Load reference data
+            if self.spectrum_ref:
+                x = self.spectrum_ref[0].get_xdata()
+                y = self.spectrum_ref[0].get_ydata()
+            else:
+                return
+            # Zero
+            m0 = np.trapz(y, x)
+            # First
+            x0_ref = np.trapz(y*x/m0, x)
+        elif match == "Peak Maximum":
+            x = self.spectrum_sim[0].get_xdata()
+            y = self.spectrum_sim[0].get_ydata()
+            x0_sim = x[y.argmax()]
+            
+            # Load reference data
+            if self.spectrum_ref:
+                x = self.spectrum_ref[0].get_xdata()
+                y = self.spectrum_ref[0].get_ydata()
+            else:
+                return
+            x0_ref = x[y.argmax()]
+        
+        # Update global data (this triggers the shift)
+        ref_shift_new = self.ref_shift + x0_sim-x0_ref
+        self.refspc_table.setItem(2,1, QTableWidgetItem(str(ref_shift_new)))
+        
+        
+    def scale_to_simulated(self):
+        """
+        Scale the reference expectrum to match the maximum of the simulated one
+        """
+        y = self.spectrum_sim[0].get_ydata()
+        y0_sim = max(abs(y.max()),abs(y.min()))
+        
+        # Load reference data
+        if self.spectrum_ref:
+            y = self.spectrum_ref[0].get_ydata()
+        else:
+            return
+        y0_ref = max(abs(y.max()),abs(y.min()))
+        
+        # Update global data (this triggers the shift)
+        ref_scale_new = self.ref_scale * y0_sim/y0_ref
+        self.refspc_table.setItem(3,1, QTableWidgetItem(str(ref_scale_new)))
         
         
     #==========================================================
@@ -429,15 +547,8 @@ class AppForm(QMainWindow):
         self.axes2.set_xlabel('Energy (eV)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
         
-        #Convolution (in energy(eV))
+        #Convolution
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
-        if self.spc_type == 'abs':
-            factor = 703.300
-        elif self.spc_type == 'ecd':
-            factor = 20.5288
-        else:
-            factor = 1.
-        yc = yc * factor
         # Plot convoluted
         if self.spectrum_sim:
             self.spectrum_sim[0].remove()
@@ -455,13 +566,6 @@ class AppForm(QMainWindow):
         
         #Convolution (in energy(eV))
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
-        if self.spc_type == 'abs':
-            factor = 703.300
-        elif self.spc_type == 'emi':
-            factor = 20.5288
-        else:
-            factor = 1.
-        yc = yc * factor
         # Plot convoluted
         self.spectrum_sim[0].remove()
         self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k')
@@ -476,9 +580,9 @@ class AppForm(QMainWindow):
         
         x,y = [np.array(x), np.array(y)]
         # Plot experiment (only one experiment is allowed)
-        if self.spectrum_exp != None:
-            self.spectrum_exp[0].remove()
-        self.spectrum_exp = self.axes2.plot(x,y,'-',color='gray')
+        if self.spectrum_ref:
+            self.spectrum_ref[0].remove()
+        self.spectrum_ref = self.axes2.plot(x,y,'-',color='gray')
         if not fixaxes:
             self.rescale_yaxis()
         
@@ -490,8 +594,8 @@ class AppForm(QMainWindow):
         getting the maximum between exp and sim
         """
         ysim = self.spectrum_sim[0].get_ydata()
-        if self.spectrum_exp != None:
-            yexp = self.spectrum_exp[0].get_ydata()
+        if self.spectrum_ref:
+            yexp = self.spectrum_ref[0].get_ydata()
             ymax2 = max(ysim.max(),yexp.max())
             ymin2 = min(ysim.min(),yexp.min())
         else:
@@ -509,6 +613,19 @@ class AppForm(QMainWindow):
         self.axes2.set_ylim([ymin2,ymax2])
         
         return
+    
+    def shift_spectrum(self,x,y,shift):
+        # If Intensity, we need to pass to LS before shifting
+        if self.data_type == "Intensity":
+            n = SpcConstants.exp[self.spc_type]
+            factor = SpcConstants.factor[self.spc_type]
+            y /= (x / 27.2116)**n * factor
+        x = x + shift
+        # If Intensity, set back from Lineshape
+        if self.data_type == "Intensity":
+            y *= (x / 27.2116)**n * factor
+        
+        return x,y
         
         
     #==========================================================
@@ -707,38 +824,6 @@ class AppForm(QMainWindow):
         self.canvas.draw()
             
     # FUNCTIONS WITHOUT EVENT
-    def set_stick_marker(self):
-        if self.active_tr is None: return
-        
-        tr = self.active_tr 
-        stick_x = tr.DE
-        stick_y = tr.intensity
-        
-        # Add transition info to analysis_box
-        self.analysis_box.setText(self.active_tr.info())
-        
-        self.selected.set_visible(False)
-        self.selected  = self.axes.vlines([stick_x], [0.0], [stick_y], linewidths=3,
-                                  color='yellow', visible=True, alpha=0.7)
-        self.canvas.draw()
-        
-    
-    def del_stick_marker(self):
-        
-        self.analysis_box.setText("")
-        self.active_tr = None 
-        self.selected.set_visible(False)
-        self.canvas.draw()
-        
-    def reset_labels(self):
-        #We need a local copy of labs to iterate while popping
-        labs_local = [ lab for lab in self.labs ]
-        for lab in labs_local:
-            lab.remove()
-            self.labs.pop(lab)
-        self.canvas.draw()
-        
-        
     def add_label(self,tr):
         
         stick_x = tr.DE
@@ -800,8 +885,9 @@ class AppForm(QMainWindow):
             self.canvas.draw()
         else:
             labelref.remove()
-           
-        
+    
+    
+    # RESPONSES TO SIGNALS
     def update_hwhm_from_slider(self,UpdateConvolute=True):
         hwhmmin = 0.01
         hwhmmax = 0.1
@@ -828,6 +914,39 @@ class AppForm(QMainWindow):
         self.update_convolute()
         
         
+    def set_stick_marker(self):
+        if self.active_tr is None: return
+        
+        tr = self.active_tr 
+        stick_x = tr.DE
+        stick_y = tr.intensity
+        
+        # Add transition info to analysis_box
+        self.analysis_box.setText(self.active_tr.info())
+        
+        self.selected.set_visible(False)
+        self.selected  = self.axes.vlines([stick_x], [0.0], [stick_y], linewidths=3,
+                                  color='yellow', visible=True, alpha=0.7)
+        self.canvas.draw()
+        
+    
+    def del_stick_marker(self):
+        
+        self.analysis_box.setText("")
+        self.active_tr = None 
+        self.selected.set_visible(False)
+        self.canvas.draw()
+        
+        
+    def reset_labels(self):
+        #We need a local copy of labs to iterate while popping
+        labs_local = [ lab for lab in self.labs ]
+        for lab in labs_local:
+            lab.remove()
+            self.labs.pop(lab)
+        self.canvas.draw()
+        
+        
     def update_broad_function(self):
         self.broadening = self.select_broad.currentText()
         self.update_convolute()
@@ -838,14 +957,81 @@ class AppForm(QMainWindow):
         self.data_type = self.select_data_type.currentText()
         
         if current_data_type != self.data_type:
-            exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
-            n = exp[self.spc_type]
+            factor = SpcConstants.factor[self.spc_type]
+            n = SpcConstants.exp[self.spc_type]
             if self.data_type == "Lineshape":
-                self.ybin /= (self.xbin / 27.2116)**n * 703.30
+                self.ybin /= (self.xbin / 27.2116)**n * factor
             elif self.data_type == "Intensity":
-                self.ybin *= (self.xbin / 27.2116)**n * 703.30
+                self.ybin *= (self.xbin / 27.2116)**n * factor
+            
+            if self.spectrum_ref:
+                x = self.spectrum_ref[0].get_xdata()
+                y = self.spectrum_ref[0].get_ydata()
+                if self.data_type == "Lineshape":
+                    y /= (x / 27.2116)**n * factor
+                elif self.data_type == "Intensity":
+                    y *= (x / 27.2116)**n * factor
+                self.spectrum_ref[0].set_ydata(y)
+                
             self.load_convoluted()
-      
+                
+    def clear_refspc(self,i,j):
+        # Only take the "X" cell
+        if (i,j) != (1,2):
+            return
+        if self.spectrum_ref:
+            clear_msg = "Clear reference spectrum?"
+            reply = QtGui.QMessageBox.question(self, 'Clear Spectrum', 
+                         clear_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+            if reply == QtGui.QMessageBox.No:
+                return            
+            self.spectrum_ref[0].remove()
+            self.spectrum_ref = None
+            self.canvas.draw()
+            celllabel = ["No","-","-"]
+            for i,j in [(1,1),(2,1),(3,1)]:
+                self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+                cell = self.refspc_table.item(i,j)
+                cell.setTextColor(Qt.black)
+                cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
+            # Disable manipulations
+            self.shiftref_action.setEnabled(False)
+            self.scaleref_action.setEnabled(False)
+        else:
+            self.statusBar().showMessage('No reference loaded', 2000)
+            
+            
+    def change_refspc(self,i,j):
+        fixaxes = self.fixaxes_cb.isChecked()
+        if not self.spectrum_ref:
+            return
+        cell = self.refspc_table.item(i,j)
+        if (i,j) == (2,1):
+            # Shift
+            #========
+            new_shift = float(cell.text())
+            # Get the relative shift from the current global shift
+            shift = new_shift - self.ref_shift
+            self.ref_shift = new_shift
+            x = self.spectrum_ref[0].get_xdata()
+            y = self.spectrum_ref[0].get_ydata()
+            x,y = self.shift_spectrum(x,y,shift)
+            self.spectrum_ref[0].set_xdata(x)
+            self.spectrum_ref[0].set_ydata(y)
+        elif (i,j) == (3,1):
+            # Scale
+            #========
+            new_scale = float(cell.text())
+            # Get the relative scale from the current global scaling
+            scale = new_scale/self.ref_scale
+            self.ref_scale = new_scale
+            y = self.spectrum_ref[0].get_ydata() * scale
+            self.spectrum_ref[0].set_ydata(y)
+            
+        if not fixaxes:
+            self.rescale_yaxis()
+        self.canvas.draw()
+        
         
     #==========================================================
     # MAIN FRAME, CONNECTIONS AND MENU ACTIONS
@@ -900,10 +1086,10 @@ class AppForm(QMainWindow):
         self.textbox.setMaximumWidth(50)
         self.connect(self.textbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
         
-        self.clean_button1 = QPushButton("&Clean(Panel)")
-        self.connect(self.clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
-        self.clean_button2 = QPushButton("&Clean(Labels)")
-        self.connect(self.clean_button2, SIGNAL('clicked()'), self.reset_labels)
+        clean_button1 = QPushButton("&Clean(Panel)")
+        self.connect(clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
+        clean_button2 = QPushButton("&Clean(Labels)")
+        self.connect(clean_button2, SIGNAL('clicked()'), self.reset_labels)
         
         self.select_broad = QComboBox()
         self.select_broad.addItems(["Gau","Lor"])
@@ -945,8 +1131,78 @@ class AppForm(QMainWindow):
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
         self.analysis_box.setReadOnly(True)
-        self.analysis_box.setMinimumWidth(150)
-        self.analysis_box.setMaximumWidth(200)
+        self.analysis_box.setMinimumWidth(200)
+        self.analysis_box.setMaximumWidth(250)
+        
+        # Table for the reference spectrum
+        # Ids ordered by column
+        cellids = [[(1,0),(2,0),(3,0)] ,[(1,1),(2,1),(3,1)],[(1,2),(2,2),(3,2)]]
+        self.refspc_table = QTableWidget(self.main_frame)
+        self.refspc_table.setRowCount(4)
+        self.refspc_table.setColumnCount(3)
+        self.refspc_table.setMinimumWidth(238)
+        self.refspc_table.setMaximumWidth(238)
+        self.refspc_table.setMinimumHeight(126)
+        self.refspc_table.setMaximumHeight(126)
+        # Set data
+        ## Title row
+        self.refspc_table.setSpan(0,0,1,3)
+        self.refspc_table.setItem(0,0, QTableWidgetItem("Reference Spectrum"))
+        font = QFont()
+        font.setBold(False)
+        #font.setWeight(75)
+        font.setPointSize(12)
+        title = self.refspc_table.item(0,0)
+        title.setBackgroundColor(Qt.lightGray)
+        title.setTextColor(Qt.black)
+        title.setFont(font)
+        title.setTextAlignment(Qt.AlignCenter)
+        title.setFlags(title.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
+        ## Fist column
+        celllabel = ["Loaded?","Shift(eV)","Y-scale"]
+        font = QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        for i,j in cellids[0]:
+            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.refspc_table.item(i,j)
+            cell.setBackgroundColor(Qt.gray)
+            cell.setTextColor(Qt.white)
+            cell.setFont(font)
+            # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
+            #cell.setFlags(cell.flags() ^ Qt.ItemIsEditable)
+            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
+        ## Second column
+        celllabel = ["No","-","-"]
+        for i,j in cellids[1]:
+            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.refspc_table.item(i,j)
+            cell.setTextColor(Qt.black)
+            # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
+            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
+        ## Last column
+        celllabel = ["X","",""]
+        for i,j in cellids[2]:
+            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.refspc_table.item(i,j)
+            # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
+            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable ^ QtCore.Qt.ItemIsSelectable)
+        ## Tune the X button
+        xbutton = self.refspc_table.item(1,2)
+        xbutton.setBackgroundColor(Qt.red)
+        xbutton.setFlags(cell.flags() | Qt.ItemIsEnabled)
+        # Connecting cellPressed(int,int), passing its arguments to the called function
+        self.refspc_table.cellPressed.connect(self.clear_refspc)
+        self.refspc_table.cellChanged.connect(self.change_refspc)
+        # If we try with code below, I see no way to make it pass the args
+        #self.connect(self.refspc_table, SIGNAL('cellPressed(int,int)'), lambda: self.clear_refspc())
+        # Table format
+        self.refspc_table.horizontalHeader().hide()
+        self.refspc_table.verticalHeader().hide()
+        self.refspc_table.setColumnWidth(0,80)
+        self.refspc_table.setColumnWidth(1,137)
+        self.refspc_table.setColumnWidth(2,15)
+        self.refspc_table.setShowGrid(False)
         
         #
         # Layout with box sizers
@@ -974,8 +1230,8 @@ class AppForm(QMainWindow):
         vbox_slider.setAlignment(hbox_slider, Qt.AlignLeft)
         # Clean button
         vbox_cleaner = QVBoxLayout()
-        vbox_cleaner.addWidget(self.clean_button1)
-        vbox_cleaner.addWidget(self.clean_button2)
+        vbox_cleaner.addWidget(clean_button1)
+        vbox_cleaner.addWidget(clean_button2)
         # DataType sector
         vbox_datatype = QVBoxLayout()
         vbox_datatype.addWidget(datatype_label)
@@ -1017,10 +1273,11 @@ class AppForm(QMainWindow):
         grid.setSpacing(10)
         
         #                   (row-i,col-i,row-expand,col-expand)     
-        grid.addWidget(self.canvas,      0,0 ,1,15)
-        grid.addWidget(self.analysis_box,0,15,1,1)
-        grid.addLayout(hbox2,            1,0 ,1,15)
-        grid.addLayout(hbox,             2,0 ,1,13)
+        grid.addWidget(self.canvas,      0,0 ,2,1)
+        grid.addWidget(self.analysis_box,0,1, 1,1)
+        grid.addWidget(self.refspc_table,1,1, 1,1)
+        grid.addLayout(hbox2,            2,0 ,1,1)
+        grid.addLayout(hbox,             3,0 ,1,1)
         grid.setAlignment(hbox,   Qt.AlignLeft)
         grid.setAlignment(hbox2,  Qt.AlignLeft)
         
@@ -1029,7 +1286,7 @@ class AppForm(QMainWindow):
         self.setCentralWidget(self.main_frame)
     
     def create_status_bar(self):
-        self.status_text = QLabel("UV spectrum")
+        self.status_text = QLabel("Stick spectrum")
         self.statusBar().addWidget(self.status_text, 1)
         
     def create_menu(self):        
@@ -1057,19 +1314,36 @@ class AppForm(QMainWindow):
         
         # /Manipulate
         self.manip_menu = self.menuBar().addMenu("&Manipulate")
+        self.shiftref_action = self.create_action("&Shift to simulated", 
+            slot=self.shift_to_simulated, 
+            tip='Shift reference spectrum to match the simulated one')
+        self.scaleref_action = self.create_action("&Scale to simulated", 
+            slot=self.scale_to_simulated, 
+            tip='Scale reference spectrum to match the simulated one')
+        self.add_actions(self.manip_menu, (self.shiftref_action,self.scaleref_action))
+        # Initially, the reference spectrum is not available
+        self.shiftref_action.setEnabled(False)
+        self.scaleref_action.setEnabled(False)
         
+        # /About
         self.help_menu = self.menuBar().addMenu("&Help")
+        man_action = self.create_action("&Instructions", 
+            shortcut='F1', slot=self.on_man, 
+            tip='Short manual')
         about_action = self.create_action("&About", 
-            shortcut='F1', slot=self.on_about, 
-            tip='About the demo')
-        self.add_actions(self.help_menu, (about_action,))
-
+            shortcut='F2', slot=self.on_about, 
+            tip='About the app')
+        self.add_actions(self.help_menu, (man_action,about_action))
+        
+    # The following two wrapper functions came from:
+    # https://github.com/eliben/code-for-blog/blob/master/2009/qt_mpl_bars.py
     def add_actions(self, target, actions):
         for action in actions:
             if action is None:
                 target.addSeparator()
             else:
                 target.addAction(action)
+                
 
     def create_action(  self, text, slot=None, shortcut=None, 
                         icon=None, tip=None, checkable=False, 
@@ -1257,17 +1531,23 @@ def read_fort21(MaxClass):
     
     # Load filter transitions if required
     loadC=True
+    total_transitions = 1
     nclass_list = [nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7]
     print 'Transitions read:'
     print ' Class     N. trans.         Load?  '
+    print ' C{0}        {1:5d}             {2}   '.format(0,1,True)
     for i,nclass in enumerate(nclass_list):
-        if MaxClass<i+1: loadC=False
+        if MaxClass<i+1: 
+            loadC=False
+        total_transitions += nclass
         print ' C{0}        {1:5d}             {2}   '.format(i+1,nclass,loadC)
-        if MaxClass<i+1: nclass_list[i]=0
-    print     ' Hot       {0:5d}                   '.format(nhot)
+        if MaxClass<i+1: 
+            nclass_list[i]=0
+    print     ' Hot       {0:5d}             {1}   '.format(nhot,True)
     nclass_list.append(nhot)
+    print 'Total transitions : ',(total_transitions)
+    print 'Loaded transitions: ',(itrans+1)
     print ''
-    print 'Loaded transitions: ',(itrans)
     #========== Done with fort.21 ====================================
 
     # This is a conversion from old stile reader to class_list
@@ -1530,7 +1810,8 @@ def get_args():
     # Default default options 
     final_arguments = dict()
     final_arguments["-maxC"]="7"
-    final_arguments["-type"]="abs"
+    final_arguments["-type"]=False
+    final_arguments["--test"]=False
     final_arguments["-h"]=False
     
     # Get list of input args
@@ -1584,7 +1865,7 @@ def get_args():
     
     
 def main():
-    app = QApplication(sys.argv)
+    app = QtGui.QApplication(sys.argv)
     form = AppForm()
     form.show()
     app.exec_()
