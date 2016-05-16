@@ -25,6 +25,7 @@ program gen_fcc_state
 
     ! Harmonic model PES 
     character(len=3) :: model_PES='AH'
+    logical :: force_real = .false.
 
     !Additional info to prepare the input
     real(8) :: DE, T
@@ -59,7 +60,7 @@ program gen_fcc_state
                O_MAS = 23
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes,force_real)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -182,6 +183,10 @@ program gen_fcc_state
         !Transform Force Constants to Freq
         do i=1,Nvib
             Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
+            if (Freq(i)<0.d0 .and. force_real) then
+                print'(3X,A,X,F12.3)', "Warning: an imaginary frequency turned real:", Freq(i)
+                Freq(i)=dabs(Freq(i))
+            endif
         enddo
         if (error /= 0) then
             print*, "Error in conversion to Cartesian"
@@ -254,10 +259,11 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes)
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes,force_real)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
                                           outfile,outhess,outmass,model_pes
+        logical,intent(inout)          :: force_real
 
         ! Local
         logical :: argument_retrieved,  &
@@ -317,6 +323,11 @@ program gen_fcc_state
                 case ("-model") 
                     call getarg(i+1, model_pes)
                     argument_retrieved=.true.
+
+                case ("-force-real")
+                    force_real=.true.
+                case ("-noforce-real")
+                    force_real=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -405,6 +416,8 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -oh    hess_out_file    '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om    mass_file        '//trim(adjustl(outmass))
         write(0,'(A)'  ) ' -model model_pes[AH|VH] '//trim(adjustl(model_pes))
+        write(0,'(A)'  ) ' -force-real  turn real ',  force_real
+        write(0,'(A)'  ) '        all imag freqs'     
         write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
 
