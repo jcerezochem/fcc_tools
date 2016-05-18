@@ -337,13 +337,41 @@ class AppForm(QMainWindow):
         
     def on_man(self):
         msg = """ 
-       SHORT INSTRUCTIONS:
-         -Get info from a transition: right-mouse-click on a stick
-         -Set the next/previous indexed transiton: +/- keys
-         -Place a label: left-mouse-click on a stick
-         -Move a label: hold the label with the left-mouse-button
-         -Remove one label: on the label, right-mouse-click
-         -Export to xmgrace using the 'File->Export to xmagrace' option
+       SHORT GUIDE:
+        *Mouse/keyboard interactions with the plot:
+         -Right-mouse-click on a stick: get info from a transition
+         -Keyboard "+"/"-" keys: set the next/previous indexed transiton: 
+         -Left-mouse-click on a stick: place a label
+         -Left-mouse-button (press and hold) on a label: move a label 
+         -Right-mouse-click on the label: remove the label
+        
+        *File operations ("File" menu)
+         -Save plot: save png figure (also available from matplotlib toolbar)
+         -Export to xmgrace: export current plot (including labels) to xmgrace
+         -Import plot: import reference plot
+         
+        *Manipulation of the reference plot:
+         -In "Manipulation" menu: shift and scale with respect to simulated
+         -In "Reference spectrum" table:
+           [X] button: clear spectrum
+           [T] buttons: reset to current values
+           Scale/Shift cells: manually change the values
+           
+        *Search transition/progression box
+         Select a given transition of progression (only for MotherState=1)
+         The syntax is:
+           Mode1(Quanta1),Mode2(Quanta2)...
+         
+         If Quanta=P, the progression for the mode is selected (only one progression
+         can be selected)
+         
+         Examples:
+         Select the transiton from ground to 1(1),1(2)
+           1(1),1(2)
+           
+         Select the progression 1(1),2(1); 1(1),2(2); ...
+           1(1),2(P)
+         
         """
         QMessageBox.about(self, "Instructions", msg.strip())
         
@@ -1116,6 +1144,8 @@ class AppForm(QMainWindow):
         # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
         take_next_tr = True
         i  = 0
+        # If progression is activated we check up to quanta=10. This is because simply taking till it vanish, fail handling the
+        # cases where the even are active but not the odd ones
         while take_next_tr:
             take_next_tr = False
             if progression:
