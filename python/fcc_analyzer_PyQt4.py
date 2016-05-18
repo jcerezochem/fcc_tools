@@ -161,14 +161,15 @@ class AppForm(QMainWindow):
         # Data type
         self.data_type ="Intensity"
         # Line markers
-        self.selected  = self.axes.vlines([0.0], [0.0], [0.0], linewidths=3,
-                         color='yellow', visible=False)
+        self.selected  = None
         # Label dictionary
         self.labs = dict()
+        # Other values that need initialization
         self.active_label = None
         self.active_tr = None
         self.spectrum_ref = None
         self.spectrum_sim = None
+        self.AnnotationType = None
         
         # Get command line arguments
         cml_args = get_args()
@@ -183,11 +184,22 @@ class AppForm(QMainWindow):
         self.spc_type = str(self.spc_type).lower()
         # Data load
         self.fcclass_list = read_fort21(MaxClass)
-        self.xbin,self.ybin = read_spc_xy('fort.22')
-        self.xbin = np.array(self.xbin)
+        x,y = read_spc_xy('fort.22')
+        # If there are hot bands, the fort.22 file
+        # repeats the bins for each MotherState.
+        # Here we just want them all together (so as
+        # to properly handle the "Input bins" checkbox option
+        nMotherStates = x.count(x[0])
+        nbins = len(x)/nMotherStates
+        self.xbin = np.array(x[:nbins])
+        self.ybin = np.array(y[:nbins])
+        # Sum all MotherStates into the same bins
+        for i in range(nMotherStates-1):
+            n = (i+1)*nbins
+            self.ybin += np.array(y[n:n+nbins])
         # ybin is in intensity and atomic inits. Changed to "experimental" units
         factor = SpcConstants.factor[self.spc_type]
-        self.ybin = np.array(self.ybin)*factor
+        self.ybin = self.ybin*factor
         
         # This is the load driver
         self.load_sticks()
@@ -405,6 +417,8 @@ class AppForm(QMainWindow):
         match_options = ("First Moment","Peak Maximum")
         match, ok = QInputDialog.getItem(self, "Shift assistant", 
                     "Reference for shifting", match_options, 0, False)
+        if not ok:
+            return
         if match == "First Moment":
             x = self.spectrum_sim[0].get_xdata()
             y = self.spectrum_sim[0].get_ydata()
@@ -924,7 +938,8 @@ class AppForm(QMainWindow):
         # Add transition info to analysis_box
         self.analysis_box.setText(self.active_tr.info())
         
-        self.selected.set_visible(False)
+        if self.selected:
+            self.selected.remove()
         self.selected  = self.axes.vlines([stick_x], [0.0], [stick_y], linewidths=3,
                                   color='yellow', visible=True, alpha=0.7)
         self.canvas.draw()
@@ -934,7 +949,8 @@ class AppForm(QMainWindow):
         
         self.analysis_box.setText("")
         self.active_tr = None 
-        self.selected.set_visible(False)
+        self.selected.remove()
+        self.selected = None
         self.canvas.draw()
         
         
@@ -975,11 +991,12 @@ class AppForm(QMainWindow):
                 
             self.load_convoluted()
                 
-    def clear_refspc(self,i,j):
-        # Only take the "X" cell
-        if (i,j) != (1,2):
+    def table_buttons_action(self,i,j):
+        # "X" button: clear spectrum
+        # "T" reset shift/scale
+        if not self.spectrum_ref:
             return
-        if self.spectrum_ref:
+        if (i,j) == (1,2):
             clear_msg = "Clear reference spectrum?"
             reply = QtGui.QMessageBox.question(self, 'Clear Spectrum', 
                          clear_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
@@ -997,8 +1014,26 @@ class AppForm(QMainWindow):
             # Disable manipulations
             self.shiftref_action.setEnabled(False)
             self.scaleref_action.setEnabled(False)
-        else:
-            self.statusBar().showMessage('No reference loaded', 2000)
+
+        elif (i,j) == (2,2):
+            # Tare the shift
+            msg = "Reset shift to current value?"
+            reply = QtGui.QMessageBox.question(self, 'Reset Shift', 
+                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+            if reply == QtGui.QMessageBox.No:
+                return      
+            self.ref_shift = 0.0
+            self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
+            
+        elif (i,j) == (3,2):
+            # Tare the scale
+            msg = "Reset scale to current value?"
+            reply = QtGui.QMessageBox.question(self, 'Reset Scale', 
+                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+            if reply == QtGui.QMessageBox.No:
+                return      
+            self.ref_scale = 1.0
+            self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
             
             
     def change_refspc(self,i,j):
@@ -1031,6 +1066,113 @@ class AppForm(QMainWindow):
         if not fixaxes:
             self.rescale_yaxis()
         self.canvas.draw()
+        
+        
+    def search_transitions(self):
+        """
+        Read the content in the seach box and interpret
+        it to a search action to pick the selected transitions
+        """
+        command = str(self.search_box.text())
+        self.search_box.setText('')
+        # Here, use regexp to set the validity of the command!
+        if command.count('(') != command.count(',')+1:
+            self.statusBar().showMessage('Invalid syntax', 2000)
+            return
+        transitions = command.split(',')
+        ntr = len(transitions)
+        modes = []
+        quanta = []
+        pindex = []
+        for tr in transitions:
+            m,q = tr.split('(')
+            try:
+                modes.append(int(m))
+            except:
+                self.statusBar().showMessage('Invalid syntax', 2000)
+                return
+            if q.strip().upper() == 'P)':
+                progression=True
+                pindex.append(len(quanta))
+                quanta.append(-1)
+            else:
+                progression = False
+                try:
+                    quanta.append(int(q.replace(')','')))
+                except:
+                    self.statusBar().showMessage('Invalid syntax', 2000)
+                    return
+
+        if (len(pindex) > 1):
+            self.statusBar().showMessage('Invalid syntax', 2000)
+            return
+        else:
+            pindex = pindex[0]
+
+        iclass = len(modes)
+        fclass = self.fcclass_list[iclass]
+        tr_select = []
+        # Sorting two list (apply change of one into the other)
+        # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
+        take_next_tr = True
+        i  = 0
+        while take_next_tr:
+            take_next_tr = False
+            if progression:
+                i += 1
+                quanta[pindex] = i
+            for tr in fclass:
+                m_srch,q_srch = zip(*sorted(zip(modes,quanta)))
+                m_tr,q_tr     = zip(*sorted(zip(tr.final[:iclass],tr.qfinal[:iclass])))
+                if m_srch==m_tr and q_srch==q_tr:
+                    tr_select.append(tr)
+                    if progression:
+                        take_next_tr = True
+                    break
+        
+        if progression and tr_select:
+            # Get the origin of the transition
+            iclass -= 1
+            fclass = self.fcclass_list[iclass]
+            if iclass == 0:
+                tr = fclass[0]
+                tr_select.insert(0,tr)
+            else:
+                modes.pop(pindex)
+                quanta.pop(pindex)
+                for tr in fclass:
+                    m_srch,q_srch = zip(*sorted(zip(modes,quanta)))
+                    m_tr,q_tr     = zip(*sorted(zip(tr.final[:iclass],tr.qfinal[:iclass])))
+                    if m_srch==m_tr and q_srch==q_tr:
+                        tr_select.insert(0,tr)
+                        break
+        
+        # If only one tr selected, set it to active_tr
+        # This allows to browse with +/- from this tr
+        if (len(tr_select)) == 1:
+            self.active_tr
+            
+        # Remove stick if there was already    
+        if self.selected:
+            self.selected.remove()
+            self.selected = None
+        self.analysis_box.setText("")
+                
+        if tr_select:
+            msg=""
+            stick_x = []
+            stick_y = []
+            for tr in tr_select:
+                stick_x.append(tr.DE)
+                stick_y.append(tr.intensity)
+                msg = msg+"\n"+tr.info()
+            zero = np.zeros(len(stick_x))
+            # Add transition info to analysis_box
+            self.analysis_box.setText(msg)
+            self.selected  = self.axes.vlines(stick_x, zero, stick_y, linewidths=3,
+                                      color='yellow', visible=True, alpha=0.7)
+            self.canvas.draw()
+
         
         
     #==========================================================
@@ -1120,6 +1262,7 @@ class AppForm(QMainWindow):
         eV_label    = QLabel('(eV)')
         broad_label = QLabel('Broadening')
         datatype_label = QLabel('Data Type')
+        search_label = QLabel('Select transition/progression')
         # Splitters
         vline = QFrame()
         vline.setFrameStyle(QFrame.VLine)
@@ -1133,6 +1276,12 @@ class AppForm(QMainWindow):
         self.analysis_box.setReadOnly(True)
         self.analysis_box.setMinimumWidth(200)
         self.analysis_box.setMaximumWidth(250)
+
+        # Search box
+        self.search_box = QLineEdit(self.main_frame)
+        self.search_box.setMinimumWidth(200)
+        self.search_box.setMaximumWidth(250)
+        self.search_box.returnPressed.connect(self.search_transitions)
         
         # Table for the reference spectrum
         # Ids ordered by column
@@ -1181,21 +1330,27 @@ class AppForm(QMainWindow):
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
         ## Last column
-        celllabel = ["X","",""]
+        celllabel = ["X","T","T"]
         for i,j in cellids[2]:
             self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
             cell = self.refspc_table.item(i,j)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
-            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable ^ QtCore.Qt.ItemIsSelectable)
+            cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEditable ^ QtCore.Qt.ItemIsSelectable)
         ## Tune the X button
         xbutton = self.refspc_table.item(1,2)
         xbutton.setBackgroundColor(Qt.red)
-        xbutton.setFlags(cell.flags() | Qt.ItemIsEnabled)
+        ## Tune the Tare buttons
+        tbutton = self.refspc_table.item(2,2)
+        tbutton.setBackgroundColor(Qt.blue)
+        tbutton.setTextColor(Qt.white)
+        tbutton = self.refspc_table.item(3,2)
+        tbutton.setBackgroundColor(Qt.blue)
+        tbutton.setTextColor(Qt.white)
         # Connecting cellPressed(int,int), passing its arguments to the called function
-        self.refspc_table.cellPressed.connect(self.clear_refspc)
+        self.refspc_table.cellPressed.connect(self.table_buttons_action)
         self.refspc_table.cellChanged.connect(self.change_refspc)
         # If we try with code below, I see no way to make it pass the args
-        #self.connect(self.refspc_table, SIGNAL('cellPressed(int,int)'), lambda: self.clear_refspc())
+        #self.connect(self.refspc_table, SIGNAL('cellPressed(int,int)'), lambda: self.table_buttons_action())
         # Table format
         self.refspc_table.horizontalHeader().hide()
         self.refspc_table.verticalHeader().hide()
@@ -1211,6 +1366,7 @@ class AppForm(QMainWindow):
         vbox_select = QVBoxLayout()
         vbox_select.addWidget(broad_label)
         vbox_select.addWidget(self.select_broad)
+        
         # HWHM slider with textbox
         hbox_slider = QHBoxLayout()
         hbox_slider.addWidget(self.slider)
@@ -1246,6 +1402,7 @@ class AppForm(QMainWindow):
         hbox.setAlignment(vbox_select, Qt.AlignTop)
         hbox.addLayout(vbox_slider)
         hbox.setAlignment(vbox_slider, Qt.AlignTop)
+        hbox.setAlignment(vbox_slider, Qt.AlignLeft)
         hbox.addWidget(vline2)
         hbox.setAlignment(vline2, Qt.AlignLeft)
         hbox.addLayout(vbox_datatype)
@@ -1257,6 +1414,11 @@ class AppForm(QMainWindow):
         hbox2.setAlignment(self.fixaxes_cb, Qt.AlignLeft)
         hbox2.addWidget(self.mpl_toolbar)
         hbox2.setAlignment(self.mpl_toolbar, Qt.AlignLeft)
+        
+        # Search widget
+        search_widget = QVBoxLayout()
+        search_widget.addWidget(search_label)
+        search_widget.addWidget(self.search_box)
             
         #hbox_plot = QHBoxLayout()
         #hbox_plot.addWidget(self.canvas)
@@ -1275,7 +1437,8 @@ class AppForm(QMainWindow):
         #                   (row-i,col-i,row-expand,col-expand)     
         grid.addWidget(self.canvas,      0,0 ,2,1)
         grid.addWidget(self.analysis_box,0,1, 1,1)
-        grid.addWidget(self.refspc_table,1,1, 1,1)
+        grid.addLayout(search_widget,    1,1, 1,1)
+        grid.addWidget(self.refspc_table,2,1, 2,1)
         grid.addLayout(hbox2,            2,0 ,1,1)
         grid.addLayout(hbox,             3,0 ,1,1)
         grid.setAlignment(hbox,   Qt.AlignLeft)
@@ -1286,7 +1449,7 @@ class AppForm(QMainWindow):
         self.setCentralWidget(self.main_frame)
     
     def create_status_bar(self):
-        self.status_text = QLabel("Stick spectrum")
+        self.status_text = QLabel("")
         self.statusBar().addWidget(self.status_text, 1)
         
     def create_menu(self):        
@@ -1564,13 +1727,15 @@ def read_spc_xy(filename):
     Function to read fort.22, whic contains the bins to reconstruct
     the convoluted spectrum_sim.
     This is a simple [x,y] file
+    An alternative would be to use the np.loadtxt. But for the 
+    moment we leave it like that
     """
     # Open and read file
     print "Loading spectral data from '"+filename+"'..."
     try:
         f = open(filename,'r')
     except:
-        exit("ERROR: Cannot open file '"+filename+"'")
+        sys.exit("ERROR: Cannot open file '"+filename+"'")
     i = 0
     x = []
     y = []
