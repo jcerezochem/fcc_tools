@@ -977,9 +977,10 @@ class AppForm(QMainWindow):
         
         self.analysis_box.setText("")
         self.active_tr = None 
-        self.selected.remove()
-        self.selected = None
-        self.canvas.draw()
+        if self.selected:
+            self.selected.remove()
+            self.selected = None
+            self.canvas.draw()
         
         
     def reset_labels(self):
@@ -1124,7 +1125,6 @@ class AppForm(QMainWindow):
                 pindex.append(len(quanta))
                 quanta.append(-1)
             else:
-                progression = False
                 try:
                     quanta.append(int(q.replace(')','')))
                 except:
@@ -1134,8 +1134,10 @@ class AppForm(QMainWindow):
         if (len(pindex) > 1):
             self.statusBar().showMessage('Invalid syntax', 2000)
             return
-        else:
+        elif (len(pindex) == 1):
             pindex = pindex[0]
+        elif (len(pindex) == 0):
+            progression = False
 
         iclass = len(modes)
         fclass = self.fcclass_list[iclass]
@@ -1144,8 +1146,8 @@ class AppForm(QMainWindow):
         # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
         take_next_tr = True
         i  = 0
-        # If progression is activated we check up to quanta=10. This is because simply taking till it vanish, fail handling the
-        # cases where the even are active but not the odd ones
+        # To handle the cases where the even are active but not the odd ones we use the imissing counter
+        imissing = 0
         while take_next_tr:
             take_next_tr = False
             if progression:
@@ -1156,9 +1158,11 @@ class AppForm(QMainWindow):
                 m_tr,q_tr     = zip(*sorted(zip(tr.final[:iclass],tr.qfinal[:iclass])))
                 if m_srch==m_tr and q_srch==q_tr:
                     tr_select.append(tr)
-                    if progression:
-                        take_next_tr = True
+                    imissing -= 2
                     break
+            imissing += 1
+            if progression and imissing<2:
+                take_next_tr = True
         
         if progression and tr_select:
             # Get the origin of the transition
@@ -1182,10 +1186,11 @@ class AppForm(QMainWindow):
         if (len(tr_select)) == 1:
             self.active_tr
             
-        # Remove stick if there was already    
+        # Remove stick if there was already 
         if self.selected:
             self.selected.remove()
             self.selected = None
+            self.canvas.draw()
         self.analysis_box.setText("")
                 
         if tr_select:
@@ -1198,7 +1203,7 @@ class AppForm(QMainWindow):
                 msg = msg+"\n"+tr.info()
             zero = np.zeros(len(stick_x))
             # Add transition info to analysis_box
-            self.analysis_box.setText(msg)
+            self.analysis_box.setText(msg.strip())
             self.selected  = self.axes.vlines(stick_x, zero, stick_y, linewidths=3,
                                       color='yellow', visible=True, alpha=0.7)
             self.canvas.draw()
@@ -1303,6 +1308,7 @@ class AppForm(QMainWindow):
         
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
+        self.analysis_box.setFontFamily('Arial')
         self.analysis_box.setReadOnly(True)
         self.analysis_box.setMinimumWidth(200)
         self.analysis_box.setMaximumWidth(250)
