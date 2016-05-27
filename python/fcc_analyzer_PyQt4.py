@@ -8,6 +8,7 @@ into a PyQt4 GUI application, including:
 * Adding data to the plot
 * Dynamically modifying the plot's properties
 * Processing mpl events
+
 * Saving the plot to a file from a menu
 The main goal is to serve as a basis for developing rich PyQt GUI
 applications featuring mpl plots (using the mpl OO API).
@@ -26,6 +27,14 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 #from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib
+import re
+
+try:
+    import version_tag
+except:
+    class version_tag:
+        COMMIT="Untracked"
+        DATE="No date"
 
 def helptext():
     print """
@@ -176,12 +185,13 @@ class AppForm(QMainWindow):
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
         self.spc_type = cml_args.get("-type")
-        # Get spc_type if not given on input
-        if not self.spc_type:
-            get_option = self.start_assistant()
+        self.spc_type = str(self.spc_type).lower()
+        calc_type_list = ("abs","emi","ecd","cpl")
+        if self.spc_type not in calc_type_list:
+            # Get spc_type if not given on input or was wrong
+            get_option,self.spc_type = self.start_assistant()
             if not get_option:
                 sys.exit()
-        self.spc_type = str(self.spc_type).lower()
         # Data load
         self.fcclass_list = read_fort21(MaxClass)
         x,y = read_spc_xy('fort.22')
@@ -284,10 +294,10 @@ class AppForm(QMainWindow):
     def start_assistant(self):
         calc_type_list = ("abs","emi","ecd","cpl")
                  
-        self.spc_type, ok = QInputDialog.getItem(self, "Select type of calculation", 
+        spc_type, ok = QInputDialog.getItem(self, "Select type of calculation", 
                             "Type of calculation", calc_type_list, 0, False)
         
-        return ok
+        return ok, str(spc_type)
     
     
     def spc_import_assitant_Xaxis(self):
@@ -327,12 +337,16 @@ class AppForm(QMainWindow):
         msg = """
        A python application to analyze FCclasses TI spectra
        J.Cerezo, May 2016
+       
+       Version info 
+        Git commit: %s
+        Date: %s
         
        This program is free software; you can redistribute it and/or modify  
        it under the terms of the GNU General Public License as published by 
        the Free Software Foundation; either version 2 of the License, or
        (at your option) any later version.
-        """
+        """%(version_tag.COMMIT,version_tag.DATE)
         QMessageBox.about(self, "About the app", msg.strip())
         
     def on_man(self):
@@ -764,11 +778,13 @@ class AppForm(QMainWindow):
             except:
                 pass
         
-        if iclass > 8 or iclass < 0:
-            self.del_stick_marker()
-        else:
+        # Get next transition. If out-of-bounds, simply 
+        # clean the panel
+        try:
             self.active_tr = self.fcclass_list[iclass][index]
             self.set_stick_marker()
+        except IndexError:
+            self.del_stick_marker()
         
         
     def on_press_mouse(self,event):
@@ -1103,30 +1119,69 @@ class AppForm(QMainWindow):
         it to a search action to pick the selected transitions
         """
         command = str(self.search_box.text())
+        self.statusBar().showMessage('Searching transition '+command, 2000)
         self.search_box.setText('')
         # Here, use regexp to set the validity of the command!
-        if command.count('(') != command.count(',')+1:
+        pattern = r'(( )*(([0-9pP]+\([0-9]+\)( )*\,( )*)*( )*[0-9pP]+\([0-9]+\)|0)( )*\-\->( )*){0,1}(( )*([0-9]+\([0-9pP]+\)( )*\,( )*)*( )*[0-9]+\([0-9pP]+\)|0)( )*'
+        match = re.match(pattern,command)
+        if not match or match.group() != command:
+        #     [m'1(q'1),m'2(q'2)... -->] m1(q1),m2(q2)...
+        # or: 0 --> 0 
             self.statusBar().showMessage('Invalid syntax', 2000)
             return
-        transitions = command.split(',')
-        ntr = len(transitions)
-        modes = []
-        quanta = []
+        transition_list=command.split('-->')
+        if len(transition_list) == 2:
+            state_ini,state_fin = transition_list
+        elif len(transition_list) == 1:
+            state_ini  = "0"
+            state_fin, = transition_list
+            
+            
+        # Initial state
+        imodes  = []
+        iquanta = []
+        if not "(" in state_ini and int(state_ini) == 0:
+            transitions = []
+        else:
+            transitions = state_ini.split(',')
+        for tr in transitions:
+            m,q = tr.split('(')
+            # If re.match is done well (as it is?) these try/except
+            # should no be needed. To be removed
+            try:
+                imodes.append(int(m))
+            except:
+                self.statusBar().showMessage('Invalid syntax', 2000)
+                return
+            try:
+                iquanta.append(int(q.replace(')','')))
+            except:
+                self.statusBar().showMessage('Invalid syntax', 2000)
+                return
+        
+        
+        # Final state
+        fmodes  = []
+        fquanta = []
         pindex = []
+        if not "(" in state_fin and int(state_fin) == 0:
+            transitions = []
+        else:
+            transitions = state_fin.split(',')
         for tr in transitions:
             m,q = tr.split('(')
             try:
-                modes.append(int(m))
+                fmodes.append(int(m))
             except:
                 self.statusBar().showMessage('Invalid syntax', 2000)
                 return
             if q.strip().upper() == 'P)':
                 progression=True
-                pindex.append(len(quanta))
-                quanta.append(-1)
+                pindex.append(len(fquanta))
+                fquanta.append(-1)
             else:
                 try:
-                    quanta.append(int(q.replace(')','')))
+                    fquanta.append(int(q.replace(')','')))
                 except:
                     self.statusBar().showMessage('Invalid syntax', 2000)
                     return
@@ -1139,24 +1194,46 @@ class AppForm(QMainWindow):
         elif (len(pindex) == 0):
             progression = False
 
-        iclass = len(modes)
-        fclass = self.fcclass_list[iclass]
+        # Set FCclass
+        fclass = len(fmodes)
+        iclass = len(imodes)
+        if iclass != 0:
+            fcclass = self.fcclass_list[8]
+        else:
+            fcclass = self.fcclass_list[fclass]
+        
         tr_select = []
-        # Sorting two list (apply change of one into the other)
-        # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
-        take_next_tr = True
         i  = 0
+        take_next_tr = True
         # To handle the cases where the even are active but not the odd ones we use the imissing counter
         imissing = 0
+        # Sorting two list (apply change of one into the other)
+        # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
         while take_next_tr:
             take_next_tr = False
             if progression:
                 i += 1
-                quanta[pindex] = i
-            for tr in fclass:
-                m_srch,q_srch = zip(*sorted(zip(modes,quanta)))
-                m_tr,q_tr     = zip(*sorted(zip(tr.final[:iclass],tr.qfinal[:iclass])))
-                if m_srch==m_tr and q_srch==q_tr:
+                fquanta[pindex] = i
+            for tr in fcclass:
+                if iclass != 0:
+                    mi_srch,qi_srch = zip(*sorted(zip(imodes,iquanta)))
+                    mi_tr,qi_tr     = zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass])))
+                else:
+                    mi_srch,qi_srch = 0,0
+                    mi_tr,qi_tr     = 0,0
+                if fclass != 0:
+                    # HotClass include X->0, which has len(tr.final)=0
+                    # and crash with the zip. This is becase in tr.info()
+                    # the lists tr.init and tr.final are cut to delete the 
+                    # zeroes
+                    if len(tr.final) == 0:
+                        continue
+                    mf_srch,qf_srch = zip(*sorted(zip(fmodes,fquanta)))
+                    mf_tr,qf_tr     = zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass])))
+                else:
+                    mf_srch,qf_srch = 0,0
+                    mf_tr,qf_tr     = 0,0
+                if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
                     tr_select.append(tr)
                     imissing -= 2
                     break
@@ -1166,18 +1243,29 @@ class AppForm(QMainWindow):
         
         if progression and tr_select:
             # Get the origin of the transition
-            iclass -= 1
-            fclass = self.fcclass_list[iclass]
+            fclass -= 1
             if iclass == 0:
-                tr = fclass[0]
+                fcclass = self.fcclass_list[fclass]
+            if fclass == 0:
+                tr = fcclass[0]
                 tr_select.insert(0,tr)
             else:
-                modes.pop(pindex)
-                quanta.pop(pindex)
-                for tr in fclass:
-                    m_srch,q_srch = zip(*sorted(zip(modes,quanta)))
-                    m_tr,q_tr     = zip(*sorted(zip(tr.final[:iclass],tr.qfinal[:iclass])))
-                    if m_srch==m_tr and q_srch==q_tr:
+                fmodes.pop(pindex)
+                fquanta.pop(pindex)
+                for tr in fcclass:
+                    if iclass != 0:
+                        mi_srch,qi_srch = zip(*sorted(zip(imodes,iquanta)))
+                        mi_tr,qi_tr     = zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass])))
+                    else:
+                        mi_srch,qi_srch = 0,0
+                        mi_tr,qi_tr     = 0,0
+                    if fclass != 0:
+                        mf_srch,qf_srch = zip(*sorted(zip(fmodes,fquanta)))
+                        mf_tr,qf_tr     = zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass])))
+                    else:
+                        mf_srch,qf_srch = 0,0
+                        mf_tr,qf_tr     = 0,0
+                    if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
                         tr_select.insert(0,tr)
                         break
         
@@ -1194,6 +1282,7 @@ class AppForm(QMainWindow):
         self.analysis_box.setText("")
                 
         if tr_select:
+            self.statusBar().showMessage('Found', 2000)
             msg=""
             stick_x = []
             stick_y = []
@@ -1608,8 +1697,10 @@ def read_fort21(MaxClass):
             except: exit("ERROR: Check 0-0 transition") 
             #For this case, modes are assigned manually
             tr[itrans].init = [0] 
-            tr[itrans].final = [0] 
-            #Now break to continue with other Classes
+            tr[itrans].final = [0]
+        elif "*************************************************" in line:
+            nclass0 = len(tr)
+            itrans  = nclass0-1
             break
 
     nhot = 0
@@ -1620,6 +1711,8 @@ def read_fort21(MaxClass):
     nclass5 = 0
     nclass6 = 0
     nclass7 = 0
+    fcclass = 0
+    nclass  = 0
     for line in f:
         if "MOTHER STATE" in line:
             motherstate = int(line.split("N.")[1])
@@ -1707,7 +1800,7 @@ def read_fort21(MaxClass):
                 A[i] = int(A[i])
             tr[itrans].qinit = A 
         #Final
-        elif 'state 1 = GROUND' in line and fcclass<=MaxClass:
+        elif 'state 2 = GROUND' in line and fcclass<=MaxClass:
             tr[itrans].final = [0]
         elif 'Osc2=' in line and fcclass<=MaxClass:
             A = line.split('Osc2=')
@@ -1730,20 +1823,20 @@ def read_fort21(MaxClass):
     
     # Load filter transitions if required
     loadC=True
-    total_transitions = 1
-    nclass_list = [nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7]
+    total_transitions = 0
+    nclass_list = [nclass0,nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7]
     print 'Transitions read:'
     print ' Class     N. trans.         Load?  '
-    print ' C{0}        {1:5d}             {2}   '.format(0,1,True)
     for i,nclass in enumerate(nclass_list):
-        if MaxClass<i+1: 
+        if MaxClass<i: 
             loadC=False
         total_transitions += nclass
-        print ' C{0}        {1:5d}             {2}   '.format(i+1,nclass,loadC)
-        if MaxClass<i+1: 
+        print ' C{0}        {1:5d}             {2}   '.format(i,nclass,loadC)
+        if MaxClass<i: 
             nclass_list[i]=0
     print     ' Hot       {0:5d}             {1}   '.format(nhot,True)
     nclass_list.append(nhot)
+    total_transitions += nhot
     print 'Total transitions : ',(total_transitions)
     print 'Loaded transitions: ',(itrans+1)
     print ''
@@ -1752,7 +1845,7 @@ def read_fort21(MaxClass):
     # This is a conversion from old stile reader to class_list
     # maybe it'd be better to change the code above
     class_list = []
-    for nclass in [1]+nclass_list:
+    for nclass in nclass_list:
         class_list.append([tr.pop(0) for i in range(nclass)])
 
     return class_list
