@@ -614,17 +614,21 @@ if __name__ == "__main__":
     try:
         import version_tag
     except:
-        pass
+        class version_tag:
+            COMMIT="Untracked"
+            DATE="No date"
     
     
-    print "====================================================="
-    print "                 FCC_ANALYZER:                  "
-    print "  a python tool to analyze FCCLASSES (TI) output"
-    try: 
-        version_tag.print_version()
-    except:
-        print " (untracked version)"
-    print "====================================================="
+    print """
+    =====================================================
+                     FCC_ANALYZER:                  
+          a python tool to analyze FCCLASSES (TI) output
+          
+          VERSION INFO:
+            Git commit: %s
+            Date      : %s
+    =====================================================
+    """%(version_tag.COMMIT,version_tag.DATE)
     
     #====================================================
     # Command line options
