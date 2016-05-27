@@ -39,8 +39,7 @@ autom4te.cache/
 # Specific locations for this project
 src/test/
 contribution_users/
-python/build/
-python/dist/
+python/app
 python/version_tag.py
 
 # Additional compilation files generated in-place

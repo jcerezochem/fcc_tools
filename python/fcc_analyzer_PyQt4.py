@@ -40,10 +40,11 @@ def helptext():
     print """
     Description:
     ------------
-    This python scripts parses fort.21 retrieving the informaition about the 
+    This python script parses fort.21 retrieving the informaition about the 
     transitions and plot them using matplotlib. An interactive plot is generated
     which allow the used to assign the stick transition by clicking on them.
-    The script can also export the plot to xmgrace format.
+    The script can also export the plot to xmgrace format. The convoluted spectrum
+    is generated from fort.22
     
     Instructions:
     ------------
@@ -54,28 +55,18 @@ def helptext():
       -Move a label: hold the label with the left-mouse-button
       -Remove one label: on the label, right-mouse-click
       -Deactivate a class: mouse-click on the legend
-      -Clean info about transitons: left-mouse-click on the title
-      -Clean all labels: right-mouse-click on the title
-      -Export to xmgrace: central-mouse-click on the title
-    
-    * Command line flags
-      By default the script plots the transitions for all classes in absolute intensity
-      but this behaviour can be tuned with command line flags
-      
-       Flag      Action
-      ---------------------
-       -fc       Plot FCfactors
-       -fc-abs   Plot absolute value of FCfactors
-       -fc-sqr   Plot square values of FCfactors
-       -maxC     Maximum Class to show
-       -v        Print version info and quit
-       -h        This help
-       
+      -Clean info about transitons: push "Clean(panel)" button
+      -Clean all labels: push "Clean(labels)" button
+      -Export to xmgrace: use File->Export to xmgrace
     """
 
 class SpcConstants:
     exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
-    factor = {"abs":703.30,"ecd":20.5288,"emi":1.,"cpl":1.}
+    #factor = {"abs":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216}
+    # The factors already include the conversion between eV <-> au
+    # to handle some issues in the emission Lineshape (need to used
+    # (27.2116) factor instead of (27.2116)^3)
+    factor = {"abs":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
 
 
 class spectral_transition:
@@ -265,9 +256,11 @@ class AppForm(QMainWindow):
                 n = SpcConstants.exp[self.spc_type]
                 factor = SpcConstants.factor[self.spc_type]
                 if self.data_type == "Lineshape":
-                    y /= (x / 27.2116)**n * factor
+                    # Multipliction x/27.2116 is included in the factor
+                    y /= (x)**n * factor
                 elif self.data_type == "Intensity":
-                    y *= (x / 27.2116)**n * factor
+                    # Division x/27.2116 is included in the factor
+                    y *= (x)**n * factor
             
             # Update Table
             self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
@@ -346,6 +339,8 @@ class AppForm(QMainWindow):
        it under the terms of the GNU General Public License as published by 
        the Free Software Foundation; either version 2 of the License, or
        (at your option) any later version.
+       
+       Write comments to: j.cerezo@pi.iccom.cnr.it
         """%(version_tag.COMMIT,version_tag.DATE)
         QMessageBox.about(self, "About the app", msg.strip())
         
@@ -372,20 +367,24 @@ class AppForm(QMainWindow):
            Scale/Shift cells: manually change the values
            
         *Search transition/progression box
-         Select a given transition of progression (only for MotherState=1)
-         The syntax is:
-           Mode1(Quanta1),Mode2(Quanta2)...
+         Select a given transition of progression
+         The different syntax accepted are
          
-         If Quanta=P, the progression for the mode is selected (only one progression
-         can be selected)
-         
-         Examples:
-         Select the transiton from ground to 1(1),1(2)
-           1(1),1(2)
+          Mode1(Quanta1),Mode2(Quanta2)... 
+           e.g. 1(1),2(1) : select the transiton from ground to 1(1),2(1)
            
-         Select the progression 1(1),2(1); 1(1),2(2); ...
-           1(1),2(P)
-         
+          Mode1(Quanta1),Mode2(P)... 
+           e.g. 1(1),2(P) : select the transiton from ground to 
+                            1(1),2(1); 1(1),2(2); 1(1),2(3)...
+           Note: 
+            (P) can only be specified on one mode
+           
+          Mode1'(Quanta1'),Mode2'(Quanta2')... --> Mode1(Quanta1),Mode2(Quanta2)... 
+           e.g. 1(1) --> 1(1) : select hot transition from 1'(1) to 1(1)
+           Notes:
+            (P) can be specified (on the final modes only)
+            The ground state is specified as 0. E.g. 0-->0 is the 0-0 transition,
+            1(1)-->0 is the M-0 transition and 0-->8(1) is equivalent to 8(1)
         """
         QMessageBox.about(self, "Instructions", msg.strip())
         
@@ -598,8 +597,10 @@ class AppForm(QMainWindow):
             self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
         elif self.spc_type == 'ecd':
             self.axes2.set_ylabel(r'$\Delta\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
-        else:
-            self.axes2.set_ylabel('I',fontsize=16)
+        elif self.spc_type == 'emi':
+            self.axes2.set_ylabel(r'I (molecule$^{-1}$ns$^{-1}$]',fontsize=16)
+        elif self.spc_type == 'cpl':
+            self.axes2.set_ylabel(r'$\Delta$I (molec$^{-1}$ns$^{-1}$]',fontsize=16)
         self.axes2.set_xlabel('Energy (eV)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
         
@@ -675,11 +676,13 @@ class AppForm(QMainWindow):
         if self.data_type == "Intensity":
             n = SpcConstants.exp[self.spc_type]
             factor = SpcConstants.factor[self.spc_type]
-            y /= (x / 27.2116)**n * factor
+            # Division x/27.2116 is included in the factor
+            y /= (x)**n * factor
         x = x + shift
         # If Intensity, set back from Lineshape
         if self.data_type == "Intensity":
-            y *= (x / 27.2116)**n * factor
+            # Division x/27.2116 is included in the factor
+            y *= (x)**n * factor
         
         return x,y
         
@@ -1021,17 +1024,21 @@ class AppForm(QMainWindow):
             factor = SpcConstants.factor[self.spc_type]
             n = SpcConstants.exp[self.spc_type]
             if self.data_type == "Lineshape":
-                self.ybin /= (self.xbin / 27.2116)**n * factor
+                # Division x/27.2116 is included in the factor
+                self.ybin /= (self.xbin)**n * factor
             elif self.data_type == "Intensity":
-                self.ybin *= (self.xbin / 27.2116)**n * factor
+                # Division x/27.2116 is included in the factor
+                self.ybin *= (self.xbin)**n * factor
             
             if self.spectrum_ref:
                 x = self.spectrum_ref[0].get_xdata()
                 y = self.spectrum_ref[0].get_ydata()
                 if self.data_type == "Lineshape":
-                    y /= (x / 27.2116)**n * factor
+                    # Division x/27.2116 is included in the factor
+                    y /= (x)**n * factor
                 elif self.data_type == "Intensity":
-                    y *= (x / 27.2116)**n * factor
+                    # Division x/27.2116 is included in the factor
+                    y *= (x)**n * factor
                 self.spectrum_ref[0].set_ydata(y)
                 
             self.load_convoluted()
@@ -2107,6 +2114,16 @@ def get_args():
     final_arguments["-type"]=False
     final_arguments["--test"]=False
     final_arguments["-h"]=False
+    arg_description = dict()
+    arg_description["-maxC"]="Maximum class to load"
+    arg_description["-type"]="Type of calculation [abs|emi|ecd|cpl]"
+    arg_description["--test"]="Load spectra and quit"
+    arg_description["-h"]   ="Show this help"
+    arg_type = dict()
+    arg_type["-maxC"] ="int"
+    arg_type["-type"] ="char"
+    arg_type["--test"]="-"
+    arg_type["-h"]    ="-"
     
     # Get list of input args
     input_args_list = []
@@ -2149,9 +2166,17 @@ def get_args():
    A GUI to analyze FCclasses output 
  ----------------------------------------
         """
-        print "Options"
+        helptext()
+        print "    Options:"
+        print "    --------"
+        print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format("Flag","Type","Description","Value")
+        print '      {0:-<10}  {1:-^4}  {2:-<41}  {3:-<7}'.format("","","","")
         for key,value in final_arguments.iteritems():
-            print "  ", key, value
+            descr = arg_description[key]
+            atype = arg_type[key]
+            print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, value)
+        print ""
+        
         sys.exit()
         
     return final_arguments
