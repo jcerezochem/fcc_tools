@@ -62,11 +62,11 @@ def helptext():
 
 class SpcConstants:
     exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
-    #factor = {"abs":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216}
+    factor = {"abs":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216}
     # The factors already include the conversion between eV <-> au
     # to handle some issues in the emission Lineshape (need to used
     # (27.2116) factor instead of (27.2116)^3)
-    factor = {"abs":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
+    #factor = {"abs":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
 
 
 class spectral_transition:
@@ -204,8 +204,9 @@ class AppForm(QMainWindow):
         
         # This is the load driver
         self.load_sticks()
-        self.load_sticks_legend()
+        self.set_axis_labels()
         self.load_convoluted()
+        self.load_legend()        
         
         if cml_args.get("--test"):
             sys.exit()
@@ -242,7 +243,7 @@ class AppForm(QMainWindow):
                 return
             # Transform X axis if needed
             if units == "cm^-1":
-                x = x / 1.23981e-4
+                x = x * 1.23981e-4
             elif units == "nm":
                 x = 1239.81/x
                 
@@ -256,11 +257,11 @@ class AppForm(QMainWindow):
                 n = SpcConstants.exp[self.spc_type]
                 factor = SpcConstants.factor[self.spc_type]
                 if self.data_type == "Lineshape":
-                    # Multipliction x/27.2116 is included in the factor
-                    y /= (x)**n * factor
+                    # Division x/27.2116 could be included in the factor
+                    y /= (x/27.2116)**n * factor
                 elif self.data_type == "Intensity":
-                    # Division x/27.2116 is included in the factor
-                    y *= (x)**n * factor
+                    # Division x/27.2116 could included in the factor
+                    y *= (x/27.2116)**n * factor
             
             # Update Table
             self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
@@ -564,13 +565,22 @@ class AppForm(QMainWindow):
         self.canvas.draw()
         
         
-    def load_sticks_legend(self):
+    def load_legend(self):
         """
         Plot legend, which is pickable so as to turn plots on/off
         """
         
         #Legends management
-        self.legend = self.axes.legend(loc='upper right', fancybox=True, shadow=True)
+        # First get lines from both axes
+        lns  = list(filter(lambda x:x,self.stickspc))+self.spectrum_sim
+        labs = [l.get_label() for l in lns]
+        # Set the location according to the type of calculation
+        if self.spc_type in ["abs","ecd"]:
+            position="upper right"
+        else:
+            position="upper left"
+        self.legend = self.axes.legend(lns,labs,loc=position, fancybox=True, shadow=True)
+        self.LegendType = type(self.legend)
         self.legend.get_frame().set_alpha(0.4)
         self.legend.set_picker(5)
         # we will set up a dict mapping legend line to orig line, and enable
@@ -579,18 +589,14 @@ class AppForm(QMainWindow):
         # Note: mechanism to get rid out of None elements in the list
         #  filter(lambda x:x,lista)) evaluates every member in the list, and only take if
         #  the result of the evaluation is True. None gives a False
-        for legline, origline in zip(self.legend.get_lines(), list(filter(lambda x:x,self.stickspc))):
+        for legline, origline in zip(self.legend.get_lines(), lns):
             legline.set_picker(5)  # 5 pts tolerance
             self.legend_lines[legline] = origline
             # Get type from the object for future use
             self.Line2DType = type(legline)
             
             
-    def load_convoluted(self):
-        str = unicode(self.textbox.text())
-        hwhm = float(str)
-        fixaxes = self.fixaxes_cb.isChecked()
-        
+    def set_axis_labels(self):
         if self.data_type == "Lineshape":
             self.axes2.set_ylabel(r'Lineshape (a.u.)',fontsize=16)
         elif self.spc_type == 'abs':
@@ -603,13 +609,17 @@ class AppForm(QMainWindow):
             self.axes2.set_ylabel(r'$\Delta$I (molec$^{-1}$ns$^{-1}$]',fontsize=16)
         self.axes2.set_xlabel('Energy (eV)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
+            
+            
+    def load_convoluted(self):
+        str = unicode(self.textbox.text())
+        hwhm = float(str)
+        fixaxes = self.fixaxes_cb.isChecked()
         
         #Convolution
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
         # Plot convoluted
-        if self.spectrum_sim:
-            self.spectrum_sim[0].remove()
-        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k')
+        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k',label="Conv")
         if not fixaxes:
             self.rescale_yaxis()
         
@@ -623,9 +633,10 @@ class AppForm(QMainWindow):
         
         #Convolution (in energy(eV))
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
-        # Plot convoluted
-        self.spectrum_sim[0].remove()
-        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k')
+        # Re-Plot convoluted
+        #self.spectrum_sim[0].remove()
+        self.spectrum_sim[0].set_xdata(xc)
+        self.spectrum_sim[0].set_ydata(yc)
         if not fixaxes:
             self.rescale_yaxis()
 
@@ -676,13 +687,13 @@ class AppForm(QMainWindow):
         if self.data_type == "Intensity":
             n = SpcConstants.exp[self.spc_type]
             factor = SpcConstants.factor[self.spc_type]
-            # Division x/27.2116 is included in the factor
-            y /= (x)**n * factor
+            # Division x/27.2116 could be included in the factor
+            y /= (x/27.2116)**n * factor
         x = x + shift
         # If Intensity, set back from Lineshape
         if self.data_type == "Intensity":
-            # Division x/27.2116 is included in the factor
-            y *= (x)**n * factor
+            # Division x/27.2116 could be included in the factor
+            y *= (x/27.2116)**n * factor
         
         return x,y
         
@@ -718,6 +729,8 @@ class AppForm(QMainWindow):
         elif type(event.artist) == self.Line2DType:
             self.del_stick_marker()
             self.interact_with_legend(event)
+        #elif type(event.artist) == self.LegendType:
+            #self.legend.draggable()
             
             
     def select_stick(self,event):
@@ -742,6 +755,8 @@ class AppForm(QMainWindow):
         tr = self.fcclass_list[iclass][dataind]
         if event.mouseevent.button == 3:
             self.active_tr = tr
+            # Clear seach_box as it would be outdated
+            self.search_box.setText('')
             self.set_stick_marker()
         elif event.mouseevent.button == 1:
             # The transition info need to be gathered
@@ -761,6 +776,9 @@ class AppForm(QMainWindow):
             inc = 1
         else:  
             inc = -1
+            
+        # Clear seach_box as it would be outdated
+        self.search_box.setText('')
 
         # Get the active class
         if self.active_tr.motherstate == 1:
@@ -949,6 +967,12 @@ class AppForm(QMainWindow):
     
     
     # RESPONSES TO SIGNALS
+    def update_fixlegend(self):
+        fixlegend = not self.fixlegend_cb.isChecked()
+        print "Chang", fixlegend
+        self.legend.draggable(fixlegend)
+        
+    
     def update_hwhm_from_slider(self,UpdateConvolute=True):
         hwhmmin = 0.01
         hwhmmax = 0.1
@@ -1024,24 +1048,25 @@ class AppForm(QMainWindow):
             factor = SpcConstants.factor[self.spc_type]
             n = SpcConstants.exp[self.spc_type]
             if self.data_type == "Lineshape":
-                # Division x/27.2116 is included in the factor
-                self.ybin /= (self.xbin)**n * factor
+                # Division x/27.2116 could be included in the factor
+                self.ybin /= (self.xbin/27.2116)**n * factor
             elif self.data_type == "Intensity":
-                # Division x/27.2116 is included in the factor
-                self.ybin *= (self.xbin)**n * factor
+                # Division x/27.2116 could be included in the factor
+                self.ybin *= (self.xbin/27.2116)**n * factor
             
             if self.spectrum_ref:
                 x = self.spectrum_ref[0].get_xdata()
                 y = self.spectrum_ref[0].get_ydata()
                 if self.data_type == "Lineshape":
-                    # Division x/27.2116 is included in the factor
-                    y /= (x)**n * factor
+                    # Division x/27.2116 could be included in the factor
+                    y /= (x/27.2116)**n * factor
                 elif self.data_type == "Intensity":
-                    # Division x/27.2116 is included in the factor
-                    y *= (x)**n * factor
+                    # Division x/27.2116 could be included in the factor
+                    y *= (x/27.2116)**n * factor
                 self.spectrum_ref[0].set_ydata(y)
                 
-            self.load_convoluted()
+            self.set_axis_labels()
+            self.update_convolute()
                 
     def table_buttons_action(self,i,j):
         # "X" button: clear spectrum
@@ -1127,7 +1152,6 @@ class AppForm(QMainWindow):
         """
         command = str(self.search_box.text())
         self.statusBar().showMessage('Searching transition '+command, 2000)
-        self.search_box.setText('')
         # Here, use regexp to set the validity of the command!
         pattern = r'(( )*(([0-9pP]+\([0-9]+\)( )*\,( )*)*( )*[0-9pP]+\([0-9]+\)|0)( )*\-\->( )*){0,1}(( )*([0-9]+\([0-9pP]+\)( )*\,( )*)*( )*[0-9]+\([0-9pP]+\)|0)( )*'
         match = re.match(pattern,command)
@@ -1323,6 +1347,7 @@ class AppForm(QMainWindow):
         self.fig, self.axes2 = plt.subplots()
         # Second axis for the convoluted graph
         self.axes = self.axes2.twinx()
+        # The canvas is the graphical object managed by PyQt
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         #self.canvas.setMaximumWidth(1000)
@@ -1383,6 +1408,11 @@ class AppForm(QMainWindow):
         self.fixaxes_cb = QCheckBox("Fix y-axis")
         self.fixaxes_cb.setChecked(False)
         self.fixaxes_cb.setMaximumWidth(100)
+        
+        self.fixlegend_cb = QCheckBox("Fix legend")
+        self.fixlegend_cb.setChecked(True)
+        self.fixlegend_cb.setMaximumWidth(100)
+        self.connect(self.fixlegend_cb, SIGNAL('stateChanged(int)'), self.update_fixlegend)
         
         self.inputBins_cb = QCheckBox("Input bins")
         self.inputBins_cb.setChecked(False)
@@ -1479,6 +1509,11 @@ class AppForm(QMainWindow):
         tbutton.setBackgroundColor(Qt.blue)
         tbutton.setTextColor(Qt.white)
         # Connecting cellPressed(int,int), passing its arguments to the called function
+        # My function definition uses the irow and icol pressed:
+        # self.table_buttons_action(self,irow,icol)
+        # irow and icol are hold (someway) by the event and the fed to cellPressed:
+        # cellPressed(irow,icol)
+        # The connect call below passes the arguments of cellPressed to my function:
         self.refspc_table.cellPressed.connect(self.table_buttons_action)
         self.refspc_table.cellChanged.connect(self.change_refspc)
         # If we try with code below, I see no way to make it pass the args
@@ -1544,6 +1579,8 @@ class AppForm(QMainWindow):
         hbox2 = QHBoxLayout()
         hbox2.addWidget(self.fixaxes_cb)
         hbox2.setAlignment(self.fixaxes_cb, Qt.AlignLeft)
+        hbox2.addWidget(self.fixlegend_cb)
+        hbox2.setAlignment(self.fixlegend_cb, Qt.AlignLeft)
         hbox2.addWidget(self.mpl_toolbar)
         hbox2.setAlignment(self.mpl_toolbar, Qt.AlignLeft)
         
