@@ -969,7 +969,6 @@ class AppForm(QMainWindow):
     # RESPONSES TO SIGNALS
     def update_fixlegend(self):
         fixlegend = not self.fixlegend_cb.isChecked()
-        print "Chang", fixlegend
         self.legend.draggable(fixlegend)
         
     
@@ -1019,6 +1018,7 @@ class AppForm(QMainWindow):
     def del_stick_marker(self):
         
         self.analysis_box.setText("")
+        self.search_box.setText('')
         self.active_tr = None 
         if self.selected:
             self.selected.remove()
@@ -1158,6 +1158,11 @@ class AppForm(QMainWindow):
         if not match or match.group() != command:
         #     [m'1(q'1),m'2(q'2)... -->] m1(q1),m2(q2)...
         # or: 0 --> 0 
+            if self.selected:
+                self.selected.remove()
+                self.selected = None
+                self.canvas.draw()
+            self.analysis_box.setText("")
             self.statusBar().showMessage('Invalid syntax', 2000)
             return
         transition_list=command.split('-->')
@@ -1417,6 +1422,8 @@ class AppForm(QMainWindow):
         self.inputBins_cb = QCheckBox("Input bins")
         self.inputBins_cb.setChecked(False)
         self.inputBins_cb.setMaximumWidth(100)
+        # Update when clicking
+        self.connect(self.inputBins_cb, SIGNAL('stateChanged(int)'), self.update_convolute)
         
         # Labels
         hwhm_label  = QLabel('   HWHM')

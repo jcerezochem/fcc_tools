@@ -2,7 +2,7 @@
 \usepackage[T1]{fontenc}
 
 %opening
-\title{\texttt{fcc\_analyzer\_PyQt4}: a PyQt4 GUI to visualize \fcc\ output}
+\title{\texttt{fcc\_analyzer\_PyQt4}\\ a GUI to visualize \fcc\ output}
 \date{\textsc{Version: 0.1}\\\today}
 \author{Javier Cerezo\\\texttt{j.cerezo@pi.iccom.cnr.it}}
 
@@ -27,15 +27,15 @@
 \maketitle
 
 \section{Description}
-\texttt{fcc\_analyzer\_PyQt4} is a graphical user interface (GUI) written in python and relying in the PyQt4 and matplotlib libraries that reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and fort.22 (spectral histogram).
+\texttt{fcc\_analyzer\_PyQt4} is a graphical user interface (GUI) written in python and relying on the PyQt4 and matplotlib libraries. It reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and fort.22 (spectral histogram), and opens an interactive plot that facilitates the analysis of the transitions, the investigation of different broadening schemes and the comparison with reference spectral data.
 
 \section{Installation}
 
 \subsection{Precompiled binary}
-A binary file generated with \texttt{pyinstaller} is provided. It is compatible with 64-bit Linux systems. The GLIBC version $\geq$2.17 is required.
+A binary file generated with \texttt{pyinstaller} is provided. It is compatible with 64-bit Linux systems. The GLIBC version $\geq$2.17 is required. The binary and libraries are in the \texttt{bin/} folder. The main program is \texttt{bin/fcc\_analyzer\_PyQt4}.
 
-\subsection{Python source. Requirements}
-The source can be run directly as a python script. A \texttt{python} (version 2.7) interpreter in required, along with the following modules (the minimum version tested in included):
+\subsection{Python script}
+The source can be run directly as a python script, located in \texttt{src/}. \texttt{python} version 2.7 is used. The following modules are required (the minimum version tested in specified):
 
 \begin{itemize}
  \item \texttt{matplotlib} (version $\geq1.4.2$)
@@ -52,7 +52,7 @@ The application need to be invoked in the folder were the fort.21 and fort.22 fi
 
 \texttt{fcc\_analyzer\_PyQt4 [flags]}\\
 
-The following flags are supported:
+The following optional flags are possible:
 
 \begin{tabular}{lll}
  \texttt{-type (abs|emi|ecd|cpl)}     && \begin{minipage}[t]{0.65\textwidth}
@@ -85,6 +85,7 @@ The interaction and analysis of the simulated spectrum are performed with the di
   \item Save plot: save plot to a png file.
   \item Export to xmgrace: export plot data (including labels) to xmgrace file
   \item Import plot: Load reference spectrum to the Spectrum Area. Units: (eV|cm$^{-1}$|nm).
+  \item Quit: exit the application
  \end{itemize}
 
  \item Analyse
@@ -96,6 +97,12 @@ The interaction and analysis of the simulated spectrum are performed with the di
  \begin{itemize}
   \item Shift to simulated: shift reference spectrum (if loaded) to match the convoluted spectrum.
   \item Scale to convoluted: scale reference spectrum (if loaded) to match the convoluted spectrum.
+ \end{itemize}
+
+ \item Help
+ \begin{itemize}
+  \item Instructions: show a short guide to use the application.
+  \item About: show general info about the application.
  \end{itemize}
 \end{itemize}
  
