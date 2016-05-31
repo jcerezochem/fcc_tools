@@ -83,7 +83,12 @@ The interaction and analysis of the simulated spectrum are performed with the di
  \item File
  \begin{itemize}
   \item Save plot: save plot to a png file.
-  \item Export to xmgrace: export plot data (including labels) to xmgrace file
+  \item Export to xmgrace: export plot data (including labels) to xmgrace file. A export assistant is first raised to select how to organize the plots:
+  \begin{itemize}
+   \item Overlaid graphs: place the stick and spectra in different graphs, that are overlaid, as in the matplotlib plot.
+   \item Same graph: include sticks and spectra in the same graph. The spectra are scaled to normalized the maximum intensity.
+  \end{itemize}
+
   \item Import plot: Load reference spectrum to the Spectrum Area. Units: (eV|cm$^{-1}$|nm).
   \item Quit: exit the application
  \end{itemize}

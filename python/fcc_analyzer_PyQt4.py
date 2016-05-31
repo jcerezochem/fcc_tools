@@ -319,13 +319,29 @@ class AppForm(QMainWindow):
         
             
     def xmgr_export(self):
+        # Export mode Dialog
+        export_mode_list = ("Overlaid graphs","Same graph")
+                 
+        export_mode, ok = QInputDialog.getItem(self, "Select export mode", 
+                            "Organization of the plots", export_mode_list, 0, False)
+        if not ok:
+            return
+        # File Dialog
         file_choices = "xmgrace graph (*.agr) (*.agr);; All files (*)"
         
         path = unicode(QFileDialog.getSaveFileName(self, 
                         'Export to file', '', 
                         file_choices))
         if path:
-            export_xmgrace(path,self.axes,self.fcclass_list,self.spectrum_sim[0],self.labs)
+            if self.spectrum_ref:
+                spc = self.spectrum_sim+self.spectrum_ref
+            else:
+                spc = self.spectrum_sim
+            if export_mode == "Overlaid graphs":
+                ax2 = self.axes2
+            else:
+                ax2 = None
+            export_xmgrace(path,self.axes,self.fcclass_list,self.labs,ax2=ax2,specs=spc)
     
     def on_about(self):
         msg = """
@@ -650,7 +666,7 @@ class AppForm(QMainWindow):
         # Plot experiment (only one experiment is allowed)
         if self.spectrum_ref:
             self.spectrum_ref[0].remove()
-        self.spectrum_ref = self.axes2.plot(x,y,'-',color='gray')
+        self.spectrum_ref = self.axes2.plot(x,y,'-',color='gray',label="Ref")
         if not fixaxes:
             self.rescale_yaxis()
         
@@ -1420,7 +1436,7 @@ class AppForm(QMainWindow):
         self.connect(self.fixlegend_cb, SIGNAL('stateChanged(int)'), self.update_fixlegend)
         
         self.inputBins_cb = QCheckBox("Input bins")
-        self.inputBins_cb.setChecked(False)
+        self.inputBins_cb.setChecked(True)
         self.inputBins_cb.setMaximumWidth(100)
         # Update when clicking
         self.connect(self.inputBins_cb, SIGNAL('stateChanged(int)'), self.update_convolute)
@@ -2023,7 +2039,7 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
     return [xconv,yconv]
     
 # GENERATE XMGR
-def export_xmgrace(filename,ax,class_list,spc,labs):
+def export_xmgrace(filename,ax,sticks,labs,ax2=None,specs=None):
     """
     DESCRIPTION
     ------------
@@ -2034,7 +2050,7 @@ def export_xmgrace(filename,ax,class_list,spc,labs):
     * filename string : path to the file to save the export
     * ax,         mpl.axes        : graphic info
     * class_list  list of vlines  : stick spectra (classes)
-    * spc         Line2D          : convoluted spectrum
+    * specs       Line2D          : convoluted spectrum
     * labs        dict            : labels in xmgr format (arg: labels as annotation Class)
     """
 
@@ -2090,19 +2106,31 @@ def export_xmgrace(filename,ax,class_list,spc,labs):
         print >> f, "@    string def \"",labs[lab],"\""
     print >> f, "@with g0"
     # Set a large view
-    print >> f, "@    view 0.150000, 0.150000, 1.2, 0.92"
+    print >> f, "@    view 0.180000, 0.150000, 1.15, 0.92"
     #Get plotting range from mplt
     x=ax.get_xbound()
     y=ax.get_ybound()
     print >> f, "@    world ",x[0],",",y[0],",",x[1],",",y[1]
     #Get xlabel from mplt
     print >> f, "@    xaxis  label \""+ax.get_xlabel()+"\""
+    print >> f, "@    yaxis  label \""+ax.get_ylabel()+"\""
+    if ax2:
+        # Position
+        print >> f, "@    yaxis  label place opposite"
+        print >> f, "@    yaxis  ticklabel place opposite"
+        print >> f, "@    yaxis  tick place opposite"
+    # Char sizes
+    print >> f, "@    xaxis  ticklabel char size 1.250000"
+    print >> f, "@    yaxis  ticklabel char size 1.250000"
+    print >> f, "@    xaxis  label char size 1.500000"
+    print >> f, "@    yaxis  label char size 1.500000"
     #Get tick spacing from mplt
     x=ax.get_xticks()
     y=ax.get_yticks()
     print >> f, "@    xaxis  tick major", x[1]-x[0]
     print >> f, "@    yaxis  tick major", y[1]-y[0]
     #Legend
+    print >> f, "@    legend char size 1.250000"
     print >> f, "@    legend loctype view"
     print >> f, "@    legend 0.95, 0.9"
     #Now include data
@@ -2112,11 +2140,11 @@ def export_xmgrace(filename,ax,class_list,spc,labs):
     ymax = -999.
     ymin =  999.
     for iclass in range(9):
-        if (len(class_list[iclass]) == 0):
+        if (len(sticks[iclass]) == 0):
             continue
         k += 1
-        x = np.array([ class_list[iclass][i].DE        for i in range(len(class_list[iclass])) ])
-        y = np.array([ class_list[iclass][i].intensity for i in range(len(class_list[iclass])) ])
+        x = np.array([ sticks[iclass][i].DE        for i in range(len(sticks[iclass])) ])
+        y = np.array([ sticks[iclass][i].intensity for i in range(len(sticks[iclass])) ])
         print >> f, "& %s"%(label_list[iclass])
         print >> f, "@type bar"
         print >> f, "@    s"+str(k)," line type 0"
@@ -2129,25 +2157,118 @@ def export_xmgrace(filename,ax,class_list,spc,labs):
             
     # Convoluted spectrum. scaled TODO: use the alternative axis
     # This can be done either with another Graph or using alt-x axis
-    k += 1
-    x = spc.get_xdata()
-    y = spc.get_ydata()
-    if abs(ymax) > abs(ymin):
-        scale_factor = ymax/y.max()
+    xs_max = max([ max(max(s.get_xdata()),abs(min(s.get_xdata()))) for s in specs ])
+    ys_max = max([ max(max(s.get_ydata()),abs(min(s.get_ydata()))) for s in specs ])
+    if not ax2:
+        k += 1
+        if abs(ymax) > abs(ymin):
+            scale_factor = ymax/ys_max
+        else:
+            scale_factor = abs(ymax)/abs(ys_max)
+        print "Scale factor applied to convoluted spectrum %s"%(scale_factor)
     else:
-        scale_factor = abs(ymax)/abs(y.max())
-    y *= scale_factor
-    print >> f, "& Spect"
-    print >> f, "@type xy"
-    print >> f, "@    s"+str(k)," line type 1"
-    print >> f, "@    s"+str(k)," line linestyle 3"
-    print >> f, "@    s"+str(k)," line color %s"%(1)
-    print >> f, "@    s"+str(k)," legend  \"Spec\""
-    for i in range(len(x)):
-        print >> f, x[i], y[i]
+        k = 0
+        print >> f, "@g1 on"
+        print >> f, "@g1 hidden false"
+        print >> f, "@with g1"
+        # Set a large view
+        print >> f, "@    view 0.180000, 0.150000, 1.15, 0.92"
+        #Get plotting range from mplt
+        x=ax2.get_xbound()
+        y=ax2.get_ybound()
+        print >> f, "@    world ",x[0],",",y[0],",",x[1],",",y[1]
+        #Get labels from mplt
+        print >> f, "@    yaxis  label \""+latex2xmgrace(ax2.get_ylabel())+"\""
+        # Char sizes
+        print >> f, "@    xaxis  ticklabel char size 1.250000"
+        print >> f, "@    yaxis  ticklabel char size 1.250000"
+        print >> f, "@    xaxis  label char size 1.500000"
+        print >> f, "@    yaxis  label char size 1.500000"
+        #Set axis ticks on the left
+        print >> f, "@    xaxis  off"
+        print >> f, "@    yaxis  tick out"
+        print >> f, "@    yaxis  label place normal"
+        print >> f, "@    yaxis  ticklabel place normal"
+        print >> f, "@    yaxis  tick place normal"
+        #Get tick spacing from mplt
+        y=ax2.get_yticks()
+        print >> f, "@    yaxis  tick major", y[1]-y[0]
+        #Legend
+        print >> f, "@    legend char size 1.250000"
+        print >> f, "@    legend loctype view"
+        print >> f, "@    legend 0.8, 0.9"
+        # No scale
+        scale_factor = 1.0
+        
+    # Note that y holds the adress of the data! So, if we change it, we change the original data!
+    #y *= scale_factor
+    color_list = [ 1, 18]
+    style_list = [ 3, 1 ]
+    for i,s in enumerate(specs):
+        leg_label=specs[i].get_label()
+        x = s.get_xdata()
+        y = s.get_ydata()
+        print >> f, "& "+leg_label
+        print >> f, "@type xy"
+        print >> f, "@    s"+str(k)," line type 1"
+        print >> f, "@    s"+str(k)," line linestyle %s"%(style_list[i])
+        print >> f, "@    s"+str(k)," line color %s"%(color_list[i])
+        print >> f, "@    s"+str(k)," legend  \""+leg_label+"\""
+        for j in range(len(x)):
+            print >> f, x[j], y[j]*scale_factor
+        k += 1
             
     f.close()
 
+def latex2xmgrace(string):
+    """
+    Transform latex mathenv entries to xmgrace format string
+    """
+    if not '$' in string:
+        return string
+    
+    # Dictionary of latex commands and xmgrace translation
+    ltx2xmgr=dict()
+    ltx2xmgr[r'\alpha']     =r'\xa\f{}'
+    ltx2xmgr[r'\beta']      =r'\xb\f{}'
+    ltx2xmgr[r'\gamma']     =r'\xg\f{}'
+    ltx2xmgr[r'\epsilon']   =r'\xe\f{}'
+    ltx2xmgr[r'\varepsilon']=r'\xe\f{}'
+    ltx2xmgr[r'\Delta']     =r'\xD\f{}'
+    
+    str_parts = string.split('$')
+    str_math = str_parts[1::2]
+    str_text = str_parts[0::2]
+    
+    for i,item in enumerate(str_math):
+        if '\\' in item:
+            # There is a command to replace
+            pattern=r'\\[A-Za-z_]+'
+            for ltx_cmd in re.findall(pattern,item):
+                xmgr_cmd=ltx2xmgr[ltx_cmd]
+                item = item.replace(ltx_cmd,xmgr_cmd)
+        if '^' in item:
+            # There is a supperscript
+            pattern=r'\^[\{\}\-0-9]'
+            for exp in re.findall(pattern,item):
+                item = item.replace('^','\\S')
+                item = item.replace('{','')
+                item = item.replace('}','')
+                item += '\\N'
+            
+        str_math[i] = item
+        
+    # Join list
+    for i,v in enumerate(str_math):
+        str_text.insert(2*i+1,v)
+        
+    string=""
+    for char in str_text:
+        string += char
+        
+    return string
+
+    
 
 # INPUT PARSER
 def get_args():
