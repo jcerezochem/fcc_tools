@@ -171,6 +171,18 @@ class AppForm(QMainWindow):
         self.spectrum_sim = None
         self.AnnotationType = None
         
+        # First locate the fort.21 file
+        if os.path.isfile('fort.21'):
+            path=""
+        else:
+            file_choices = r"FCclasses aux (fort.21) (fort.21);; All files (*)"
+            path = unicode(QFileDialog.getOpenFileName(self, 
+                            'Set the location of FClasses output', '', 
+                            file_choices))
+            if not path or not "fort.21" in path:
+                return
+            path = path.replace("fort.21","")
+        
         # Get command line arguments
         cml_args = get_args()
         MaxClass = cml_args.get("-maxC")
@@ -184,28 +196,46 @@ class AppForm(QMainWindow):
             if not get_option:
                 sys.exit()
         # Data load
-        self.fcclass_list = read_fort21(MaxClass)
-        x,y = read_spc_xy('fort.22')
-        # If there are hot bands, the fort.22 file
-        # repeats the bins for each MotherState.
-        # Here we just want them all together (so as
-        # to properly handle the "Input bins" checkbox option
-        nMotherStates = x.count(x[0])
-        nbins = len(x)/nMotherStates
-        self.xbin = np.array(x[:nbins])
-        self.ybin = np.array(y[:nbins])
-        # Sum all MotherStates into the same bins
-        for i in range(nMotherStates-1):
-            n = (i+1)*nbins
-            self.ybin += np.array(y[n:n+nbins])
-        # ybin is in intensity and atomic inits. Changed to "experimental" units
-        factor = SpcConstants.factor[self.spc_type]
-        self.ybin = self.ybin*factor
+        # Stick transitions (fort.21)
+        self.fcclass_list = read_fort21(path+'fort.21',MaxClass)
+        # Bins to convolute spectrum (only in new versions of FCclasses)
+        if os.path.isfile(path+'fort.22'):
+            self.with_fort22 = True
+            x,y = read_spc_xy(path+'fort.22')
+            # If there are hot bands, the fort.22 file
+            # repeats the bins for each MotherState.
+            # Here we just want them all together (so as
+            # to properly handle the "Input bins" checkbox option
+            nMotherStates = x.count(x[0])
+            nbins = len(x)/nMotherStates
+            self.xbin = np.array(x[:nbins])
+            self.ybin = np.array(y[:nbins])
+            # Sum all MotherStates into the same bins
+            for i in range(nMotherStates-1):
+                n = (i+1)*nbins
+                self.ybin += np.array(y[n:n+nbins])
+            # ybin is in intensity and atomic inits. Changed to "experimental" units
+            factor = SpcConstants.factor[self.spc_type]
+            self.ybin = self.ybin*factor
+        elif os.path.isfile(path+'fort.18'):
+            self.with_fort22 = False
+            x,y = read_spc_xy(path+'fort.18',fromsection="Total spectrum at the chosen temperature")
+            # Deactivate convolution controls
+            self.inputBins_cb.setEnabled(False)
+            self.broadbox.setText("-")
+            self.broadbox.setEnabled(False)
+            self.slider.setEnabled(False)
+            self.select_broad.setEnabled(False)
+        else:
+            sys.exit("No convoluted spectrum could be loaded")
         
         # This is the load driver
         self.load_sticks()
         self.set_axis_labels()
-        self.load_convoluted()
+        if os.path.isfile(path+'fort.22'):
+            self.load_convoluted()
+        else:
+            self.load_fixconvolution(x,y)
         self.load_legend()        
         
         if cml_args.get("--test"):
@@ -626,9 +656,15 @@ class AppForm(QMainWindow):
         self.axes2.set_xlabel('Energy (eV)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
             
+
+    def load_fixconvolution(self,x,y):
+        self.spectrum_sim = self.axes2.plot(x,y,'--',color='k',label="Conv")
+        
+        self.canvas.draw()
+        
             
     def load_convoluted(self):
-        str = unicode(self.textbox.text())
+        str = unicode(self.broadbox.text())
         hwhm = float(str)
         fixaxes = self.fixaxes_cb.isChecked()
         
@@ -643,7 +679,7 @@ class AppForm(QMainWindow):
         
         
     def update_convolute(self):
-        str = unicode(self.textbox.text())
+        str = unicode(self.broadbox.text())
         hwhm = float(str)
         fixaxes = self.fixaxes_cb.isChecked()
         
@@ -995,7 +1031,7 @@ class AppForm(QMainWindow):
         slidermax = 100 # this is not changed
         hwhm = float((hwhmmax-hwhmmin)/(slidermax-slidermin) * (self.slider.value()-slidermin) + hwhmmin)
         hwhm = round(hwhm,3)
-        self.textbox.setText(str(hwhm))
+        self.broadbox.setText(str(hwhm))
         if (UpdateConvolute):
             self.update_convolute()
         
@@ -1005,7 +1041,7 @@ class AppForm(QMainWindow):
         hwhmmax = 0.1
         slidermin = 1   # this is not changed
         slidermax = 100 # this is not changed
-        str = unicode(self.textbox.text())
+        str = unicode(self.broadbox.text())
         hwhm = float(str)
         sliderval = int((slidermax-slidermin)/(hwhmmax-hwhmmin) * (hwhm-hwhmmin) + slidermin)
         sliderval = min(sliderval,slidermax)
@@ -1063,12 +1099,24 @@ class AppForm(QMainWindow):
         if current_data_type != self.data_type:
             factor = SpcConstants.factor[self.spc_type]
             n = SpcConstants.exp[self.spc_type]
-            if self.data_type == "Lineshape":
-                # Division x/27.2116 could be included in the factor
-                self.ybin /= (self.xbin/27.2116)**n * factor
-            elif self.data_type == "Intensity":
-                # Division x/27.2116 could be included in the factor
-                self.ybin *= (self.xbin/27.2116)**n * factor
+            if self.with_fort22:
+                if self.data_type == "Lineshape":
+                    # Division x/27.2116 could be included in the factor
+                    self.ybin /= (self.xbin/27.2116)**n * factor
+                elif self.data_type == "Intensity":
+                    # Division x/27.2116 could be included in the factor
+                    self.ybin *= (self.xbin/27.2116)**n * factor
+            else:
+                if self.spectrum_sim:
+                    x = self.spectrum_sim[0].get_xdata()
+                    y = self.spectrum_sim[0].get_ydata()
+                    if self.data_type == "Lineshape":
+                        # Division x/27.2116 could be included in the factor
+                        y /= (x/27.2116)**n * factor
+                    elif self.data_type == "Intensity":
+                        # Division x/27.2116 could be included in the factor
+                        y *= (x/27.2116)**n * factor
+                    self.spectrum_sim[0].set_ydata(y)
             
             if self.spectrum_ref:
                 x = self.spectrum_ref[0].get_xdata()
@@ -1082,7 +1130,14 @@ class AppForm(QMainWindow):
                 self.spectrum_ref[0].set_ydata(y)
                 
             self.set_axis_labels()
-            self.update_convolute()
+            if self.with_fort22:
+                self.update_convolute()
+            else:
+                fixaxes = self.fixaxes_cb.isChecked()
+                if not fixaxes:
+                    self.rescale_yaxis()
+                self.canvas.draw()
+                
                 
     def table_buttons_action(self,i,j):
         # "X" button: clear spectrum
@@ -1348,6 +1403,8 @@ class AppForm(QMainWindow):
             self.selected  = self.axes.vlines(stick_x, zero, stick_y, linewidths=3,
                                       color='yellow', visible=True, alpha=0.7)
             self.canvas.draw()
+        else:
+            self.statusBar().showMessage('Not found', 2000)
 
         
         
@@ -1400,10 +1457,10 @@ class AppForm(QMainWindow):
         
         # Other GUI controls
         # 
-        self.textbox = QLineEdit()
-        self.textbox.setMinimumWidth(50)
-        self.textbox.setMaximumWidth(50)
-        self.connect(self.textbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
+        self.broadbox = QLineEdit()
+        self.broadbox.setMinimumWidth(50)
+        self.broadbox.setMaximumWidth(50)
+        self.connect(self.broadbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
         
         clean_button1 = QPushButton("&Clean(Panel)")
         self.connect(clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
@@ -1560,7 +1617,7 @@ class AppForm(QMainWindow):
         # HWHM slider with textbox
         hbox_slider = QHBoxLayout()
         hbox_slider.addWidget(self.slider)
-        hbox_slider.addWidget(self.textbox)
+        hbox_slider.addWidget(self.broadbox)
         hbox_slider.addWidget(eV_label)
         # HWHM label with inputBins checkbox
         hbox_hwhmlab = QHBoxLayout()
@@ -1722,7 +1779,7 @@ class AppForm(QMainWindow):
 # GLOBAL FUNCTIONS
 #==========================================================
 # FILE READERS
-def read_fort21(MaxClass):
+def read_fort21(fort21file,MaxClass):
     """
     Function to extract transtion infor from fort.21 file
     The content is taken from the standard version and may
@@ -1736,7 +1793,7 @@ def read_fort21(MaxClass):
     tr=[]
     print "Loading transitions (fort.21)..."
     try:
-        f = open('fort.21','r')
+        f = open(fort21file,'r')
     except:
         exit("ERROR: Cannot open file 'fort.21'")
         
@@ -1918,7 +1975,7 @@ def read_fort21(MaxClass):
     return class_list
 
 
-def read_spc_xy(filename):
+def read_spc_xy(filename,fromsection=None):
     """
     Function to read fort.22, whic contains the bins to reconstruct
     the convoluted spectrum_sim.
@@ -1935,6 +1992,11 @@ def read_spc_xy(filename):
     i = 0
     x = []
     y = []
+    
+    if fromsection:
+        for line in f:
+            if fromsection in line:
+                break
     
     for line in f:
         data = line.split()

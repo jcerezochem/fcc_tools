@@ -4,7 +4,7 @@
 %opening
 \title{\texttt{fcc\_analyzer\_PyQt4}\\ a GUI to visualize \fcc\ output}
 \date{\textsc{Version: 0.1}\\\today}
-\author{Javier Cerezo\\\texttt{j.cerezo@pi.iccom.cnr.it}}
+\author{Javier Cerezo\\\href{mailto:j.cerezo@pi.iccom.cnr.it}{\texttt{j.cerezo@pi.iccom.cnr.it}}}
 
 % Margins
 \textheight 22.0cm \textwidth 14.7cm \oddsidemargin 1cm
@@ -19,6 +19,13 @@
 \usepackage{color}
 \usepackage{xcolor}
 
+\usepackage{hyperref}
+% The following metadata will show up in the PDF properties
+\hypersetup{
+  colorlinks = true,
+  urlcolor = blue,
+}
+
 
 \begin{document}
 \setlength{\parskip}{0.5em}
@@ -27,15 +34,21 @@
 \maketitle
 
 \section{Description}
-\texttt{fcc\_analyzer\_PyQt4} is a graphical user interface (GUI) written in python and relying on the PyQt4 and matplotlib libraries. It reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and fort.22 (spectral histogram), and opens an interactive plot that facilitates the analysis of the transitions, the investigation of different broadening schemes and the comparison with reference spectral data.
+\texttt{fcc\_analyzer\_PyQt4} is a graphical user interface (GUI) written in python and relying on the PyQt4 and matplotlib libraries. It reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and either fort.22 (spectral histogram) or fort.18 (final convoluted spectrum), and opens an interactive plot that facilitates the analysis of the transitions, the investigation of different broadening schemes (if fort.22 is available) and the comparison with reference spectral data.
 
 \section{Installation}
 
 \subsection{Precompiled binary}
-A binary file generated with \texttt{pyinstaller} is provided. It is compatible with 64-bit Linux systems. The GLIBC version $\geq$2.17 is required. The binary and libraries are in the \texttt{bin/} folder. The main program is \texttt{bin/fcc\_analyzer\_PyQt4}.
+System-specific binaries are generated with \texttt{cx-Freeze} or \texttt{pyinstaller}. Currently, the following architechtures are supported: 
+
+\begin{itemize}
+ \item \texttt{Linux64}: 64-bit Linux systems. The GLIBC version $\geq$2.14 is required.
+\end{itemize}
+
+The binaries and libraries are located in \texttt{bin/<Arch>} folder. The main program is \texttt{bin/fcc\_analyzer\_PyQt4}.
 
 \subsection{Python script}
-The source can be run directly as a python script, located in \texttt{src/}. \texttt{python} version 2.7 is used. The following modules are required (the minimum version tested in specified):
+The source can be run directly as a python script from any computer architechture where a python interpreter is available. The python script is located in \texttt{src/}. \texttt{python} version 2.7 is required along with following modules (the minimum version tested is specified):
 
 \begin{itemize}
  \item \texttt{matplotlib} (version $\geq1.4.2$)
@@ -43,16 +56,26 @@ The source can be run directly as a python script, located in \texttt{src/}. \te
  \item \texttt{PyQt4} (version $\geq4.10.4$)
 \end{itemize}
 
-\clearpage
+% \clearpage
+
+One of the most straightfoward methods to get a working python environment is through the \href{http://conda.pydata.org/docs/intro.html}{\texttt{conda}} package manager, which allows to install and manage different python versions easily. Among the advantages, it can be installed at the user folders/account not requiring admin (or root) privileges and it is available for different operating systems as a simple installer. A very suitable package for conda is miniconda, a light-weight version that can be downloaded from \href{http://conda.pydata.org/miniconda.html}{\texttt{http://conda.pydata.org/miniconda.html}}.
+
+Once installed, the required modules to run the \texttt{fcc\_analyzer\_PyQt4} script can be installed through the command line (under any of the supported operating systems) by simply typing:\\
+
+\texttt{conda install pyqt numpy matplotlib python=2}\\
+
+The user is refered to the oficial \texttt{conda} documentation for further details.
+
+% \clearpage
 
 \section{Running the application}
 
 \subsection{Launch the application}
-The application need to be invoked in the folder were the fort.21 and fort.22 files that will be analysed reside, with the following syntax:\\
+The application should be invoked in the folder were the fort.21 and either fort.22 or fort.18 files that will be analysed reside, using the following syntax from the command line:\\
 
 \texttt{fcc\_analyzer\_PyQt4 [flags]}\\
 
-The following optional flags are possible:
+If no fort.21 is found in the current directory, a dialog to set the path to the files will be opened (this is useful when the program is called by mouser-clicking, e.g. in Windows). The following optional flags can be used when called from the command line:
 
 \begin{tabular}{lll}
  \texttt{-type (abs|emi|ecd|cpl)}     && \begin{minipage}[t]{0.65\textwidth}
@@ -65,6 +88,8 @@ The following optional flags are possible:
                                           Show help.
                                          \end{minipage}\\\\
 \end{tabular}
+
+\clearpage
 
 \subsection{Using the application}
 The GUI consists of the following parts:
@@ -86,7 +111,7 @@ The interaction and analysis of the simulated spectrum are performed with the di
   \item Export to xmgrace: export plot data (including labels) to xmgrace file. A export assistant is first raised to select how to organize the plots:
   \begin{itemize}
    \item Overlaid graphs: place the stick and spectra in different graphs, that are overlaid, as in the matplotlib plot.
-   \item Same graph: include sticks and spectra in the same graph. The spectra are scaled to normalized the maximum intensity.
+   \item Same graph: include sticks and spectra in the same graph. The spectra are normalized to the maximum stick intensity.
   \end{itemize}
 
   \item Import plot: Load reference spectrum to the Spectrum Area. Units: (eV|cm$^{-1}$|nm).
@@ -173,9 +198,10 @@ The matplotlib toolbar include:
 \end{itemize}
 
 \subsubsection{Convolution Controls}
+These controls are only active if the fort.22 file is available. Note that this is not present for old versions of \fcc.
 \begin{itemize}
  \item Broadening selector [Gau|Lor]: type of broadening function
- \item HWHM slider and box: set the HWHM of the broadening function
+ \item HWHM slider and box: set the HWHM of the broadening function. The box is editable and allows a more precise selection of the value, even beyond the slider limits (0.01 to 0.1\,eV).
  \item Input bins check box: use the bins given in the input fort.22 file. Otherwise, a new histogram with only 1000 bins is used (which is faster).
 \end{itemize}
 
@@ -187,8 +213,8 @@ Information about the reference spectrum (loaded with File->Import plot).
 
 \begin{itemize}
  \item Loaded?: whether reference spectrum is loaded. If so the file name is shown. The red button with the cross deletes the reference spectrum.
- \item Shift(eV): shift applied to the reference spectrum (in eV). This box is editable. The value always refer to the originally loaded value, unless the blue T button is pressed, which reset the reference value to the current one.
- \item Y-scale: scaling applied to the reference spectrum Y-axis. This box is editable. The value always refer to the originally loaded value, unless the blue T button is pressed, which reset the reference value to the current one.
+ \item Shift(eV): shift applied to the reference spectrum (in eV). This box is editable. The value always refer to the originally loaded value, unless the blue T button is pressed, which resets the reference value to the current one.
+ \item Y-scale: scaling applied to the reference spectrum Y-axis. This box is editable. The value always refer to the originally loaded value, unless the blue T button is pressed, which resets the reference value to the current one.
 \end{itemize}
 
 
