@@ -598,9 +598,6 @@ class AppForm(QMainWindow):
             else:
                 self.stickspc.append(self.axes.vlines(x,z,y,linewidths=1,color=color_list[iclass],
                                                       label=label_list[iclass],picker=5))
-                f = open('class'+str(iclass)+'.dat','w')
-                f.write(str(x))
-                f.close
                 xmin = min([xmin,min(x)])
                 xmax = max([xmax,max(x)])
                 # Getting the type from the objects when loaded for future use
@@ -1788,6 +1785,9 @@ def read_fort21(fort21file,MaxClass):
     Arguments:
      MaxClass (int): maximum class to be loaded (0 to 7)
                      Hot bands are always loaded
+                     
+    Returns:
+     List of list of transitions: [ [C0], [C1], .., [Chot] ]
     """
     # Open and read file
     tr=[]
