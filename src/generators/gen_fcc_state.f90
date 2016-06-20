@@ -351,10 +351,13 @@ program gen_fcc_state
             ftg = "fth"
         endif
         if (adjustl(outfile) == 'default') then
-            ! Get relative path
+            ! Get relative path (split_line_back returns the line in the first part is the splitter is not present)
             call split_line_back(strfile,"./",prfx,outfile)
-            if (len_trim(prfx)/=0) then
+            if (len_trim(outfile)/=0) then
                 prfx=trim(adjustl(prfx))//"./"
+            else
+                outfile=prfx
+                prfx=""
             endif
             call split_line_back(outfile,".",outfile,arg)
             if (adjustl(fts) /= 'guess') arg=fts

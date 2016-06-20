@@ -20,6 +20,7 @@ module fcc_io
     use psi4_manage
     use molcas_manage
     use molpro_manage
+    use turbomol_manage
     use gmx_manage
     implicit none
 
@@ -70,6 +71,8 @@ module fcc_io
              call read_molcasUnSym_natoms(unt,Nat,error_flag)
             case("molpro")
              call read_molpro_natoms(unt,Nat,error_flag)
+            case("turbomol")
+             call read_turbomol_natoms(unt,Nat,error_flag)
             case("g96")
              call read_g96_natoms(unt,Nat)
             case default
@@ -148,6 +151,9 @@ module fcc_io
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("molpro")
              call read_molpro_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
+            case("turbomol")
+             call read_turbomol_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
@@ -279,6 +285,8 @@ module fcc_io
              call read_molcasUnSym_hess(unt,Nat,Hlt,error_flag)
             case("molpro")
              call read_molpro_hess(unt,Nat,Hlt,error_flag)
+            case("turbomol")
+             call read_turbomol_hess(unt,Nat,Hlt,error_flag)
             case("gmx")
              call read_gmx_hess(unt,Nat,Hlt,error_flag)
             case default
@@ -390,17 +398,18 @@ module fcc_io
 
         if (adjustl(properties) == 'freq') then
             write(0,'(A)') " Frequencies:"
-            write(0,*)     "  log    : g09 log"
-            write(0,*)     "  fchk   : g09 fchk"
-            write(0,*)     "  gms    : GAMESS out"
-            write(0,*)     "  psi4   : Psi4 out"
-            write(0,*)     "  molcas : MOLCAS (UnSym)"
-            write(0,*)     "  molpro : MOLPRO out"
-            write(0,*)     "  gmx    : gromacs (g96 and dumped mtx)"
+            write(0,*)     "  log      : g09 log"
+            write(0,*)     "  fchk     : g09 fchk"
+            write(0,*)     "  gms      : GAMESS out"
+            write(0,*)     "  psi4     : Psi4 out"
+            write(0,*)     "  molcas   : MOLCAS (UnSym)"
+            write(0,*)     "  molpro   : MOLPRO out"
+            write(0,*)     "  turbomol : TURBOMOL out"
+            write(0,*)     "  gmx      : gromacs (g96 and dumped mtx)"
             write(0,'(A)') " Gradients (vertical models):"
-            write(0,*)     "  log    : g09 log"
-            write(0,*)     "  fchk   : g09 fchk"
-            write(0,*)     "  molcas : grad file (no symm)"
+            write(0,*)     "  log      : g09 log"
+            write(0,*)     "  fchk     : g09 fchk"
+            write(0,*)     "  molcas   : grad file (no symm)"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
