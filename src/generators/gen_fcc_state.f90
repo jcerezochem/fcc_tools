@@ -352,11 +352,11 @@ program gen_fcc_state
         endif
         if (adjustl(outfile) == 'default') then
             ! Get relative path (split_line_back returns the line in the first part is the splitter is not present)
-            call split_line_back(strfile,"./",prfx,outfile)
-            if (len_trim(outfile)/=0) then
+            if (index(strfile,"./") /= 0) then
+                call split_line_back(strfile,"./",prfx,outfile)
                 prfx=trim(adjustl(prfx))//"./"
             else
-                outfile=prfx
+                outfile=strfile
                 prfx=""
             endif
             call split_line_back(outfile,".",outfile,arg)

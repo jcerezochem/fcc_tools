@@ -215,9 +215,12 @@ program gen_fcc_dipfile
         !----------------------------
         if (adjustl(out_eldip) == 'default') then
             ! Get relative path
-            call split_line_back(inpfile,"./",prfx,out_eldip)
-            if (len_trim(prfx)/=0) then
+            if (index(inpfile,"./") /= 0) then
+                call split_line_back(inpfile,"./",prfx,out_eldip)
                 prfx=trim(adjustl(prfx))//"./"
+            else
+                out_eldip = inpfile
+                prfx=""
             endif
             call split_line_back(out_eldip,".",out_eldip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
@@ -226,9 +229,12 @@ program gen_fcc_dipfile
         endif
         if (adjustl(out_magdip) == 'default') then
             ! Get relative path
-            call split_line_back(inpfile,"./",prfx,out_magdip)
-            if (len_trim(prfx)/=0) then
+            if (index(inpfile,"./") /= 0) then
+                call split_line_back(inpfile,"./",prfx,out_magdip)
                 prfx=trim(adjustl(prfx))//"./"
+            else
+                out_magdip = inpfile
+                prfx=""
             endif
             call split_line_back(out_magdip,".",out_magdip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
