@@ -39,13 +39,12 @@
 \section{Installation}
 
 \subsection{Precompiled binary}
-System-specific binaries are generated with \texttt{cx-Freeze} or \texttt{pyinstaller}. Currently, the following architechtures are supported: 
+System-specific binaries are generated with \texttt{cx-Freeze} or \texttt{pyinstaller}. Currently, the following architechtures are supported (the binaries are located in \texttt{bin/<Arch>} folder):
 
 \begin{itemize}
- \item \texttt{Linux64}: 64-bit Linux systems. The GLIBC version $\geq$2.14 is required.
+ \item \texttt{Linux64}: 64-bit Linux systems. The GLIBC version $\geq$2.14 is required. The folder contains the shared libraries (\texttt{.so}) along with the executable (\texttt{fcc\_analyzer\_PyQt4}). Generated with \texttt{cx-Freeze}.
+ \item \texttt{Win64}: 64-bit Windows systems. The folder contains a one-file executable (\texttt{fcc\_analyzer\_PyQt4.exe}). Generated with \texttt{pyinstaller}. 
 \end{itemize}
-
-The binaries and libraries are located in \texttt{bin/<Arch>} folder. The main program is \texttt{bin/fcc\_analyzer\_PyQt4}.
 
 \subsection{Python script}
 The source can be run directly as a python script from any computer architechture where a python interpreter is available. The python script is located in \texttt{src/}. \texttt{python} version 2.7 is required along with following modules (the minimum version tested is specified):
