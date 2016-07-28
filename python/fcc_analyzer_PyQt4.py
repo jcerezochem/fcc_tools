@@ -42,14 +42,24 @@ def helptext():
     ------------
     This python script parses fort.21 retrieving the informaition about the 
     transitions and plot them using matplotlib. An interactive plot is generated
-    which allow the used to assign the stick transition by clicking on them.
+    which allow to assign the stick transition by clicking on them.
     The script can also export the plot to xmgrace format. The convoluted spectrum
-    is generated from fort.22
+    is generated from fort.22 (otherwise, it is read from fort.18)
     
     Instructions:
     ------------
-    * Interacting with the plot:
+    General call:
+    
+        fcc_analyzer_PyQt4 [options]
+    
+    The data to be analyzed (fort.21) should be on the folder from where the script is being called
+    If no fort.21 file is present, a window will pop-up to select the appropriate path. It the type
+    of spectrum was not specified by command line, a new window will pop-up to select the type of
+    spectrum.
+    
+    * Interacting with the plot, once it is loaded:
       -Get info from a transition: right-mouse-click on a stick
+      -Seach a transition: use the serach text box
       -Set the next/previous indexed transiton: +/- keys
       -Place a label: left-mouse-click on a stick
       -Move a label: hold the label with the left-mouse-button
@@ -171,6 +181,9 @@ class AppForm(QMainWindow):
         self.spectrum_sim = None
         self.AnnotationType = None
         
+        # Get command line arguments
+        cml_args = get_args()
+        
         # First locate the fort.21 file
         if os.path.isfile('fort.21'):
             path=""
@@ -182,9 +195,7 @@ class AppForm(QMainWindow):
             if not path or not "fort.21" in path:
                 return
             path = path.replace("fort.21","")
-        
-        # Get command line arguments
-        cml_args = get_args()
+        # Parse command line args
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
         self.spc_type = cml_args.get("-type")
@@ -591,6 +602,10 @@ class AppForm(QMainWindow):
         xmax = -999
         for iclass in range(9):
             x = np.array([ self.fcclass_list[iclass][i].DE        for i in range(len(self.fcclass_list[iclass])) ])
+            if stick_type == "fc":
+                # Get intensity as FC^2
+                for i in range(len(self.fcclass_list[iclass])):
+                    self.fcclass_list[iclass][i].intensity = self.fcclass_list[iclass][i].fcfactor**2
             y = np.array([ self.fcclass_list[iclass][i].intensity for i in range(len(self.fcclass_list[iclass])) ])
             z = np.zeros(len(x))
             if len(x) == 0:
@@ -2335,22 +2350,27 @@ def latex2xmgrace(string):
 # INPUT PARSER
 def get_args():
     
-    # Default default options 
+    # Options and their defaults 
     final_arguments = dict()
     final_arguments["-maxC"]="7"
-    final_arguments["-type"]=False
+    final_arguments["-type"]="(interactive)"
     final_arguments["--test"]=False
     final_arguments["-h"]=False
+    final_arguments["-stick"]="int"
+    # Description of the options
     arg_description = dict()
-    arg_description["-maxC"]="Maximum class to load"
-    arg_description["-type"]="Type of calculation [abs|emi|ecd|cpl]"
+    arg_description["-maxC"] ="Maximum class to load"
+    arg_description["-type"] ="Type of calculation [abs|emi|ecd|cpl]"
     arg_description["--test"]="Load spectra and quit"
-    arg_description["-h"]   ="Show this help"
+    arg_description["-stick"]="Load intensity or square FC [int|fc]"
+    arg_description["-h"]    ="Show this help"
+    # Type for arguments
     arg_type = dict()
     arg_type["-maxC"] ="int"
     arg_type["-type"] ="char"
     arg_type["--test"]="-"
     arg_type["-h"]    ="-"
+    arg_type["-stick"]="char"
     
     # Get list of input args
     input_args_list = []
@@ -2400,8 +2420,9 @@ def get_args():
         print '      {0:-<10}  {1:-^4}  {2:-<41}  {3:-<7}'.format("","","","")
         for key,value in final_arguments.iteritems():
             descr = arg_description[key]
-            atype = arg_type[key]
-            print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, value)
+            #atype = arg_type[key]
+            atype=str(type(value)).replace("<type '","").replace("'>","")
+            print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, str(value))
         print ""
         
         sys.exit()
