@@ -180,7 +180,7 @@ module turbomol_manage
             i=i+1
             read(line,*) cnull, AtName(i), X(i), Y(i), Z(i)
             !Get atom name from atomic number
-            call set_word_upper_case(AtName(i))
+            call set_upper_case(AtName(i)(1:1))
         enddo
         Nat=i
         !Transform to AA

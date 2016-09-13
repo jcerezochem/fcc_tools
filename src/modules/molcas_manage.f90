@@ -172,7 +172,7 @@ module molcas_manage
             i=i+1
             read(line,*) cnull, X(i), Y(i), Z(i), AtNum
             !Get atom name from atomic number
-            AtName(i) = atom_names_from_atnum(AtNum)
+            AtName(i) = atname_from_atnum(AtNum)
         enddo
         Nat=i
         !Transform to AA

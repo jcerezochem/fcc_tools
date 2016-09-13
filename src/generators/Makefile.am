@@ -4,7 +4,7 @@ bin_PROGRAMS = gen_fcc_state gen_fcc_dipfile
 
 gen_fcc_state_SOURCES = version.f90\
                         ../modules/verbosity.f90\
-                        ../modules/constants_mod.f90\
+                        ../modules/constants.f90\
                         ../modules/alerts.f90\
                         ../modules/MatrixMod_red.f90\
                         ../modules/line_preprocess.f90\
@@ -24,7 +24,7 @@ gen_fcc_state_LDFLAGS = @LIBS@
 
 gen_fcc_dipfile_SOURCES = version.f90\
                         ../modules/verbosity.f90\
-                          ../modules/constants_mod.f90\
+                          ../modules/constants.f90\
                           ../modules/alerts.f90\
                           ../modules/MatrixMod_red.f90\
                           ../modules/line_preprocess.f90\
