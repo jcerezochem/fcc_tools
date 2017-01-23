@@ -151,6 +151,7 @@ module orca_manage
 
         character(len=240) :: line=""
         character(len=100) :: fmt
+        integer,dimension(cols_per_block) :: columns
         integer :: IOstatus
         integer :: N
         integer :: i, j, k, ii, imax, imin, &
@@ -191,23 +192,38 @@ module orca_manage
             imax = ib    *6
             imax = min(imax,N)
             icols = 1 + (imax-imin)
-            write(fmt,'(a,i0,a)') '(13X,',icols,'(F9.6,2X))'
             !Pass header
             ii = ii + 1
-            read(unt,'(A)',iostat=IOstatus) line !index
+            read(unt,'(A)',iostat=IOstatus) line ! indices
             if (IOStatus < 0) then
                 error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            write(fmt,'(a,i0,a)') '(11X,',icols,'(2X,I9))'
+            read(line,fmt) columns !index
+            if (columns(1) /= imin - 1) then
+                error_flag = -ii - 1000000
+                rewind(unt)
+                return
+            endif
+            if (columns(icols) /= imax - 1) then
+                error_flag = -ii - 2000000
                 rewind(unt)
                 return
             endif
             !Parse hessian elements
-            read(unt,fmt,iostat=IOstatus) Hpart(imin:imax,imin:N)
-            if (IOStatus < 0) then
-                error_flag = -ii
-                rewind(unt)
-                return
-            endif
-            ii = ii + N
+            write(fmt,'(a,i0,a)') '(11X,',icols,'(2X,F9.6))'
+            do i=1,N
+                ii = ii + 1
+                read(unt,'(A)',iostat=IOStatus) line
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                read(line,fmt) Hpart(imin:imax,i)
+            enddo
         enddo
 
         !===================
@@ -220,6 +236,8 @@ module orca_manage
         enddo
         if (k /= (N*(N+1)/2)) then
             error_flag = 2
+            rewind(unt)
+            return
         endif
 
         error_flag = 0
