@@ -27,6 +27,14 @@ echo ""
 
 echo "****************************"
 (( i++ ))
+echo "TEST $i: ORCA (HESS)"
+echo "****************************"
+echo "gen_fcc_state -ft orca -i HQ_orca.out"
+../src/generators/gen_fcc_state -ft orca -i HQ_orca.hess
+echo ""
+
+echo "****************************"
+(( i++ ))
 echo "TEST $i: PSI4"
 echo "****************************"
 echo "gen_fcc_state -i h2o_psi4.out -ft psi4"
