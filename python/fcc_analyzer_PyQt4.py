@@ -36,6 +36,8 @@ except:
         COMMIT="Untracked"
         DATE="No date"
 
+stick_type = 'fc'
+
 def helptext():
     print """
     Description:
