@@ -150,7 +150,6 @@ module orca_manage
         integer,parameter :: cols_per_block = 6
 
         character(len=240) :: line=""
-        character(len=100) :: fmt
         integer,dimension(cols_per_block) :: columns
         integer :: IOstatus
         integer :: N
@@ -200,8 +199,7 @@ module orca_manage
                 rewind(unt)
                 return
             endif
-            write(fmt,'(a,i0,a)') '(11X,',icols,'(2X,I9))'
-            read(line,fmt) columns !index
+            read(line,*) columns(1:icols)
             if (columns(1) /= imin - 1) then
                 error_flag = -ii - 1000000
                 rewind(unt)
@@ -213,7 +211,6 @@ module orca_manage
                 return
             endif
             !Parse hessian elements
-            write(fmt,'(a,i0,a)') '(11X,',icols,'(2X,F9.6))'
             do i=1,N
                 ii = ii + 1
                 read(unt,'(A)',iostat=IOStatus) line
@@ -222,7 +219,12 @@ module orca_manage
                     rewind(unt)
                     return
                 endif
-                read(line,fmt) Hpart(imin:imax,i)
+                read(line,*) j, Hpart(imin:imax,i)
+                if (j /= i - 1) then
+                    error_flag = -ii - 3000000
+                    rewind(unt)
+                    return
+                endif
             enddo
         enddo
 
