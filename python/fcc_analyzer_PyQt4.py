@@ -241,7 +241,7 @@ class AppForm(QMainWindow):
             sys.exit("No convoluted spectrum could be loaded")
         
         # This is the load driver
-        self.load_sticks()
+        self.load_sticks(cml_args.get("-stick"))
         self.set_axis_labels()
         if os.path.isfile(path+'fort.22'):
             self.load_convoluted()
@@ -577,7 +577,7 @@ class AppForm(QMainWindow):
     #==========================================================
     # LOAD DATA AND ELEMENTS
     #==========================================================
-    def load_sticks(self):
+    def load_sticks(self,stick_type):
         """ 
         Load stick spectra for all classes (C0,C1...,CHot)
         - The spectra objects are stored in a list: self.stickspc
@@ -1234,8 +1234,24 @@ class AppForm(QMainWindow):
         it to a search action to pick the selected transitions
         """
         command = str(self.search_box.text())
+        
+        # First, check if the used is only asking for help
+        if command == 'help':
+            msg = """ 
+Examples
+---------
+1(1),2(1)   - From ground to 1(1),2(1)
+1(1),2(P)   - Progression over mode 2
+1(1)-->1(1) - Hot transition
+1(1)-->0    - M-0 transition
+0-->0       - 0-0 transition
+        """
+            self.analysis_box.setText(msg)
+            return
+        
+        # Start processing the command
         self.statusBar().showMessage('Searching transition '+command, 2000)
-        # Here, use regexp to set the validity of the command!
+        # Here, use regexp to set the validity of the command
         pattern = r'(( )*(([0-9pP]+\([0-9]+\)( )*\,( )*)*( )*[0-9pP]+\([0-9]+\)|0)( )*\-\->( )*){0,1}(( )*([0-9]+\([0-9pP]+\)( )*\,( )*)*( )*[0-9]+\([0-9pP]+\)|0)( )*'
         match = re.match(pattern,command)
         if not match or match.group() != command:
@@ -1992,7 +2008,7 @@ def read_fort21(fort21file,MaxClass):
 
 def read_spc_xy(filename,fromsection=None):
     """
-    Function to read fort.22, whic contains the bins to reconstruct
+    Function to read fort.22, which contains the bins to reconstruct
     the convoluted spectrum_sim.
     This is a simple [x,y] file
     An alternative would be to use the np.loadtxt. But for the 
@@ -2420,8 +2436,8 @@ def get_args():
         print '      {0:-<10}  {1:-^4}  {2:-<41}  {3:-<7}'.format("","","","")
         for key,value in final_arguments.iteritems():
             descr = arg_description[key]
-            #atype = arg_type[key]
-            atype=str(type(value)).replace("<type '","").replace("'>","")
+            atype = arg_type[key]
+            #atype=str(type(value)).replace("<type '","").replace("'>","")
             print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, str(value))
         print ""
         
