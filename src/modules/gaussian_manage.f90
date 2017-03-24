@@ -897,6 +897,8 @@ module gaussian_manage
         !FCHK specific (to be move to the new sr)
         integer :: Nes, Nat
 
+        ! Initialize error_flag
+        if (present(error_flag)) error_flag=0
         
         !Manage defaults and requests
         if (Si == -1) Si = 0
