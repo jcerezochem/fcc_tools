@@ -22,6 +22,7 @@ module fcc_io
     use molpro_manage
     use turbomol_manage
     use gmx_manage
+    use orca_manage
     implicit none
 
     contains
@@ -75,6 +76,8 @@ module fcc_io
              call read_turbomol_natoms(unt,Nat,error_flag)
             case("g96")
              call read_g96_natoms(unt,Nat)
+            case("orca")
+             call read_orca_natoms(unt,Nat,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -158,6 +161,8 @@ module fcc_io
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass,error_flag)
+            case("orca")
+             call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -289,6 +294,8 @@ module fcc_io
              call read_turbomol_hess(unt,Nat,Hlt,error_flag)
             case("gmx")
              call read_gmx_hess(unt,Nat,Hlt,error_flag)
+            case("orca")
+             call read_orca_hess(unt,Nat,Hlt,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -406,6 +413,7 @@ module fcc_io
             write(0,*)     "  molpro   : MOLPRO out"
             write(0,*)     "  turbomol : TURBOMOL out"
             write(0,*)     "  gmx      : gromacs (g96 and dumped mtx)"
+            write(0,*)     "  orca     : ORCA hess file"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log      : g09 log"
             write(0,*)     "  fchk     : g09 fchk"

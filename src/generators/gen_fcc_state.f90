@@ -64,7 +64,7 @@ program gen_fcc_state
     call set_word_upper_case(model_pes)
 
     !Open input file
-    open(I_INP,file=strfile,iostat=ios)
+    open(I_INP,file=strfile,iostat=ios,action='read',status='old')
     if (ios /= 0) then
         print*, "Error opening "//trim(adjustl(strfile))
         stop
@@ -77,6 +77,10 @@ program gen_fcc_state
 
     !Read input data: natoms
     call generic_natoms_reader(I_INP,fts,Nat,error)
+    if (error /= 0) then
+        print*, "Error reading the number of atoms", error
+        stop
+    endif
     rewind(I_INP)
 
     !Allocate input data

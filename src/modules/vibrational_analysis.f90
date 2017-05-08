@@ -68,7 +68,7 @@ module vibrational_analysis
         real(kind=8)                :: pes, MassTot
         real(kind=8),dimension(3)   :: R, RCOM
         real(kind=8),dimension(3,3) :: MI, Xrot
-        real(kind=8),dimension(1:3*Nat,1:3*Nat+6) :: D
+        real(kind=8),dimension(1:3*Nat+6,1:3*Nat+6) :: D
         real(kind=8),dimension(3*Nat,3*Nat)       :: H
 
         !Get COM 

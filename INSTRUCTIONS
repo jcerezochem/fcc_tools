@@ -32,7 +32,7 @@ Provided gen_fcc_state and gen_fcc_dipfile are in your path, type
 
 gen_fcc_state -i input-file [-ft filetype] [-o state_file] [-h]
 
-gen_fcc_state -i input-file [-ft filetype] [-o state_file] [-Si <initial state>] [-Sf <final state>] [-noders] [-h]
+gen_fcc_dipfile -i input-file [-ft filetype] [-o state_file] [-Si <initial state>] [-Sf <final state>] [-noders] [-h]
 
 To know more about the supported filetypes, consult the help statements in:
 gen_fcc_state -h
