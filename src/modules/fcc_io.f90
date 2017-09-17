@@ -16,6 +16,7 @@ module fcc_io
     use line_preprocess
     use fcc_basics
     use gaussian_manage
+    use cfour_manage
     use gamess_manage
     use psi4_manage
     use molcas_manage
@@ -66,6 +67,8 @@ module fcc_io
              deallocate(IA)
             case("gms")
              call read_gamess_natoms(unt,Nat,error_flag)
+            case("cfour")
+             call read_cfour_natoms(unt,Nat,error_flag)
             case("psi4")
              call read_psi4_natoms(unt,Nat,error_flag)
             case("molcas")
@@ -146,6 +149,9 @@ module fcc_io
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
+            case("cfour")
+             call read_cfour_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
             case("psi4")
              call read_psi4_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
@@ -221,6 +227,8 @@ module fcc_io
                  Grad(i) = A(i)
              enddo
              deallocate(A)
+            case("cfour")
+             call read_cfour_grad(unt,Nat,Grad,error_flag)
             case("molcas-ci")
              call read_alaska_grad(unt,Nat,Grad,error_flag,symm="CI")
             case("molcas")
@@ -284,6 +292,8 @@ module fcc_io
              deallocate(A)
             case("gms")
              call read_gamess_hess(unt,Nat,Hlt,error_flag)
+            case("cfour")
+             call read_cfour_hess(unt,Nat,Hlt,error_flag)
             case("psi4")
              call read_psi4_hess(unt,Nat,Hlt,error_flag)
             case("molcas")
@@ -368,6 +378,8 @@ module fcc_io
              call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_local)
             case("gms")
              call alert_msg("fatal","Filetype not supported")
+            case("cfour")
+             call alert_msg("fatal","Filetype not yet supported")
             case("psi4")
              call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_local)
              if (derivatives) then
@@ -414,10 +426,12 @@ module fcc_io
             write(0,*)     "  turbomol : TURBOMOL out"
             write(0,*)     "  gmx      : gromacs (g96 and dumped mtx)"
             write(0,*)     "  orca     : ORCA hess file"
+            write(0,*)     "  cfour    : cfour output"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log      : g09 log"
             write(0,*)     "  fchk     : g09 fchk"
             write(0,*)     "  molcas   : grad file (no symm)"
+            write(0,*)     "  cfour    : cfour output"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
