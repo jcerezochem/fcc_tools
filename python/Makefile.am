@@ -9,7 +9,7 @@ EXTRA_DIST = fcc_analyzer.py version_tag.py
 
 # Build standalone binary with pyinstaller
 python-standalone-local:
-	pyinstaller fcc_analyzer.py --onefile
+	pyinstaller fcc_analyzer_PyQt4.py --onefile
 
 python-update-version-local:
 	@echo "  "
