@@ -965,7 +965,7 @@ module gaussian_manage
         integer :: IOstatus
         !Other local
         integer                          :: i,j,k, ii, jj
-
+        
         ! Number of excited states computed
         ! Search section
         ii = 0
@@ -984,24 +984,42 @@ module gaussian_manage
                     exit
                 endif
         enddo
-
-        !Split line to get data
-        ! First remove trailing dot
-        call split_line(line,".",line,auxchar)
-        ! Get IAtom
-        call split_line(line,"=",auxchar,line)
-        read(line,*,iostat=IOstatus) iat
-        if (IOstatus /= 0) then
-            if (present(error_flag)) error_flag=1
-            call alert_msg("warnign","Error reading derivatives")
-            return   
+        
+        ! Changed from G09 to G16
+        if (INDEX(line,"IAtom:")/=0) then !is G09
+            !Split line to get data
+            ! First remove trailing dot
+            call split_line(line,".",line,auxchar)
+            ! Get IAtom
+            call split_line(line,"=",auxchar,line)
+            read(line,*,iostat=IOstatus) iat
+            if (IOstatus /= 0) then
+                if (present(error_flag)) error_flag=1
+                call alert_msg("warnign","Error reading derivatives")
+                return   
+            endif
+            ! Get IXYZ
+            call split_line(line,"=",auxchar,line)
+            read(line,*) ixyz
+            ! Get IStep
+            call split_line(line,"=",auxchar,line)  
+            read(line,*) istep
+        else
+            ! Get IAtom
+            call split_line(line,"atom",auxchar,line)
+            read(line,*,iostat=IOstatus) iat
+            ! Get IXYZ
+            call split_line(line,"=",auxchar,line)
+            read(line,*) ixyz
+            ! Get IStep
+            if (INDEX(line,"step-up")/=0) then
+                istep=1
+            elseif (INDEX(line,"step-down")/=0) then
+                istep=2
+            else
+                istep=0
+            endif
         endif
-        ! Get IXYZ
-        call split_line(line,"=",auxchar,line)
-        read(line,*) ixyz
-        ! Get IStep
-        call split_line(line,"=",auxchar,line)  
-        read(line,*) istep
 
         return         
 
