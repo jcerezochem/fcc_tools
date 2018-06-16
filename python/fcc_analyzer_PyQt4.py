@@ -42,11 +42,11 @@ def helptext():
     print """
     Description:
     ------------
-    This python script parses fort.21 retrieving the informaition about the 
-    transitions and plot them using matplotlib. An interactive plot is generated
-    which allow to assign the stick transition by clicking on them.
+    This python script parses fort.21/Assignments.dat retrieving the informaition 
+    about the transitions and plot them using matplotlib. An interactive plot is 
+    generated which allow to assign the stick transition by clicking on them.
     The script can also export the plot to xmgrace format. The convoluted spectrum
-    is generated from fort.22 (otherwise, it is read from fort.18)
+    is generated from fort.22/Bin_Spectrum.dat (otherwise, it is read from fort.18)
     
     Instructions:
     ------------
@@ -187,16 +187,19 @@ class AppForm(QMainWindow):
         cml_args = get_args()
         
         # First locate the fort.21 file
-        if os.path.isfile('fort.21'):
+        if os.path.isfile('fort.21') or os.path.isfile('Assignments.dat'):
             path=""
         else:
-            file_choices = r"FCclasses aux (fort.21) (fort.21);; All files (*)"
+            file_choices = r"FCclasses aux (fort.21) (fort.21);;Assignments.dat (Assignments.dat);; All files (*)"
             path = unicode(QFileDialog.getOpenFileName(self, 
                             'Set the location of FClasses output', '', 
                             file_choices))
-            if not path or not "fort.21" in path:
+            if not path or (not "fort.21" in path and not "Assignments.dat"):
                 return
-            path = path.replace("fort.21","")
+            if "fort.21" in path:
+                path = path.replace("fort.21","")
+            else:
+                path = path.replace("Assignments.dat","")
         # Parse command line args
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
@@ -210,11 +213,32 @@ class AppForm(QMainWindow):
                 sys.exit()
         # Data load
         # Stick transitions (fort.21)
-        self.fcclass_list = read_fort21(path+'fort.21',MaxClass)
+        if "fort.21" in path:
+            self.fcclass_list = read_fort21(path+'fort.21',MaxClass)
+        else:
+            self.fcclass_list = read_fort21(path+'Assignments.dat',MaxClass)
         # Bins to convolute spectrum (only in new versions of FCclasses)
         if os.path.isfile(path+'fort.22'):
             self.with_fort22 = True
             x,y = read_spc_xy(path+'fort.22')
+            # If there are hot bands, the fort.22 file
+            # repeats the bins for each MotherState.
+            # Here we just want them all together (so as
+            # to properly handle the "Input bins" checkbox option
+            nMotherStates = x.count(x[0])
+            nbins = len(x)/nMotherStates
+            self.xbin = np.array(x[:nbins])
+            self.ybin = np.array(y[:nbins])
+            # Sum all MotherStates into the same bins
+            for i in range(nMotherStates-1):
+                n = (i+1)*nbins
+                self.ybin += np.array(y[n:n+nbins])
+            # ybin is in intensity and atomic inits. Changed to "experimental" units
+            factor = SpcConstants.factor[self.spc_type]
+            self.ybin = self.ybin*factor
+        elif os.path.isfile(path+'Bin_Spectrum.dat'):
+            self.with_fort22 = True
+            x,y = read_spc_xy(path+'Bin_Spectrum.dat')
             # If there are hot bands, the fort.22 file
             # repeats the bins for each MotherState.
             # Here we just want them all together (so as
@@ -245,7 +269,7 @@ class AppForm(QMainWindow):
         # This is the load driver
         self.load_sticks(cml_args.get("-stick"))
         self.set_axis_labels()
-        if os.path.isfile(path+'fort.22'):
+        if os.path.isfile(path+'fort.22') or os.path.isfile(path+'Bin_Spectrum.dat'):
             self.load_convoluted()
         else:
             self.load_fixconvolution(x,y)
@@ -2430,7 +2454,10 @@ def get_args():
            FCclasses analyzer
    A GUI to analyze FCclasses output 
  ----------------------------------------
-        """
+ Version info 
+        Git commit: %s
+        Date: %s
+        """%(version_tag.COMMIT,version_tag.DATE)
         helptext()
         print "    Options:"
         print "    --------"
