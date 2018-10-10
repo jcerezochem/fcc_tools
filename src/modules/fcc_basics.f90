@@ -450,6 +450,57 @@ module fcc_basics
         return
     
     end subroutine prepare_fccinput
+    
+    subroutine prepare_fcc3input(unt,Nat,Nvib,Mass,DE,T,error_flag)
+
+    
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Prepare input file for a FCclasses run
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! Nat     (int)  int /scalar   Number of atoms
+        ! Nvib    (int)  int /scalar   Number of vibrational DFs
+        ! Mass    (out)  real/vector   Atomic masses (AMU)
+        ! DE      (inp)  real/scalar   Adiabatic/Vertical Energy
+        ! T       (inp)  real/scalar   Temperature (K)
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        integer,intent(in)              :: Nat, Nvib
+        real(8),dimension(:),intent(in) :: Mass
+        real(8),intent(in)              :: DE, T
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        integer                          :: i
+        
+        error_flag = 0
+        
+        write(unt,'(A)') '$$$'
+        write(unt,'(A)') '; Sample fcclasses3 input. For a more detailed input template use fcclasses3 -h'
+        write(unt,'(A12,X,A1,X,A)') 'PROPERTY','=', 'OPA'
+        write(unt,'(A12,X,A1,X,A)') 'DE','=', '(data required!)'
+        write(unt,'(A12,X,A1,X,A)') 'TEMP','=','0.0'
+        write(unt,'(A12,X,A1,X,A)') 'BROADFUN','=','GAU'
+        write(unt,'(A12,X,A1,X,A)') 'HWHM','=','0.01'
+        write(unt,'(A12,X,A1,X,A)') 'METHOD','=','TD'
+        write(unt,'(A12,X,A1,X,A)') 'STATE1_FILE','=','(data required!)'
+        write(unt,'(A12,X,A1,X,A)') 'STATE2_FILE','=','(data required!)'
+        write(unt,'(A12,X,A1,X,A)') 'ELDIP_FILE','=','(data required!)'
+        write(unt,'(A12,X,A1,X,A)') 'MAGDIP_FILE','=','(data required!)'
+        
+        close(unt)
+    
+        return
+    
+    end subroutine prepare_fcc3input
 
 
 end module fcc_basics

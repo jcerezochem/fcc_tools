@@ -22,6 +22,7 @@ program gen_fcc_state
     real(8),dimension(:),allocatable   :: X,Y,Z,Mass
     real(8),dimension(:),allocatable   :: Hlt, Freq, Grad
     real(8),dimension(:,:),allocatable :: L
+    character(len=2)                   :: atname
 
     ! Harmonic model PES 
     character(len=3) :: model_PES='AH'
@@ -29,7 +30,8 @@ program gen_fcc_state
 
     !Additional info to prepare the input
     real(8) :: DE, T
-    logical :: is_hessian = .true.
+    logical :: is_hessian = .true., &
+               is_gradient= .true.
 
     !Auxiliars
     character :: cnull
@@ -45,7 +47,8 @@ program gen_fcc_state
                           massfile='none',&
                           outfile='default',   &
                           outhess='default',   &
-                          outmass='default'
+                          outmass='default',   &
+                          newoutfile='default'
     character(len=10)  :: fts='guess', &
                           fth='guess', &
                           ftg='guess'
@@ -57,10 +60,11 @@ program gen_fcc_state
                O_STA = 20, &
                O_FCI = 21, &
                O_HES = 22, &
-               O_MAS = 23
+               O_MAS = 23, &
+               O_NEW = 24
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes,force_real)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -86,10 +90,13 @@ program gen_fcc_state
     !Allocate input data
     allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
-    if (adjustl(model_pes) == "VH") allocate (Grad(1:3*Nat))
+    allocate (Grad(1:3*Nat))
     !Allocate output data
     allocate(Freq(1:3*Nat))
     allocate(L(1:3*Nat,1:3*Nat))
+    
+    ! Open new fcc3 file (will overwrite previous one)
+    open(O_NEW,file=newoutfile) !,iostat=ios)
 
     !Read structure
     print*, "Reading structure...", fts
@@ -98,6 +105,21 @@ program gen_fcc_state
         print*, "Error reading the geometry", error
         stop
     endif
+    
+    ! Print to fcc3 file
+    print*, "  and writting geom to fcc3 file..."
+    write(O_NEW,'(A)') 'GEOM      UNITS=ANGS' !,geomunits
+    if (Nat<int(1.e7)) then
+        write(O_NEW,'(I6)') Nat
+    else
+        write(O_NEW,'(I0)') Nat
+    endif
+    write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format'
+    do i=1,Nat
+        call atominfo_from_atmass(Mass(i),j,atname)
+        write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
+    enddo
+    write(O_NEW,*) ""
 
     if (adjustl(massfile) /= "none") then
         open(I_MAS,file=massfile)
@@ -107,7 +129,7 @@ program gen_fcc_state
         enddo
         close(I_MAS)
     endif
-    print*, "  and writting masses to file..."
+    print*, "  and writting masses to mass file..."
     open(O_MAS,file=outmass)
     do i=1,Nat 
         write(O_MAS,*) Mass(i)
@@ -130,29 +152,38 @@ program gen_fcc_state
     else if (adjustl(ftg) == 'fth') then
         ftg = fth
     endif
-    
 
-    !Read Gradient for VH (for now assume same file as Hess)
-    if (adjustl(model_pes) == "VH") then
-        !Open gradient file
-        open(I_GRD,file=gradfile,iostat=ios)
-        if (ios /= 0) then
+    !Read Gradient 
+    !Open gradient file
+    open(I_GRD,file=gradfile,iostat=ios)
+    if (ios /= 0) then
+        if (adjustl(model_pes) == "VH") then
             print*, "Error opening "//trim(adjustl(gradfile))
             stop
+        else
+            print'(/,X,A,/)', "NOTE: Gradient file does not exist: skiping gradient"
+            is_gradient=.false.
         endif
+    endif
+    if (is_gradient) then
         print*, "Reading Gradient...", ftg
         call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
         if (error /= 0) then
             print'(X,A,/)', "Error: Gradient not present in the file."
             stop
-        else
-            print'(X,A,/)', "OK"
         endif
         close(I_GRD)
+    
+        ! Print to fcc3 file
+        print*, "  and writting grad to fcc3 file..."
+        write(O_NEW,'(A)') 'GRAD      UNITS=AU' !,gradunits
+        write(O_NEW,'(5ES16.8)') Grad(1:3*Nat)
+        write(O_NEW,*) ""
+        print'(X,A,/)', "OK"
     endif
 
     !Open hessian file
-    open(I_HES,file=hessfile,iostat=ios)
+    open(I_HES,file=hessfile) !,iostat=ios)
     !Read Hessian
     print*, "Reading Hessian...", fth
     call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
@@ -160,13 +191,19 @@ program gen_fcc_state
         print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
         is_hessian = .false.
     else
-        print*, "  and writting hessian (lower triangular elements) to file..."
-        open(O_HES,file=outhess)
-        do i=1,3*Nat*(3*Nat+1)/2
-            write(O_HES,'(G16.8)') Hlt(i)
-        enddo
-        write(O_HES,*) ""
-        close(O_HES)
+!         print*, "  and writting hessian (lower triangular elements) to file..."
+!         open(O_HES,file=outhess)
+!         do i=1,3*Nat*(3*Nat+1)/2
+!             write(O_HES,'(G16.8)') Hlt(i)
+!         enddo
+!         write(O_HES,*) ""
+!         close(O_HES)
+        
+        ! Print to fcc3 file
+        print*, "  and writting lower triangular hess to fcc3 file..."
+        write(O_NEW,'(A)') 'HESS      UNITS=AU' !,hessunits
+        write(O_NEW,'(5ES16.8)') Hlt(1:3*Nat*(3*Nat+1)/2)
+        write(O_NEW,*) ""
         print'(X,A,/)', "OK"
     endif
 
@@ -249,6 +286,14 @@ program gen_fcc_state
     if (error /= 0) then
         print*, "Error writting input template"
         stop
+    endif
+    print*, "Writting input template: 'fcc3_template.inp'..."
+    open(O_FCI,file="fcc3_template.inp")
+    call prepare_fcc3input(O_FCI,Nat,Nvib,Mass,DE,T,error)
+    close(O_FCI)
+    if (error /= 0) then
+        print*, "Error writting input template"
+        stop
     else
         print'(X,A,/)', "OK"
     endif
@@ -263,10 +308,10 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,outhess,outmass,model_pes,force_real)
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
-                                          outfile,outhess,outmass,model_pes
+                                          outfile,outhess,outmass,model_pes,newoutfile
         logical,intent(inout)          :: force_real
 
         ! Local
@@ -314,6 +359,10 @@ program gen_fcc_state
 
                 case ("-o") 
                     call getarg(i+1, outfile)
+                    argument_retrieved=.true.
+                    
+                case ("-ofcc") 
+                    call getarg(i+1, newoutfile)
                     argument_retrieved=.true.
 
                 case ("-oh") 
@@ -368,6 +417,20 @@ program gen_fcc_state
             outfile = trim(adjustl(prfx))//&
                       "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
         endif
+        if (adjustl(newoutfile) == 'default') then
+            ! Get relative path (split_line_back returns the line in the first part is the splitter is not present)
+            if (index(strfile,"./") /= 0) then
+                call split_line_back(strfile,"./",prfx,newoutfile)
+                prfx=trim(adjustl(prfx))//"./"
+            else
+                newoutfile=strfile
+                prfx=""
+            endif
+            call split_line_back(newoutfile,".",newoutfile,arg)
+            if (adjustl(fts) /= 'guess') arg=fts
+            newoutfile = trim(adjustl(prfx))//&
+                         trim(adjustl(newoutfile))//'_'//trim(adjustl(arg))//'.fcc'
+        endif
         if (adjustl(outhess) == 'default') then
             call split_line_back(outfile,"state_",arg,outhess)
             if (adjustl(fts) /= 'guess') arg=fts
@@ -411,19 +474,20 @@ program gen_fcc_state
                          '[-o output_file] [-oh hessian_file] [-om mass_file] [-model model_PES] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
-        write(0,'(A)'  ) 'Flag    Description      Current Value'
-        write(0,'(A)'  ) ' -i     structure_file   '//trim(adjustl(strfile))
-        write(0,'(A)'  ) ' -fts   filetype(str)    '//trim(adjustl(fts))
-        write(0,'(A)'  ) ' -ih    hess_input_file  '//trim(adjustl(hessfile))
-        write(0,'(A)'  ) ' -fth   filetype(hess)   '//trim(adjustl(fth))
-        write(0,'(A)'  ) ' -ig    grad_input_file  '//trim(adjustl(gradfile))
-        write(0,'(A)'  ) ' -ftg   filetype(grad)   '//trim(adjustl(ftg))
-        write(0,'(A)'  ) ' -im    mass_file        '//trim(adjustl(massfile))
-        write(0,'(A)'  ) ' -o     output_file      '//trim(adjustl(outfile))
-        write(0,'(A)'  ) ' -oh    hess_out_file    '//trim(adjustl(outhess))
-        write(0,'(A)'  ) ' -om    mass_file        '//trim(adjustl(outmass))
-        write(0,'(A)'  ) ' -model model_pes[AH|VH] '//trim(adjustl(model_pes))
-        write(0,'(A)'  ) ' -force-real  turn real ',  force_real
+        write(0,'(A)'  ) 'Flag    Description       Current Value'
+        write(0,'(A)'  ) ' -i     structure_file    '//trim(adjustl(strfile))
+        write(0,'(A)'  ) ' -fts   filetype(str)     '//trim(adjustl(fts))
+        write(0,'(A)'  ) ' -ih    hess_input_file   '//trim(adjustl(hessfile))
+        write(0,'(A)'  ) ' -fth   filetype(hess)    '//trim(adjustl(fth))
+        write(0,'(A)'  ) ' -ig    grad_input_file   '//trim(adjustl(gradfile))
+        write(0,'(A)'  ) ' -ftg   filetype(grad)    '//trim(adjustl(ftg))
+        write(0,'(A)'  ) ' -im    mass_file         '//trim(adjustl(massfile))
+        write(0,'(A)'  ) ' -o     output_file       '//trim(adjustl(outfile))
+        write(0,'(A)'  ) ' -ofcc  output_file(fcc3) '//trim(adjustl(newoutfile))
+        write(0,'(A)'  ) ' -oh    hess_out_file     '//trim(adjustl(outhess))
+        write(0,'(A)'  ) ' -om    mass_file         '//trim(adjustl(outmass))
+        write(0,'(A)'  ) ' -model model_pes[AH|VH]  '//trim(adjustl(model_pes))
+        write(0,'(A)'  ) ' -force-real  turn real  ',  force_real
         write(0,'(A)'  ) '        all imag freqs'     
         write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
