@@ -18,6 +18,8 @@ program gen_fcc_dipfile
     use line_preprocess
     use fcc_basics
     use fcc_io
+    
+    implicit none
 
     !Relevant data
     integer :: Nat
@@ -30,6 +32,11 @@ program gen_fcc_dipfile
     !Default states are taken if =-1
     integer :: Si=-1, &
                Sf=-1
+               
+    !Filter atoms
+    character(len=20) :: filter="all"
+    integer,dimension(:),allocatable :: ifilter
+    integer :: Nfilt
 
     !Auxiliars
     integer :: N
@@ -41,7 +48,7 @@ program gen_fcc_dipfile
     integer :: Nsel 
     integer,dimension(1:1000) :: nm_select
     !Counters
-    integer :: j,k, jj
+    integer :: j,k, jj, ii, iat
 
     !I/O
     character(len=100) :: inpfile='input.log', &
@@ -53,7 +60,7 @@ program gen_fcc_dipfile
                O_DIP =20
 
     ! Read options
-    call parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf)
+    call parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf,filter)
 
     !Open input file
     open(I_INP,file=inpfile,status="old",iostat=ios)
@@ -69,6 +76,17 @@ program gen_fcc_dipfile
 
     !Read input data: natoms
     call generic_natoms_reader(I_INP,ft,Nat,error)
+    
+    ! Get filter (if any)
+    if (adjustl(filter) == "all") then
+        Nfilt=Nat
+        allocate(ifilter(Nat))
+        ifilter(1:Nfilt)= (/(j, j=1,Nat)/)
+    else
+        call selection2intlist_nel(filter,Nfilt)
+        allocate(ifilter(Nfilt))
+        call selection2intlist(filter,ifilter,Nfilt)
+    endif
 
     !Get eldip
     print*, "Reading transition electric dipole moment..."
@@ -93,7 +111,14 @@ program gen_fcc_dipfile
     write(O_DIP,'(3(X,E18.9))') Dip(1:3)
 
     if (derivatives) then
-        do j=1,3*Nat
+        do ii=1,Nfilt
+            j   = (ifilter(ii)-1)*3+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
             jj=j*3-2
             write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
         enddo
@@ -130,7 +155,14 @@ program gen_fcc_dipfile
     write(O_DIP,'(3(X,E18.9))') Dip(1:3)
 
     if (derivatives) then
-        do j=1,3*Nat
+        do ii=1,Nfilt
+            j   = (ifilter(ii)-1)*3+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
             jj=j*3-2
             write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
         enddo
@@ -151,9 +183,9 @@ program gen_fcc_dipfile
 
     contains
 
-    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf)
+    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf,filter)
 
-        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip
+        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,filter
         logical,intent(inout)          :: derivatives
         integer,intent(inout)          :: Si, Sf
 
@@ -200,6 +232,10 @@ program gen_fcc_dipfile
                 case ("-Sf") 
                     call getarg(i+1, arg)
                     read(arg,*) Sf
+                    argument_retrieved=.true.
+                    
+                case ("-filt")
+                    call getarg(i+1, filter)
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -258,15 +294,16 @@ program gen_fcc_dipfile
                          ' [-om out_magdip] [-Si <initial state>] [-Sf <final state>] [-noder] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
-        write(0,'(A)'  ) 'Flag      Description      Current Value'
-        write(0,'(A)'  ) ' -i       input_file       '//trim(adjustl(inpfile))
-        write(0,'(A)'  ) ' -ft      filetype         '//trim(adjustl(ft))
-        write(0,'(A,I0)')' -Si      initial state    ',Si
-        write(0,'(A)')   '          (-1=default)     '
-        write(0,'(A,I0)')' -Sf      final state      ',Sf
-        write(0,'(A)')   '          (-1=default)     '
-        write(0,'(A)'  ) ' -oe      out_eldip        '//trim(adjustl(out_eldip))
-        write(0,'(A)'  ) ' -om      out_magdip       '//trim(adjustl(out_magdip))
+        write(0,'(A)'  ) 'Flag      Description         Current Value'
+        write(0,'(A)'  ) ' -i       input_file          '//trim(adjustl(inpfile))
+        write(0,'(A)'  ) ' -ft      filetype            '//trim(adjustl(ft))
+        write(0,'(A,I0)')' -Si      initial state       ',Si
+        write(0,'(A)')   '          (-1=default)        '
+        write(0,'(A,I0)')' -Sf      final state         ',Sf
+        write(0,'(A)')   '          (-1=default)        '
+        write(0,'(A)'  ) ' -oe      out_eldip           '//trim(adjustl(out_eldip))
+        write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
+        write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))
         write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives
         write(0,'(A)'  ) ' -h       print help  '
         call supported_filetype_list('trdip')

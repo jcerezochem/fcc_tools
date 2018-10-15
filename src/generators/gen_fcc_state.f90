@@ -27,6 +27,11 @@ program gen_fcc_state
     ! Harmonic model PES 
     character(len=3) :: model_PES='AH'
     logical :: force_real = .false.
+    
+    !Filter atoms
+    character(len=20) :: filter="all"
+    integer,dimension(:),allocatable :: ifilter
+    integer :: Nfilt
 
     !Additional info to prepare the input
     real(8) :: DE, T
@@ -36,9 +41,11 @@ program gen_fcc_state
     !Auxiliars
     character :: cnull
     integer :: error
-    integer,dimension(:),allocatable :: IAux
+    integer,dimension(:),allocatable   :: IAux
+    real(8),dimension(:),allocatable   :: Vec
+    real(8),dimension(:,:),allocatable :: Aux,Aux2
     !Counters
-    integer :: i, j
+    integer :: i,ii, j,jj, k, iat,jat
 
     !I/O
     character(len=100) :: strfile='input.log', &
@@ -64,7 +71,7 @@ program gen_fcc_state
                O_NEW = 24
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real,filter)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -86,14 +93,25 @@ program gen_fcc_state
         stop
     endif
     rewind(I_INP)
+    
+    ! Get filter (if any)
+    if (adjustl(filter) == "all") then
+        Nfilt=Nat
+        allocate(ifilter(Nat))
+        ifilter(1:Nfilt)= (/(i, i=1,Nat)/)
+    else
+        call selection2intlist_nel(filter,Nfilt)
+        allocate(ifilter(Nfilt))
+        call selection2intlist(filter,ifilter,Nfilt)
+    endif
 
     !Allocate input data
     allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     allocate (Grad(1:3*Nat))
     !Allocate output data
-    allocate(Freq(1:3*Nat))
-    allocate(L(1:3*Nat,1:3*Nat))
+    allocate(Freq(1:3*Nfilt))
+    allocate(L(1:3*Nfilt,1:3*Nfilt))
     
     ! Open new fcc3 file (will overwrite previous one)
     open(O_NEW,file=newoutfile) !,iostat=ios)
@@ -109,13 +127,14 @@ program gen_fcc_state
     ! Print to fcc3 file
     print*, "  and writting geom to fcc3 file..."
     write(O_NEW,'(A)') 'GEOM      UNITS=ANGS' !,geomunits
-    if (Nat<int(1.e7)) then
-        write(O_NEW,'(I6)') Nat
+    if (Nfilt<int(1.e7)) then
+        write(O_NEW,'(I6)') Nfilt
     else
-        write(O_NEW,'(I0)') Nat
+        write(O_NEW,'(I0)') Nfilt
     endif
-    write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format'
-    do i=1,Nat
+    write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format (with filter: '//trim(adjustl(filter))//')'
+    do ii=1,Nfilt
+        i=ifilter(ii)
         call atominfo_from_atmass(Mass(i),j,atname)
         write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
     enddo
@@ -129,10 +148,20 @@ program gen_fcc_state
         enddo
         close(I_MAS)
     endif
+    ! Filter masses
+    allocate(Vec(Nfilt))
+    do ii=1,Nfilt 
+        i=ifilter(ii)
+        Vec(ii) = Mass(i)
+    enddo
+    deallocate(Mass)
+    allocate(Mass(Nfilt))
+    Mass=Vec
+    deallocate(Vec)
     print*, "  and writting masses to mass file..."
     open(O_MAS,file=outmass)
-    do i=1,Nat 
-        write(O_MAS,*) Mass(i)
+    do ii=1,Nfilt 
+        write(O_MAS,*) Mass(ii)
     enddo
     write(O_MAS,*) ""
     close(O_MAS)
@@ -177,7 +206,19 @@ program gen_fcc_state
         ! Print to fcc3 file
         print*, "  and writting grad to fcc3 file..."
         write(O_NEW,'(A)') 'GRAD      UNITS=AU' !,gradunits
-        write(O_NEW,'(5ES16.8)') Grad(1:3*Nat)
+        allocate(Vec(3*Nfilt))
+        do ii=1,3*Nfilt,3
+            iat = (ii-1)/3+1
+            i   = ifilter(iat)
+            Vec(ii)   = Grad(3*i-2)
+            Vec(ii+1) = Grad(3*i-1)
+            Vec(ii+2) = Grad(3*i)
+        enddo
+        deallocate(Grad)
+        allocate(Grad(3*Nfilt))
+        Grad=Vec
+        deallocate(Vec)
+        write(O_NEW,'(5ES16.8)') Grad(1:3*Nfilt)
         write(O_NEW,*) ""
         print'(X,A,/)', "OK"
     endif
@@ -198,14 +239,74 @@ program gen_fcc_state
 !         enddo
 !         write(O_HES,*) ""
 !         close(O_HES)
+
+        ! Apply filter
+        allocate(Aux(3*Nat,3*Nat))
+        k=0
+        do i=1,3*Nat
+        do j=1,i
+            k=k+1
+            Aux(i,j) = Hlt(k)
+        enddo
+        enddo
+        allocate(Aux2(3*Nfilt,3*Nfilt))
+        do ii=1,3*Nfilt,3
+        do jj=1,ii,3
+            iat = (ii-1)/3+1
+            i   = ifilter(iat)
+            jat = (jj-1)/3+1
+            j   = ifilter(jat)
+            ! Fill elements
+            Aux2(ii+0,jj+0) = Aux(3*i-2,3*j-2)
+            Aux2(ii+1,jj+0) = Aux(3*i-1,3*j-2)
+            Aux2(ii+2,jj+0) = Aux(3*i-0,3*j-2)
+            
+            Aux2(ii+0,jj+1) = Aux(3*i-2,3*j-1)
+            Aux2(ii+1,jj+1) = Aux(3*i-1,3*j-1)
+            Aux2(ii+2,jj+1) = Aux(3*i-0,3*j-1)
+            
+            Aux2(ii+0,jj+2) = Aux(3*i-2,3*j-0)
+            Aux2(ii+1,jj+2) = Aux(3*i-1,3*j-0)
+            Aux2(ii+2,jj+2) = Aux(3*i-0,3*j-0)
+            
+            ! Sym
+            Aux2(jj+0,ii+0) = Aux2(ii+0,jj+0)
+            Aux2(jj+1,ii+0) = Aux2(ii+1,jj+0)
+            Aux2(jj+2,ii+0) = Aux2(ii+2,jj+0)
+            
+            Aux2(jj+0,ii+1) = Aux2(ii+0,jj+1)
+            Aux2(jj+1,ii+1) = Aux2(ii+1,jj+1)
+            Aux2(jj+2,ii+1) = Aux2(ii+2,jj+1)
+            
+            Aux2(jj+0,ii+2) = Aux2(ii+0,jj+2)
+            Aux2(jj+1,ii+2) = Aux2(ii+1,jj+2)
+            Aux2(jj+2,ii+2) = Aux2(ii+2,jj+2)
+        enddo
+        enddo
+        allocate(Vec(3*Nfilt*(3*Nfilt+1)/2))
+        k=0
+        do i=1,3*Nfilt
+        do j=1,i
+            k=k+1
+            Vec(k) = Aux2(i,j)
+        enddo
+        enddo
+        deallocate(Aux,Aux2)
+        deallocate(Hlt)
+        allocate(Hlt(3*Nfilt*(3*Nfilt+1)/2))
+        Hlt=Vec
+        deallocate(Vec)
+        
         
         ! Print to fcc3 file
         print*, "  and writting lower triangular hess to fcc3 file..."
         write(O_NEW,'(A)') 'HESS      UNITS=AU' !,hessunits
-        write(O_NEW,'(5ES16.8)') Hlt(1:3*Nat*(3*Nat+1)/2)
+        write(O_NEW,'(5ES16.8)') Hlt(1:3*Nfilt*(3*Nfilt+1)/2)
         write(O_NEW,*) ""
         print'(X,A,/)', "OK"
     endif
+    
+    Nat = Nfilt
 
     !Close hessian file
     close(I_HES)
@@ -308,10 +409,11 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real)
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,&
+                           force_real,filter)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
-                                          outfile,outhess,outmass,model_pes,newoutfile
+                                          outfile,outhess,outmass,model_pes,newoutfile,filter
         logical,intent(inout)          :: force_real
 
         ! Local
@@ -375,6 +477,10 @@ program gen_fcc_state
 
                 case ("-model") 
                     call getarg(i+1, model_pes)
+                    argument_retrieved=.true.
+                    
+                case ("-filt") 
+                    call getarg(i+1, filter)
                     argument_retrieved=.true.
 
                 case ("-force-real")
@@ -487,8 +593,9 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -oh    hess_out_file     '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om    mass_file         '//trim(adjustl(outmass))
         write(0,'(A)'  ) ' -model model_pes[AH|VH]  '//trim(adjustl(model_pes))
-        write(0,'(A)'  ) ' -force-real  turn real  ',  force_real
-        write(0,'(A)'  ) '        all imag freqs'     
+        write(0,'(A)'  ) ' -filt  Filter atoms      '//trim(adjustl(filter))
+        write(0,'(A,A)') ' -force-real  turn real  ',  force_real
+        write(0,'(A)'  ) '        all imag freqs' 
         write(0,'(A)'  ) ' -h     print help  '
         call supported_filetype_list('freq')
 

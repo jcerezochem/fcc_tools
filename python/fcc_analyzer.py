@@ -671,7 +671,10 @@ if __name__ == "__main__":
     try:
         f = open('fort.21','r')
     except:
-        exit("ERROR: Cannot open file 'fort.21'")
+        try:
+            f = open('Assignments.dat','r')
+        except:
+            exit("ERROR: Cannot open file 'fort.21' or 'Assignments.dat'")
         
     #First read 0-0 transition
     itrans = 0

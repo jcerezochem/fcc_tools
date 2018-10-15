@@ -429,6 +429,66 @@ module line_preprocess
 
     end function real2char
 
+    subroutine selection2intlist_nel(selection,Nlist)
+
+       ! Interpret a selection to the array of integers
+       ! Syntaxis of the selection:
+       !  #  1 to 3   => (1,2,3)
+       !  #  1,3,5-7  => (1,3,5,6,7)
+
+        character(len=*), intent(in) :: selection
+        integer, intent(out) :: Nlist
+        !local 
+        integer :: list
+        character(len=5),dimension(100) :: selection_split
+        integer :: i, j, jj
+        integer :: N, range_last, range_width
+        logical :: is_range
+        character(len=len(selection)+10) :: selection_local
+
+        ! Tranform "," into space 
+        selection_local = ""
+        j=0
+        do i=1,len_trim(selection)
+            j=j+1
+            if (selection(i:i) == ",") then
+                selection_local(j:j) = " "
+            else if (selection(i:i) == "-") then
+                selection_local(j:j+3) = " to "
+                j=j+3
+            else
+                selection_local(j:j) = selection(i:i)
+            endif
+        enddo
+
+        call string2vector_char(selection_local,selection_split,N," ")
+
+        is_range = .false.
+        j = 0
+        do i=1,N
+            if (selection_split(i) == "to") then
+                is_range =  .true.
+                cycle
+            endif
+            ! Read number
+            if (.not.is_range) then
+                j = j+1
+                read(selection_split(i),*) list
+            else
+                read(selection_split(i),*) range_last
+                range_width = range_last - list
+                do jj = 1, range_width
+                    j = j + 1
+                    list = list + 1
+                enddo
+                is_range = .false.
+            endif
+        enddo
+        Nlist = j
+
+        return
+
+    end subroutine selection2intlist_nel
 
     subroutine selection2intlist(selection,list,Nlist)
 
@@ -439,7 +499,7 @@ module line_preprocess
 
         character(len=*), intent(in) :: selection
         integer, intent(out) :: Nlist
-        integer,dimension(1:100) :: list
+        integer,dimension(:) :: list
         !local 
         character(len=5),dimension(100) :: selection_split
         integer :: i, j, jj
