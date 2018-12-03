@@ -370,7 +370,14 @@ module line_preprocess
         character(len=10) :: dummy_char
 
         !If length<number of digits, rise an error
-        ilength = int(log10(float(i)))+1
+        if (i == 0) then
+            ilength = 1
+        elseif (i<0) then
+            ilength = int(log10(float(-i)))+2
+        else
+            ilength = int(log10(float(i)))+1
+        endif
+
         if (ilength>length) then
             write(0,*) "Error in int20char: more digits in number than character size"
             stop
