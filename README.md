@@ -10,4 +10,17 @@ Tools to facilitate input generation and analysis of FCclasses (see http://www.p
   - `fcc_analyzer_PyQt4.py`: version of the script based on `Qt4` libraries using `PyQt4` bindings.
 
 ## Install
-This git distribution contains the source with basic autoconf files. To generate an usable configure script run the `./autotoolize.sh` script. Then, run `./configure --prefix INSTALLPATH` and `make` `make install` as usual.
+Unload the zip or git clone this repository. Then:
+
+1. `./fix_time_stamps.sh`
+
+2. `./configure --bindir INSTALLPATH`
+
+3. `make`
+
+If you have set an appropriate PATH for installataion, also:
+
+4.  `make install`
+
+Otherwise, the programs are installed in src/generators
+
