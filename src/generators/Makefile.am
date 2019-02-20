@@ -18,6 +18,7 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/molpro_manage.f90\
                         ../modules/turbomol_manage.f90\
                         ../modules/orca_manage.f90\
+                        ../modules/fcc_manage.f90\
                         ../modules/fcc_io.f90\
                         ../modules/vibrational_analysis.f90\
                         gen_fcc_state.f90
@@ -40,6 +41,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/molpro_manage.f90\
                           ../modules/turbomol_manage.f90\
                           ../modules/orca_manage.f90\
+                          ../modules/fcc_manage.f90\
                           ../modules/fcc_io.f90\
                           gen_fcc_dipfile.f90
 

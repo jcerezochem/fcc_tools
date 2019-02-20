@@ -112,7 +112,8 @@ am_gen_fcc_dipfile_OBJECTS = version.$(OBJEXT) \
 	../modules/molcas_manage.$(OBJEXT) \
 	../modules/molpro_manage.$(OBJEXT) \
 	../modules/turbomol_manage.$(OBJEXT) \
-	../modules/orca_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
+	../modules/orca_manage.$(OBJEXT) \
+	../modules/fcc_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
 	gen_fcc_dipfile.$(OBJEXT)
 gen_fcc_dipfile_OBJECTS = $(am_gen_fcc_dipfile_OBJECTS)
 gen_fcc_dipfile_LDADD = $(LDADD)
@@ -131,7 +132,8 @@ am_gen_fcc_state_OBJECTS = version.$(OBJEXT) \
 	../modules/molcas_manage.$(OBJEXT) \
 	../modules/molpro_manage.$(OBJEXT) \
 	../modules/turbomol_manage.$(OBJEXT) \
-	../modules/orca_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
+	../modules/orca_manage.$(OBJEXT) \
+	../modules/fcc_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
 	../modules/vibrational_analysis.$(OBJEXT) \
 	gen_fcc_state.$(OBJEXT)
 gen_fcc_state_OBJECTS = $(am_gen_fcc_state_OBJECTS)
@@ -288,6 +290,7 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/molpro_manage.f90\
                         ../modules/turbomol_manage.f90\
                         ../modules/orca_manage.f90\
+                        ../modules/fcc_manage.f90\
                         ../modules/fcc_io.f90\
                         ../modules/vibrational_analysis.f90\
                         gen_fcc_state.f90
@@ -309,6 +312,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/molpro_manage.f90\
                           ../modules/turbomol_manage.f90\
                           ../modules/orca_manage.f90\
+                          ../modules/fcc_manage.f90\
                           ../modules/fcc_io.f90\
                           gen_fcc_dipfile.f90
 
@@ -424,6 +428,8 @@ clean-binPROGRAMS:
 ../modules/turbomol_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/orca_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
+	../modules/$(DEPDIR)/$(am__dirstamp)
+../modules/fcc_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/fcc_io.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)

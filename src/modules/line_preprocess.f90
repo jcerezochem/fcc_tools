@@ -132,7 +132,11 @@ module line_preprocess
 
         enddo
         arg(id)=adjustl(args)
-        narg=id
+        if (len_trim(args) == 0) then
+            narg=0
+        else
+            narg=id
+        endif
             
         return
 

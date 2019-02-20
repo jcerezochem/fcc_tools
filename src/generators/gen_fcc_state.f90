@@ -53,7 +53,6 @@ program gen_fcc_state
                           gradfile='default',&
                           massfile='none',&
                           outfile='default',   &
-                          outhess='default',   &
                           outmass='default',   &
                           newoutfile='default'
     character(len=10)  :: fts='guess', &
@@ -71,7 +70,7 @@ program gen_fcc_state
                O_NEW = 24
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,force_real,filter)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outmass,model_pes,force_real,filter)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -232,13 +231,6 @@ program gen_fcc_state
         print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
         is_hessian = .false.
     else
-!         print*, "  and writting hessian (lower triangular elements) to file..."
-!         open(O_HES,file=outhess)
-!         do i=1,3*Nat*(3*Nat+1)/2
-!             write(O_HES,'(G16.8)') Hlt(i)
-!         enddo
-!         write(O_HES,*) ""
-!         close(O_HES)
 
         ! Apply filter
         allocate(Aux(3*Nat,3*Nat))
@@ -409,11 +401,11 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outhess,outmass,model_pes,&
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outmass,model_pes,&
                            force_real,filter)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
-                                          outfile,outhess,outmass,model_pes,newoutfile,filter
+                                          outfile,outmass,model_pes,newoutfile,filter
         logical,intent(inout)          :: force_real
 
         ! Local
@@ -467,10 +459,6 @@ program gen_fcc_state
                     call getarg(i+1, newoutfile)
                     argument_retrieved=.true.
 
-                case ("-oh") 
-                    call getarg(i+1, outhess)
-                    argument_retrieved=.true.
-
                 case ("-om") 
                     call getarg(i+1, outmass)
                     argument_retrieved=.true.
@@ -520,8 +508,10 @@ program gen_fcc_state
             endif
             call split_line_back(outfile,".",outfile,arg)
             if (adjustl(fts) /= 'guess') arg=fts
-            outfile = trim(adjustl(prfx))//&
-                      "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
+!             outfile = trim(adjustl(prfx))//&
+!                       "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
+! better not using the relative path (in prfx):
+            outfile = "state_"//trim(adjustl(outfile))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(newoutfile) == 'default') then
             ! Get relative path (split_line_back returns the line in the first part is the splitter is not present)
@@ -534,20 +524,15 @@ program gen_fcc_state
             endif
             call split_line_back(newoutfile,".",newoutfile,arg)
             if (adjustl(fts) /= 'guess') arg=fts
-            newoutfile = trim(adjustl(prfx))//&
-                         trim(adjustl(newoutfile))//'_'//trim(adjustl(arg))//'.fcc'
-        endif
-        if (adjustl(outhess) == 'default') then
-            call split_line_back(outfile,"state_",arg,outhess)
-            if (adjustl(fts) /= 'guess') arg=fts
-            outhess = trim(adjustl(prfx))//&
-                      "hessian_"//trim(adjustl(outhess))
+!             newoutfile = trim(adjustl(prfx))//&
+            newoutfile = trim(adjustl(newoutfile))//'_'//trim(adjustl(arg))//'.fcc'
+                         
         endif
         if (adjustl(outmass) == 'default') then
             call split_line_back(outfile,"state_",arg,outmass)
             if (adjustl(fts) /= 'guess') arg=fts
-            outmass = trim(adjustl(prfx))//&
-                      "mass_"//trim(adjustl(outmass))
+!             outmass = trim(adjustl(prfx))//&
+            outmass = "mass_"//trim(adjustl(outmass))
         endif
 
 
@@ -577,7 +562,7 @@ program gen_fcc_state
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
-                         '[-o output_file] [-oh hessian_file] [-om mass_file] [-model model_PES] [-h]'
+                         '[-o output_file] [-om mass_file] [-model model_PES] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
         write(0,'(A)'  ) 'Flag    Description       Current Value'
@@ -588,9 +573,8 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -ig    grad_input_file   '//trim(adjustl(gradfile))
         write(0,'(A)'  ) ' -ftg   filetype(grad)    '//trim(adjustl(ftg))
         write(0,'(A)'  ) ' -im    mass_file         '//trim(adjustl(massfile))
-        write(0,'(A)'  ) ' -o     output_file       '//trim(adjustl(outfile))
+        write(0,'(A)'  ) ' -o     output_file(fcc2) '//trim(adjustl(outfile))
         write(0,'(A)'  ) ' -ofcc  output_file(fcc3) '//trim(adjustl(newoutfile))
-        write(0,'(A)'  ) ' -oh    hess_out_file     '//trim(adjustl(outhess))
         write(0,'(A)'  ) ' -om    mass_file         '//trim(adjustl(outmass))
         write(0,'(A)'  ) ' -model model_pes[AH|VH]  '//trim(adjustl(model_pes))
         write(0,'(A)'  ) ' -filt  Filter atoms      '//trim(adjustl(filter))
