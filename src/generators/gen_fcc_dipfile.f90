@@ -260,7 +260,7 @@ program gen_fcc_dipfile
             endif
             call split_line_back(out_eldip,".",out_eldip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
-            out_eldip = trim(adjustl(prfx))//&
+            out_eldip = & !trim(adjustl(prfx))//&
                       "eldip_"//trim(adjustl(out_eldip))//'_'//trim(adjustl(arg))
         endif
         if (adjustl(out_magdip) == 'default') then
@@ -274,7 +274,7 @@ program gen_fcc_dipfile
             endif
             call split_line_back(out_magdip,".",out_magdip,arg)
             if (adjustl(ft) /= 'guess') arg=ft
-            out_magdip = trim(adjustl(prfx))//&
+            out_magdip = & !trim(adjustl(prfx))//&
                       "magdip_"//trim(adjustl(out_magdip))//'_'//trim(adjustl(arg))
         endif
 

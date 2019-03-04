@@ -15,7 +15,8 @@ Unload the zip or git clone this repository. Then:
 1. `./fix_time_stamps.sh`
 
 2. `./configure --bindir INSTALLPATH`
-where INSTALLPATH is the location where the binaries will be placed.
+
+(where INSTALLPATH is the location where the binaries will be placed)
 
 3. `make`
 
