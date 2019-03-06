@@ -302,6 +302,8 @@ module fcc_io
              call read_gamess_hess(unt,Nat,Hlt,error_flag)
             case("cfour")
              call read_cfour_hess(unt,Nat,Hlt,error_flag)
+            case("fcm")
+             call read_FCM_hess(unt,Nat,Hlt,error_flag)
             case("psi4")
              call read_psi4_hess(unt,Nat,Hlt,error_flag)
             case("molcas")
