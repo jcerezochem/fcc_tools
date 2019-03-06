@@ -187,8 +187,12 @@ class AppForm(QMainWindow):
         cml_args = get_args()
         
         # First locate the fort.21 file
-        if os.path.isfile('fort.21') or os.path.isfile('Assignments.dat'):
+        if os.path.isfile('fort.21'):
             path=""
+            fort21file="fort.21"
+        elif os.path.isfile('Assignments.dat'):
+            path=""
+            fort21file="Assignments.dat"
         else:
             file_choices = r"FCclasses aux (fort.21) (fort.21);;Assignments.dat (Assignments.dat);; All files (*)"
             path = unicode(QFileDialog.getOpenFileName(self, 
@@ -213,10 +217,8 @@ class AppForm(QMainWindow):
                 sys.exit()
         # Data load
         # Stick transitions (fort.21)
-        if "fort.21" in path:
-            self.fcclass_list = read_fort21(path+'fort.21',MaxClass)
-        else:
-            self.fcclass_list = read_fort21(path+'Assignments.dat',MaxClass)
+        self.fcclass_list = read_fort21(path+fort21file,MaxClass)
+
         # Bins to convolute spectrum (only in new versions of FCclasses)
         if os.path.isfile(path+'fort.22'):
             self.with_fort22 = True
@@ -1852,7 +1854,7 @@ def read_fort21(fort21file,MaxClass):
     try:
         f = open(fort21file,'r')
     except:
-        exit("ERROR: Cannot open file 'fort.21'")
+        exit("ERROR: Cannot open file 'fort.21' not 'Assignments.dat'")
         
     #First read 0-0 transition
     itrans = 0
