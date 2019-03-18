@@ -182,16 +182,22 @@ program gen_fcc_state
     endif
 
     !Read Gradient 
-    !Open gradient file
-    open(I_GRD,file=gradfile,iostat=ios)
-    if (ios /= 0) then
-        if (adjustl(model_pes) == "VH") then
-            print*, "Error opening "//trim(adjustl(gradfile))
-            stop
-        else
-            print'(/,X,A,/)', "NOTE: Gradient file does not exist: skiping gradient"
-            is_gradient=.false.
+    !Only for supported filetypes
+    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour') then
+        is_gradient=.true.
+        !Open gradient file
+        open(I_GRD,file=gradfile,iostat=ios)
+        if (ios /= 0) then
+            if (adjustl(model_pes) == "VH") then
+                print*, "Error opening "//trim(adjustl(gradfile))
+                stop
+            else
+                print'(/,X,A,/)', "NOTE: Gradient file does not exist: skiping gradient"
+                is_gradient=.false.
+            endif
         endif
+    else
+        is_gradient=.false.
     endif
     if (is_gradient) then
         print*, "Reading Gradient...", ftg

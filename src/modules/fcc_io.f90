@@ -82,6 +82,8 @@ module fcc_io
              call read_g96_natoms(unt,Nat)
             case("orca")
              call read_orca_natoms(unt,Nat,error_flag)
+            case("orca4")
+             call read_orca_natoms(unt,Nat,error_flag)
             case("fcc")
              call read_fcc_natoms(unt,Nat,error_flag)
             case default
@@ -171,6 +173,8 @@ module fcc_io
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("orca")
+             call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
+            case("orca4")
              call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
             case("fcc")
              call read_fcc_geom(unt,Nat,AtName,X,Y,Z,error_flag)
@@ -316,6 +320,8 @@ module fcc_io
              call read_gmx_hess(unt,Nat,Hlt,error_flag)
             case("orca")
              call read_orca_hess(unt,Nat,Hlt,error_flag)
+            case("orca4")
+             call read_orca4_hess(unt,Nat,Hlt,error_flag)
             case("fcc")
              call read_fcc_hess(unt,Nat,Hlt,error_flag)
             case default
@@ -438,6 +444,7 @@ module fcc_io
             write(0,*)     "  turbomol : TURBOMOL out"
             write(0,*)     "  gmx      : gromacs (g96 and dumped mtx)"
             write(0,*)     "  orca     : ORCA hess file"
+            write(0,*)     "  orca4    : ORCA4 hess file"
             write(0,*)     "  cfour    : cfour output"
             write(0,*)     "  fcc      : fcclasses new state files"
             write(0,'(A)') " Gradients (vertical models):"
