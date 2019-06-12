@@ -240,9 +240,9 @@ module fcc_io
             case("cfour")
              call read_cfour_grad(unt,Nat,Grad,error_flag)
             case("molcas-ci")
-             call read_alaska_grad(unt,Nat,Grad,error_flag,symm="CI")
+             call read_molcas_grad(unt,Nat,Grad,error_flag,symm="CI")
             case("molcas")
-             call read_alaska_grad(unt,Nat,Grad,error_flag)
+             call read_molcas_grad(unt,Nat,Grad,error_flag)
             case("fcc")
              call read_fcc_grad(unt,Nat,Grad,error_flag)
             case default
@@ -421,6 +421,50 @@ module fcc_io
          return
 
     end subroutine generic_dip_reader
+    
+    
+    subroutine generic_nac_reader(unt,filetype,Si,Sf,nac,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic dipole reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (io )  int /scalar   Number of atoms
+        ! X,Y,Z   (out)  real/vectors  Coordinates
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(inout)           :: Si, Sf
+        real(8),dimension(:),intent(out):: nac
+        integer,intent(out),optional    :: error_flag
+        !Local
+        integer :: S
+        integer :: error_local
+        character(len=3) :: dummy_char
+
+        error_local = 0
+        select case (adjustl(filetype))
+            case("fchk")
+             call read_gaussfchk_nac(unt,Si,Sf,nac,error_local)
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('nac')
+             error_local = 99
+         end select
+         if (present(error_flag)) error_flag=error_local
+
+         return
+
+    end subroutine generic_nac_reader
 
 
     subroutine supported_filetype_list(properties)
@@ -463,7 +507,11 @@ module fcc_io
             write(0,*)     "   log    : g09 log  (freq)"
             write(0,*)     "   fchk   : g09 fchk (freq)"   
             write(0,*)     "   psi4   : Psi4 out (proper input)"   
-
+            
+        else if (adjustl(properties) == 'nac') then
+            write(0,'(A)') " Non-adiabatic couplings:"
+            write(0,*)     "   fchk   : g09 fchk"
+            
         endif
 
         return

@@ -176,7 +176,61 @@ module gmx_manage
         return
 
     end subroutine read_g96_geom
+    
+    
+    subroutine write_g96_geom(unt,Nat,AtName,X,Y,Z,ResName)
 
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Write geometry and atom names in g96.
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (inp) int /scalar    Number of atoms
+        ! AtName  (inp) char/vertor    Atom names
+        ! ResName (inp) char/vertor    Residue names (for each atom)
+        ! X,Y,Z   (inp) real/vectors   Coordinate vectors (ANGSTROM)
+        ! 
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(in) :: Nat
+        character(len=*), dimension(:), intent(in) :: AtName, ResName
+        real(kind=8), dimension(:), intent(in) :: X,Y,Z
+        !local
+        integer::i
+
+        write(unt,'(A)') "TITLE"
+        write(unt,'(A)') "Generated with gro_manage module "
+        write(unt,'(A)') "END"
+
+        write(unt,'(A)') "POSITION"
+        do i=1,Nat 
+        
+            write(unt,300) 1,                        &
+                           ResName(i),               &
+                           AtName(i),                &
+                           i,                        & !This is the serial number
+                           X(i)/10.d0,               &
+                           Y(i)/10.d0,               &
+                           Z(i)/10.d0               
+
+        enddo
+        write(unt,'(A)') "END"
+
+        write(unt,'(A)') "BOX"
+        write(unt,301) 0., 0., 0.
+        write(unt,'(A)') "END"
+
+        return
+
+300 format(i5,x,2(a5,x),x,i5,3f15.9,3f8.4)
+301 format(3f15.9)
+
+    end subroutine write_g96_geom
+    
 
     subroutine read_gmx_hess(unt,Nat,Hlt,error_flag)
 

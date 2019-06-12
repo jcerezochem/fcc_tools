@@ -281,7 +281,7 @@ module molcas_manage
     end subroutine read_molcasUnSym_hess
 
 
-    subroutine read_alaska_grad(unt,Nat,Grad,error_flag,symm)
+    subroutine read_molcas_grad(unt,Nat,Grad,error_flag,symm)
 
 
         !==============================================================
@@ -367,14 +367,14 @@ module molcas_manage
                 Grad(3*ii  ) = -Grad(3*ii-3)
             enddo
 
-        else 
-            print*, "ERROR: molcas gradient reader under developent. Only molcas-ci available"
-            stop
+!         else 
+!             print*, "ERROR: molcas gradient reader under developent. Only molcas-ci available"
+!             stop
         endif
 
         return
 
-    end subroutine read_alaska_grad
+    end subroutine read_molcas_grad
 
 end module molcas_manage
 

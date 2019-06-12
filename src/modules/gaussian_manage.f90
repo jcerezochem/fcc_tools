@@ -808,6 +808,85 @@ module gaussian_manage
         return
 
     end subroutine read_gaussfchk_dip
+    
+    subroutine read_gaussfchk_nac(unt,Si,Sf,nac,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read transition electric or magnetic dipole moments
+        !  from G09 fchk files (corresponding to a ES calculation)
+        !  The information is in "ETran ..." sections:
+        !  *"ETran scalars" contains:
+        !    <number of ES> <?> <?> <?> <target state> <?>
+        !     0 0 0...
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !========================================================
+
+
+        integer,intent(in)              :: unt
+        integer,intent(inout)           :: Si, Sf
+        real(8),dimension(:),intent(out):: nac
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !Other local
+        integer                          :: i,j,k, jj
+        !FCHK specific (to be move to the new sr)
+        integer :: Ntarget, Nes, Nat
+        ! Local error flag
+        integer :: error_local
+        character(len=3) :: dummy_char
+        logical :: symmetry_check=.true.
+
+        ! Number of excited states computed
+        call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_local)
+        if (error_local == 0) then
+            Nes = IA(1)
+            Ntarget = IA(5)
+            deallocate(IA)
+        else
+            if (present(error_flag)) error_flag = error_local
+            return
+        endif
+        
+        !Manage defaults and requests
+        if (Si == -1) Si = 0
+        if (Sf == -1) Sf = Ntarget
+        if (Si /= 0) then
+            write(dummy_char,'(I0)') Si
+            call alert_msg("fatal","TD-DFT calcs in G09 only provide nac from/to GS, but requested S="//dummy_char)
+            if (present(error_flag)) error_flag=-1
+            return
+        endif
+        if (Sf /= Ntarget) then
+            call alert_msg("fatal","Requested nac from a state different from the target (only available ones).")
+        endif
+        
+        ! Read nac state values
+        call read_fchk(unt,"Nonadiabatic coupling",data_type,N,A,IA,error_local)
+        if (error_local /= 0) then
+            if (present(error_flag)) error_flag = error_local
+            print*, "ERROR: 'Nonadiabatic coupling' section not found"
+            stop
+        endif
+        
+        print'(2X,A,I0,A,I0,A)', "Nonadiabatic coupling: <",Si,'|d/dx|',Sf,'>'
+        nac(1:N) = A(1:N)
+
+        deallocate(A)
+
+        return
+
+    end subroutine read_gaussfchk_nac
 
     subroutine read_gausslog_targestate(unt,S,error_flag)
 

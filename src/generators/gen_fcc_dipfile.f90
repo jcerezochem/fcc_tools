@@ -28,7 +28,9 @@ program gen_fcc_dipfile
     real(8)                :: dx = -1.d0 
     real(8),dimension(1:3) :: Dip
     real(8),dimension(:),allocatable :: DipD
+    real(8),dimension(:),allocatable :: nac
     logical :: derivatives=.true.
+    logical :: do_nac=.false.
     !Default states are taken if =-1
     integer :: Si=-1, &
                Sf=-1
@@ -53,14 +55,15 @@ program gen_fcc_dipfile
     !I/O
     character(len=100) :: inpfile='input.log', &
                           out_eldip='default', &
-                          out_magdip='default'
+                          out_magdip='default',&
+                          out_nac='default'
     character(len=10)  :: ft='guess'
     integer :: ios
     integer :: I_INP=10,&
                O_DIP =20
 
     ! Read options
-    call parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf,filter)
+    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter)
 
     !Open input file
     open(I_INP,file=inpfile,status="old",iostat=ios)
@@ -176,17 +179,62 @@ program gen_fcc_dipfile
     endif
 
     if (derivatives) deallocate(DipD)
+    
+    if (do_nac) then
+    
+        allocate(nac(1:3*3*Nat))
+    
+        !============================================================
+        !Rewind input file
+        rewind(I_INP)
+        !============================================================
 
+        !Get nac
+        print*, "Reading non-adiabatic coupling elements..."
+        call generic_nac_reader(I_INP,ft,Si,Sf,nac,error)
+        if (error /= 0) then
+            print*, "Error getting NAC. Error code:", error
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+
+        !WRITE NAC FILE
+        print*, "Writting non-adiabatic coupling file..."
+        open(O_DIP,file=out_nac,status="replace")
+
+        do ii=1,Nfilt
+            j   = (ifilter(ii)-1)*3+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
+        enddo
+        close(O_DIP)
+        deallocate(nac)
+        if (ios /= 0) then
+            print*, "Error writting nac file"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+
+    endif
+        
     print*, "** Successful end **"
 
     stop
 
     contains
 
-    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,derivatives,Si,Sf,filter)
+    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter)
 
-        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,filter
-        logical,intent(inout)          :: derivatives
+        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter
+        logical,intent(inout)          :: derivatives,do_nac
         integer,intent(inout)          :: Si, Sf
 
         ! Local
@@ -218,11 +266,20 @@ program gen_fcc_dipfile
                 case ("-om") 
                     call getarg(i+1, out_magdip)
                     argument_retrieved=.true.
+                    
+                case ("-on") 
+                    call getarg(i+1, out_nac)
+                    argument_retrieved=.true.
 
                 case ("-der")
                     derivatives=.true.
                 case ("-noder")
                     derivatives=.false.
+                    
+                case ("-nac")
+                    do_nac=.true.
+                case ("-nomac")
+                    do_nac=.false.
 
                 case ("-Si") 
                     call getarg(i+1, arg)
@@ -277,6 +334,20 @@ program gen_fcc_dipfile
             out_magdip = & !trim(adjustl(prfx))//&
                       "magdip_"//trim(adjustl(out_magdip))//'_'//trim(adjustl(arg))
         endif
+        if (adjustl(out_nac) == 'default') then
+            ! Get relative path
+            if (index(inpfile,"./") /= 0) then
+                call split_line_back(inpfile,"./",prfx,out_nac)
+                prfx=trim(adjustl(prfx))//"./"
+            else
+                out_nac = inpfile
+                prfx=""
+            endif
+            call split_line_back(out_nac,".",out_nac,arg)
+            if (adjustl(ft) /= 'guess') arg=ft
+            out_nac = & !trim(adjustl(prfx))//&
+                      "nac_"//trim(adjustl(out_nac))//'_'//trim(adjustl(arg))
+        endif
 
 
        !Print options (to stderr)
@@ -303,8 +374,10 @@ program gen_fcc_dipfile
         write(0,'(A)')   '          (-1=default)        '
         write(0,'(A)'  ) ' -oe      out_eldip           '//trim(adjustl(out_eldip))
         write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
+        write(0,'(A)'  ) ' -on      out_nac             '//trim(adjustl(out_nac))
         write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))
         write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives
+        write(0,'(A,L1)'  ) ' -[no]nac get NAC          ',do_nac
         write(0,'(A)'  ) ' -h       print help  '
         call supported_filetype_list('trdip')
 
