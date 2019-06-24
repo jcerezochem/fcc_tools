@@ -205,14 +205,7 @@ program gen_fcc_dipfile
 
         do ii=1,Nfilt
             j   = (ifilter(ii)-1)*3+1
-            jj=j*3-2
-            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
-            j=j+1
-            jj=j*3-2
-            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
-            j=j+1
-            jj=j*3-2
-            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(jj:jj+2)
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) nac(j:j+2)
         enddo
         close(O_DIP)
         deallocate(nac)
