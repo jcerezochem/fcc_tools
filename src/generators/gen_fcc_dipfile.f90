@@ -182,7 +182,7 @@ program gen_fcc_dipfile
     
     if (do_nac) then
     
-        allocate(nac(1:3*3*Nat))
+        allocate(nac(1:3*Nat))
     
         !============================================================
         !Rewind input file
