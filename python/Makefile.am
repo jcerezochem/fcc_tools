@@ -21,7 +21,7 @@ python-update-version-local:
 all-local: python-update-version-local
 
 install-exec-local:
-	cp *.py $(prefix)/bin
+	cp *.py $(bindir)
 
 # if we want an additional install file
 #if INSTALL_PYTHONBIN
