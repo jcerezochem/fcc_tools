@@ -147,10 +147,24 @@ module fcc_io
              enddo
              deallocate(A)
              call read_fchk(unt,'Real atomic weights',data_type,N,A,IA,error_flag)
-             do i=1,N
-                 Mass(i) = A(i)
-             enddo
-             deallocate(A)
+             if (error_flag==0) then
+                do i=1,N
+                    Mass(i) = A(i)
+                enddo
+                deallocate(A)
+            else
+                Mass(:) = 0.d0
+            endif
+             ! Some wrong fchk conversion lead to Mass=0.0. If so, use atomic numbers
+             ! and get masses from database
+             if (Mass(1) < 1.d-10) then
+                 call read_fchk(unt,'Atomic numbers',data_type,N,A,IA,error_flag)
+                 do i=1,N
+                     Mass(i) = atmass_from_atnum(IA(i))
+                 enddo
+                 deallocate(IA)
+             endif
+             
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
