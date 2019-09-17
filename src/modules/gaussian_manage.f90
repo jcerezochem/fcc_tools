@@ -774,6 +774,7 @@ module gaussian_manage
             Nat = size(DipD)/9
             if (N /= Nes*16+48+3*Nat*16) then
                 call alert_msg("warning","Dipole derivatives requested but not found in fchk")
+                derivatives=.false.
                 return
             else
                 print'(2X,A)', "Getting dipole derivatives"
