@@ -29,7 +29,7 @@ program gen_fcc_state
     logical :: force_real = .false.
     
     !Filter atoms
-    character(len=20) :: filter="all"
+    character(len=800) :: filter="all"
     integer,dimension(:),allocatable :: ifilter
     integer :: Nfilt
 

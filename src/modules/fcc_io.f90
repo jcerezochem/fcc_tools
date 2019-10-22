@@ -300,10 +300,11 @@ module fcc_io
         character(len=1)                 :: data_type
         integer                          :: N
         !For gausslog read
-        character(12*size(Hlt))          :: section
+        character(len=12*size(Hlt))      :: section
+!         character(len=100)          :: section
         !Other auxiliar
         integer                          :: i
-
+        
         error_flag = 0
         select case (adjustl(filetype))
             case("log")

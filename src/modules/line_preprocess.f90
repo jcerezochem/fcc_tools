@@ -356,6 +356,50 @@ module line_preprocess
         return
 
     end subroutine string2vector_char
+    
+
+    subroutine string2vector_getsize(raw_vector,n_elem,sep)
+
+        !Description
+        ! Get size of output vector (valid of _int, _char)
+
+        character(len=*),intent(in) :: raw_vector
+        integer,intent(out) :: n_elem
+        character(len=*),intent(in) :: sep !separador
+
+        !Local
+        character(len=len_trim(raw_vector)) :: raw_vector_copy
+        character(len=240) :: auxchar
+        integer :: i
+    
+        
+        !Copy the original vector to avoid modifying it
+        raw_vector_copy = trim(adjustl(raw_vector))
+
+        !Read unknown length vector
+        i=0
+        do 
+            i=i+1
+            if (len_trim(raw_vector_copy) == 0) then
+                i=i-1
+                exit
+            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
+                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
+                ! We need to read with format 'A', not default 
+                ! to catch the ","
+!                 read(auxchar,'(A)') array_vector(i)
+                ! By adjustl-ing every time we avoid double counting blank spaces
+                raw_vector_copy = adjustl(raw_vector_copy)
+            else 
+!                 read(raw_vector_copy,'(A)') array_vector(i)
+                exit
+            endif
+        enddo  
+        n_elem=i
+
+        return
+
+    end subroutine string2vector_getsize
 
 
     ! Functions that get character from numbers
@@ -451,7 +495,7 @@ module line_preprocess
         integer, intent(out) :: Nlist
         !local 
         integer :: list
-        character(len=5),dimension(100) :: selection_split
+        character(len=5),dimension(:),allocatable :: selection_split
         integer :: i, j, jj
         integer :: N, range_last, range_width
         logical :: is_range
@@ -472,6 +516,8 @@ module line_preprocess
             endif
         enddo
 
+        call string2vector_getsize(selection_local,N," ")
+        allocate(selection_split(N))
         call string2vector_char(selection_local,selection_split,N," ")
 
         is_range = .false.
@@ -512,7 +558,7 @@ module line_preprocess
         integer, intent(out) :: Nlist
         integer,dimension(:) :: list
         !local 
-        character(len=5),dimension(100) :: selection_split
+        character(len=5),dimension(:),allocatable :: selection_split
         integer :: i, j, jj
         integer :: N, range_last, range_width
         logical :: is_range
@@ -533,6 +579,8 @@ module line_preprocess
             endif
         enddo
 
+        call string2vector_getsize(selection_local,N," ")
+        allocate(selection_split(N))
         call string2vector_char(selection_local,selection_split,N," ")
 
         is_range = .false.
