@@ -49,7 +49,7 @@ module vibrational_analysis
         !==============================================================
 
         !Approximate zero
-        real(kind=8),parameter :: ZERO=1.d-10
+        real(kind=8),parameter :: ZERO=1.d-9
 
         integer,intent(in)                      :: Nat
         real(kind=8),dimension(:),intent(in)    :: X,Y,Z

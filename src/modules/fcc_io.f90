@@ -235,15 +235,18 @@ module fcc_io
         character(len=1)                 :: data_type
         integer                          :: N
         !For gausslog read
-        character(12*size(Grad))         :: section
+!         character(12*size(Grad)),dimension(:),allocatable :: section
+        character(100),dimension(:),allocatable :: section
         !Other auxiliar
         integer                          :: i
 
         error_flag = 0
         select case (adjustl(filetype))
             case("log")
-             call summary_parser(unt,7,section,error_flag)
-             read(section,*) Grad(1:3*Nat)
+             allocate(section(1))
+             call summary_parser(unt,7,section(1),error_flag)
+             read(section(1),*) Grad(1:3*Nat)
+             deallocate(section)
             case("fchk")
              call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_flag)
              if (error_flag /= 0) return
@@ -300,7 +303,8 @@ module fcc_io
         character(len=1)                 :: data_type
         integer                          :: N
         !For gausslog read
-        character(len=12*size(Hlt))      :: section
+!         character(len=12*size(Hlt)),dimension(:),allocatable :: section
+        character(len=1000),dimension(:),allocatable :: section
 !         character(len=100)          :: section
         !Other auxiliar
         integer                          :: i
@@ -308,8 +312,10 @@ module fcc_io
         error_flag = 0
         select case (adjustl(filetype))
             case("log")
-             call summary_parser(unt,6,section,error_flag)
-             read(section,*) Hlt(1:3*Nat*(3*Nat+1)/2)
+             allocate(section(1))
+             call summary_parser(unt,6,section(1),error_flag)
+             read(section(1),*) Hlt(1:3*Nat*(3*Nat+1)/2)
+             deallocate(section)
             case("fchk")
              call read_fchk(unt,'Cartesian Force Constants',data_type,N,A,IA,error_flag)
              if (error_flag /= 0) return
