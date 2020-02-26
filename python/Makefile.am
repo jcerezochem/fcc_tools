@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = subdir-objects
 # get *py files to the distribution with "make dist"
-EXTRA_DIST = fcc_analyzer.py version_tag.py
+EXTRA_DIST = fcc_analyzer.py version_tag.py sum_spectra.py
 
 # ADDITIONAL RECURSIVE TARGETS
 # (see http://www.gnu.org/software/automake/manual/html_node/Subdirectories.html)
