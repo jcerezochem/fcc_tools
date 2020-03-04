@@ -20,6 +20,7 @@ module fcc_io
     use gamess_manage
     use psi4_manage
     use molcas_manage
+    use molden_manage
     use molpro_manage
     use turbomol_manage
     use gmx_manage
@@ -74,6 +75,8 @@ module fcc_io
              call read_psi4_natoms(unt,Nat,error_flag)
             case("molcas")
              call read_molcasUnSym_natoms(unt,Nat,error_flag)
+            case("molden")
+             call read_molden_natoms(unt,Nat,error_flag)
             case("molpro")
              call read_molpro_natoms(unt,Nat,error_flag)
             case("turbomol")
@@ -173,6 +176,9 @@ module fcc_io
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("psi4")
              call read_psi4_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
+            case("molden")
+             call read_molden_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("molcas")
              call read_molcasUnSym_geom(unt,Nat,AtName,X,Y,Z,error_flag)

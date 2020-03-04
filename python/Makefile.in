@@ -198,7 +198,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
 # get *py files to the distribution with "make dist"
-EXTRA_DIST = fcc_analyzer.py version_tag.py
+EXTRA_DIST = fcc_analyzer.py version_tag.py sum_spectra.py
 all: all-am
 
 .SUFFIXES:
