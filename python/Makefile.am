@@ -9,7 +9,8 @@ EXTRA_DIST = fcc_analyzer.py version_tag.py sum_spectra.py
 
 # Build standalone binary with pyinstaller
 python-standalone-local:
-	pyinstaller fcc_analyzer_PyQt4.py --onefile
+	pyinstaller fcc_analyzer_PyQt4.py --onefile; continue
+	pyinstaller fcc_analyzer_PyQt5.py --onefile; continue
 
 python-update-version-local:
 	@echo "  "
