@@ -2,7 +2,7 @@
 \usepackage[T1]{fontenc}
 
 %opening
-\title{\texttt{fcc\_analyzer\_PyQt4}\\ a GUI to visualize \fcc\ output}
+\title{\texttt{fcc\_analyzer\_PyQtX}\\ a GUI to visualize \fcc\ output}
 \date{\textsc{Version: 0.1}\\\today}
 \author{Javier Cerezo\\\href{mailto:j.cerezo@pi.iccom.cnr.it}{\texttt{j.cerezo@pi.iccom.cnr.it}}}
 
@@ -34,17 +34,12 @@
 \maketitle
 
 \section{Description}
-\texttt{fcc\_analyzer\_PyQt4} is a graphical user interface (GUI) written in python and relying on the PyQt4 and matplotlib libraries. It reads the output from \fcc\ (for a TI calculation), namely fort.21 (assignments) and either fort.22 (spectral histogram) or fort.18 (final convoluted spectrum), and opens an interactive plot that facilitates the analysis of the transitions, the investigation of different broadening schemes (if fort.22 is available) and the comparison with reference spectral data.
+\texttt{fcc\_analyzer\_PyQtX} (where \texttt{X}=\texttt{4} or \texttt{5}) is a graphical user interface (GUI) written in python and relying on the PyQt4 (or PyQt5) and matplotlib libraries. It reads the output from \fcc\ (for a TI calculation), namely fort.21/Assigments.dat (assignments) and either fort.22/Bin\_Spectrum.dat (spectral histogram) or fort.18 (final convoluted spectrum), and opens an interactive plot that facilitates the analysis of the transitions, the investigation of different broadening schemes (if fort.22/Bin\_Spectrum.dat is available) and the comparison with reference spectral data.
 
 \section{Installation}
 
 \subsection{Precompiled binary}
-System-specific binaries are generated with \texttt{cx-Freeze} or \texttt{pyinstaller}. Currently, the following architechtures are supported (the binaries are located in \texttt{bin/<Arch>} folder):
-
-\begin{itemize}
- \item \texttt{Linux64}: 64-bit Linux systems. The GLIBC version $\geq$2.14 is required. The folder contains the shared libraries (\texttt{.so}) along with the executable (\texttt{fcc\_analyzer\_PyQt4}). Generated with \texttt{cx-Freeze}.
- \item \texttt{Win64}: 64-bit Windows systems. The folder contains a one-file executable (\texttt{fcc\_analyzer\_PyQt4.exe}). Generated with \texttt{pyinstaller}. 
-\end{itemize}
+System-specific binaries generated with \texttt{cx-Freeze} or \texttt{pyinstaller} may be available from the authors.
 
 \subsection{Python script}
 The source can be run directly as a python script from any computer architechture where a python interpreter is available. The python script is located in \texttt{src/}. \texttt{python} version 2.7 is required along with following modules (the minimum version tested is specified):
@@ -52,17 +47,32 @@ The source can be run directly as a python script from any computer architechtur
 \begin{itemize}
  \item \texttt{matplotlib} (version $\geq1.4.2$)
  \item \texttt{numpy} (version $\geq1.9.1$)
+\end{itemize}
+
+PyQt binding are also needed. Curently, both PyQt4 and PyQt5 are supported
+
+For \texttt{fcc\_analyzer\_PyQt4}:
+
+\begin{itemize}
  \item \texttt{PyQt4} (version $\geq4.10.4$)
+\end{itemize}
+
+For \texttt{fcc\_analyzer\_PyQt5}:
+
+\begin{itemize}
+ \item \texttt{PyQt5} (version $\geq5.9.2$)
 \end{itemize}
 
 % \clearpage
 
 One of the most straightfoward methods to get a working python environment is through the \href{http://conda.pydata.org/docs/intro.html}{\texttt{conda}} package manager, which allows to install and manage different python versions easily. Among the advantages, it can be installed at the user folders/account not requiring admin (or root) privileges and it is available for different operating systems as a simple installer. A very suitable package for conda is miniconda, a light-weight version that can be downloaded from \href{http://conda.pydata.org/miniconda.html}{\texttt{http://conda.pydata.org/miniconda.html}}.
 
-Once installed, the required modules to run the \texttt{fcc\_analyzer\_PyQt4} script can be installed through the command line (under any of the supported operating systems) by simply typing:\\
+Once installed, the required modules to run the \texttt{fcc\_analyzer\_PyQt5} script can be installed through the command line (under any of the supported operating systems) by simply typing:\\
 
 \texttt{conda install pyqt numpy matplotlib python=2}\\
 
+Note that PyQt4 is no longer available from conda standard channel repositories 
+(although it might be available from alternative channels). 
 The user is refered to the oficial \texttt{conda} documentation for further details.
 
 % \clearpage
@@ -72,7 +82,7 @@ The user is refered to the oficial \texttt{conda} documentation for further deta
 \subsection{Launch the application}
 The application should be invoked in the folder were the fort.21 and either fort.22 or fort.18 files that will be analysed reside, using the following syntax from the command line:\\
 
-\texttt{fcc\_analyzer\_PyQt4 [flags]}\\
+\texttt{fcc\_analyzer\_PyQtX [flags]}\\
 
 If no fort.21 is found in the current directory, a dialog to set the path to the files will be opened (this is useful when the program is called by mouser-clicking, e.g. in Windows). The following optional flags can be used when called from the command line:
 
@@ -97,7 +107,7 @@ The GUI consists of the following parts:
 \begin{center}
   \includegraphics[width=15cm]{figs/fcc_analyzer_screeshot.png}
 \end{center}
-\caption{Screenshot of \texttt{fcc\_analyzer\_PyQt4} highlighting the different parts.}
+\caption{Screenshot of \texttt{fcc\_analyzer\_PyQtX} highlighting the different parts.}
 \end{figure}
 
 The interaction and analysis of the simulated spectrum are performed with the different widgets in the plot. Below, the different parts are described.
