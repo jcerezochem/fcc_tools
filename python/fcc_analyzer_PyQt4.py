@@ -194,7 +194,7 @@ class AppForm(QMainWindow):
             path=""
             fort21file="Assignments.dat"
         else:
-            file_choices = r"FCclasses aux (fort.21) (fort.21);;Assignments.dat (Assignments.dat);; All files (*)"
+            file_choices = r"Assignments.dat (Assignments.dat);;FCclasses aux (fort.21) (fort.21);; All files (*)"
             path = unicode(QFileDialog.getOpenFileName(self, 
                             'Set the location of FClasses output', '', 
                             file_choices))
@@ -202,8 +202,10 @@ class AppForm(QMainWindow):
                 return
             if "fort.21" in path:
                 path = path.replace("fort.21","")
+                fort21file="fort.21"
             else:
                 path = path.replace("Assignments.dat","")
+                fort21file="Assignments.dat"
         # Parse command line args
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
@@ -1549,7 +1551,7 @@ Examples
         self.connect(self.fixlegend_cb, SIGNAL('stateChanged(int)'), self.update_fixlegend)
         
         self.inputBins_cb = QCheckBox("Input bins")
-        self.inputBins_cb.setChecked(True)
+        self.inputBins_cb.setChecked(False)
         self.inputBins_cb.setMaximumWidth(100)
         # Update when clicking
         self.connect(self.inputBins_cb, SIGNAL('stateChanged(int)'), self.update_convolute)

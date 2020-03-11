@@ -25,13 +25,13 @@ import sys, os, random
 from PyQt5 import QtGui, QtCore, uic, QtWidgets
 from PyQt5.QtWidgets import QMainWindow, QApplication, QAction, QWidget, QLineEdit, QPushButton, QComboBox, \
                             QSlider, QCheckBox, QLabel, QFrame, QTextEdit, QTableWidget, QTableWidgetItem,  \
-                            QVBoxLayout, QHBoxLayout, QGridLayout, QInputDialog
+                            QVBoxLayout, QHBoxLayout, QGridLayout, QInputDialog, QFileDialog
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import *
 
 import numpy as np
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 #from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib
@@ -202,16 +202,22 @@ class AppForm(QMainWindow):
             path=""
             fort21file="Assignments.dat"
         else:
-            file_choices = r"FCclasses aux (fort.21) (fort.21);;Assignments.dat (Assignments.dat);; All files (*)"
-            path = unicode(QFileDialog.getOpenFileName(self, 
+            file_choices = r"Assignments.dat (Assignments.dat);;FCclasses aux (fort.21) (fort.21);; All files (*)"
+            path = QFileDialog.getOpenFileName(self, 
                             'Set the location of FClasses output', '', 
-                            file_choices))
+                            file_choices)
+            # Management of QFileDialog output is different in PyQt5
+            #  * Do not use unicode() to wrap the call
+            #  * It is now an array. Take first value
+            path = path[0]
             if not path or (not "fort.21" in path and not "Assignments.dat"):
                 return
             if "fort.21" in path:
                 path = path.replace("fort.21","")
+                fort21file="fort.21"
             else:
                 path = path.replace("Assignments.dat","")
+                fort21file="Assignments.dat"
         # Parse command line args
         MaxClass = cml_args.get("-maxC")
         MaxClass = int(MaxClass)
@@ -295,9 +301,13 @@ class AppForm(QMainWindow):
     def save_plot(self):
         file_choices = r"Portable Network Graphics (*.png) (*.png);; All files (*)"
         
-        path = unicode(QFileDialog.getSaveFileName(self, 
+        path = QFileDialog.getSaveFileName(self, 
                         'Save file', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             self.canvas.print_figure(path, dpi=100)
             self.statusBar().showMessage('Saved to %s' % path, 2000)
@@ -305,9 +315,13 @@ class AppForm(QMainWindow):
     def open_plot(self):
         file_choices = r"Data file (*.dat) (*.dat);; All files (*)"
         
-        path = unicode(QFileDialog.getOpenFileName(self, 
+        path = QFileDialog.getOpenFileName(self, 
                         'Open spectrum', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             self.statusBar().showMessage('Opened %s' % path, 2000)    
             x,y = read_spc_xy(path)
@@ -343,7 +357,10 @@ class AppForm(QMainWindow):
             # Update Table
             self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
             cell = self.refspc_table.item(1,1)
-            cell.setTextColor(Qt.black)
+            # PyQt4
+            #cell.setTextColor(Qt.black)
+            # PyQt5
+            cell.setForeground(Qt.black)
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
                 
             self.load_experiment_spc(x,y)
@@ -406,9 +423,13 @@ class AppForm(QMainWindow):
         # File Dialog
         file_choices = "xmgrace graph (*.agr) (*.agr);; All files (*)"
         
-        path = unicode(QFileDialog.getSaveFileName(self, 
+        path = QFileDialog.getSaveFileName(self, 
                         'Export to file', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             if self.spectrum_ref:
                 spc = self.spectrum_sim+self.spectrum_ref
@@ -1205,7 +1226,10 @@ class AppForm(QMainWindow):
             for i,j in [(1,1),(2,1),(3,1)]:
                 self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
                 cell = self.refspc_table.item(i,j)
-                cell.setTextColor(Qt.black)
+                # PyQt4 (function deprecated in PyQt5)
+                #cell.setTextColor(Qt.black)
+                # PyQt5
+                cell.setForeground(Qt.black)
                 cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
             # Disable manipulations
             self.shiftref_action.setEnabled(False)
@@ -1572,7 +1596,7 @@ Examples
         self.fixlegend_cb.stateChanged.connect(self.update_fixlegend)
         
         self.inputBins_cb = QCheckBox("Input bins")
-        self.inputBins_cb.setChecked(True)
+        self.inputBins_cb.setChecked(False)
         self.inputBins_cb.setMaximumWidth(100)
         # Update when clicking
         # PyQt4 (old-style signals)
@@ -1630,10 +1654,10 @@ Examples
         #title.setBackgroundColor(Qt.lightGray)
         # PyQt5
         title.setBackground(Qt.lightGray)
-        # PyQt4
+        # PyQt4 (function deprecated in PyQt5)
         #title.setTextColor(Qt.black)
         # PyQt5
-        # ?????????
+        title.setForeground(Qt.black)
         title.setFont(font)
         title.setTextAlignment(Qt.AlignCenter)
         title.setFlags(title.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
@@ -1652,7 +1676,7 @@ Examples
             # PyQt4
             #cell.setTextColor(Qt.white)
             # PyQt5
-            # ????????
+            cell.setForeground(Qt.white)
             cell.setFont(font)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             #cell.setFlags(cell.flags() ^ Qt.ItemIsEditable)
@@ -1665,7 +1689,7 @@ Examples
             # PyQt4
             #cell.setTextColor(Qt.black)
             # PyQt5
-            # ????????????
+            cell.setForeground(Qt.black)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
         ## Last column
@@ -1690,16 +1714,16 @@ Examples
         # PyQt4
         #tbutton.setTextColor(Qt.white)
         # PyQt5
-        # ????????????
+        tbutton.setForeground(Qt.white)
         tbutton = self.refspc_table.item(3,2)
         # PyQt4
         #tbutton.setBackgroundColor(Qt.blue)
         # PyQt5
         tbutton.setBackground(Qt.blue)
-        # PyQt5
+        # PyQt4
         #tbutton.setTextColor(Qt.white)
         # PyQt5
-        # ????????????
+        tbutton.setForeground(Qt.white)
         # Connecting cellPressed(int,int), passing its arguments to the called function
         # My function definition uses the irow and icol pressed:
         # self.table_buttons_action(self,irow,icol)
