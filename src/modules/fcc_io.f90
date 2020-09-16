@@ -209,6 +209,68 @@ module fcc_io
 
     end subroutine generic_structure_reader
 
+    subroutine generic_energy_reader(unt,filetype,E,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic Hessian reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! E       (out)  real/scalar   Energy of the targer state (AU)
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        real(8)                         :: E
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !For gausslog read
+        character(100),dimension(:),allocatable :: section
+        !Other auxiliar
+        integer                          :: i
+
+        error_flag = 0
+        select case (adjustl(filetype))
+!             case("log")
+!              allocate(section(1))
+!              call summary_parser(unt,7,section(1),error_flag)
+!              read(section(1),*) Grad(1:3*Nat)
+!              deallocate(section)
+            case("fchk")
+             call read_fchk(unt,'Total Energy',data_type,N,A,IA,error_flag)
+             if (error_flag /= 0) return
+             E=A(1)
+             deallocate(A)
+!             case("cfour")
+!              call read_cfour_grad(unt,Nat,Grad,error_flag)
+!             case("molcas-ci")
+!              call read_molcas_grad(unt,Nat,Grad,error_flag,symm="CI")
+!             case("molcas")
+!              call read_molcas_grad(unt,Nat,Grad,error_flag)
+!             case("fcc")
+!              call read_fcc_grad(unt,Nat,Grad,error_flag)
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('grad')
+             error_flag = 99
+         end select
+
+         return
+
+    end subroutine generic_energy_reader
 
     subroutine generic_gradient_reader(unt,filetype,Nat,Grad,error_flag)
 

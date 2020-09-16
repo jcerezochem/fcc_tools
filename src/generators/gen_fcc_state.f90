@@ -19,9 +19,11 @@ program gen_fcc_state
 
     !Molecular info
     integer :: Nat, Nvib
+    real(8)                            :: E
     real(8),dimension(:),allocatable   :: X,Y,Z,Mass
     real(8),dimension(:),allocatable   :: Hlt, Freq, Grad
     real(8),dimension(:,:),allocatable :: L
+    real(8),dimension(:),allocatable   :: RedMass
     character(len=2)                   :: atname
 
     ! Harmonic model PES 
@@ -36,7 +38,8 @@ program gen_fcc_state
     !Additional info to prepare the input
     real(8) :: DE, T
     logical :: is_hessian = .true., &
-               is_gradient= .true.
+               is_gradient= .true., &
+               is_energy= .false.
 
     !Auxiliars
     character :: cnull
@@ -44,6 +47,7 @@ program gen_fcc_state
     integer,dimension(:),allocatable   :: IAux
     real(8),dimension(:),allocatable   :: Vec
     real(8),dimension(:,:),allocatable :: Aux,Aux2
+    real(8) :: aaa
     !Counters
     integer :: i,ii, j,jj, k, iat,jat
 
@@ -51,17 +55,20 @@ program gen_fcc_state
     character(len=100) :: strfile='input.log', &
                           hessfile='default',&
                           gradfile='default',&
+                          enerfile='default',&
                           massfile='none',&
                           outfile='default',   &
                           outmass='default',   &
                           newoutfile='default'
     character(len=10)  :: fts='guess', &
                           fth='guess', &
+                          fte='guess', &
                           ftg='guess'
     integer :: ios
     integer :: I_INP = 11, &
                I_HES = 12, &
                I_GRD = 14, &
+               I_ENE = 15, &
                I_MAS = 13, &
                O_STA = 20, &
                O_FCI = 21, &
@@ -70,7 +77,8 @@ program gen_fcc_state
                O_NEW = 24
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outmass,model_pes,force_real,filter)
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
+                     model_pes,force_real,filter)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -111,6 +119,7 @@ program gen_fcc_state
     !Allocate output data
     allocate(Freq(1:3*Nfilt))
     allocate(L(1:3*Nfilt,1:3*Nfilt))
+    allocate(RedMass(3*Nfilt))
     
     ! Open new fcc3 file (will overwrite previous one)
     open(O_NEW,file=newoutfile) !,iostat=ios)
@@ -125,7 +134,8 @@ program gen_fcc_state
     
     ! Print to fcc3 file
     print*, "  and writting geom to fcc3 file..."
-    write(O_NEW,'(A)') 'GEOM      UNITS=ANGS' !,geomunits
+    write(O_NEW,'(A)') 'GEOM      UNITS=ANGS'
+ !,geomunits
     if (Nfilt<int(1.e7)) then
         write(O_NEW,'(I6)') Nfilt
     else
@@ -169,7 +179,12 @@ program gen_fcc_state
     close(I_INP)
 
     ! We now read the allow to read the Hessian from another file
-    !Guess the file type if not given
+    !Guess the file type if not given4
+    if (adjustl(fte) == 'guess') then
+        call split_line_back(enerfile,'.',cnull,fte)
+    else if (adjustl(fth) == 'fts') then
+        fte = fts
+    endif
     if (adjustl(fth) == 'guess') then
         call split_line_back(hessfile,'.',cnull,fth)
     else if (adjustl(fth) == 'fts') then
@@ -179,6 +194,41 @@ program gen_fcc_state
         call split_line_back(gradfile,'.',cnull,fth)
     else if (adjustl(ftg) == 'fth') then
         ftg = fth
+    endif
+    
+    !Read Energy
+    !Only for supported filetypes
+    if (ftg=='log' .or. ftg=='fchk') then
+        is_energy=.true.
+        !Open gradient file
+        open(I_ENE,file=enerfile,iostat=ios)
+        if (ios /= 0) then
+            if (adjustl(model_pes) == "VH") then
+                print*, "Error opening "//trim(adjustl(gradfile))
+                stop
+            else
+                print'(/,X,A,/)', "NOTE: Energy file does not exist: skiping energy"
+                is_energy=.false.
+            endif
+        endif
+    else
+        is_energy=.false.
+    endif
+    if (is_energy) then
+        print*, "Reading Energy...", fte
+        call generic_energy_reader(I_ENE,fte,E,error)
+        if (error /= 0) then
+            print'(X,A,/)', "Error: Energy not present in the file."
+            stop
+        endif
+        close(I_ENE)
+    
+        ! Print to fcc3 file
+        print*, "  and writting grad to fcc3 file..."
+        write(O_NEW,'(A)') 'ENER      UNITS=AU' !,enerunits
+        write(O_NEW,'(ES16.8)') E
+        write(O_NEW,*) ""
+        print'(X,A,/)', "OK"
     endif
 
     !Read Gradient 
@@ -319,7 +369,7 @@ program gen_fcc_state
         endif
         !Transform L to Cartesian/Normalized
         call Lmwc_to_Lcart(Nat,Nvib,Mass,L,L,error)
-        call Lcart_to_LcartNrm(Nat,Nvib,L,L,error)
+        call Lcart_to_LcartNrm(Nat,Nvib,L,L,RedMass,error)
         !Transform Force Constants to Freq
         do i=1,Nvib
             Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
@@ -367,6 +417,25 @@ program gen_fcc_state
         stop
     endif
     close(O_STA)
+    
+    ! Print discription of vibrations
+    open(O_STA,file='description.dat')
+    do i=1,Nvib
+        write(O_STA,'(A5,I4,A1,F8.2,A)') 'Mode ', i, ':', Freq(i), ' cm-1'
+        write(O_STA,'(     10X,F8.2,A)') RedMass(i), ' amu'
+        do jj = 1,Nat
+            j=3*jj-2
+            call atominfo_from_atmass(Mass(jj),k,atname)
+            ! Factor to transform into MWC (original L elements)
+            aaa = dsqrt(Mass(jj))/RedMass(i)
+            ! Keep Gaussian output
+            aaa = 1.d0
+            write(O_STA,'(A,3X,3F8.4)') atname, L(j,i)  *aaa,&
+                                                L(j+1,i)*aaa,&
+                                                L(j+2,i)*aaa
+        enddo
+        write(O_STA,*)  ''
+    enddo
 
     if (ios /= 0) then
         print*, "Error writting state file"
@@ -407,10 +476,10 @@ program gen_fcc_state
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,massfile,outfile,newoutfile,outmass,model_pes,&
-                           force_real,filter)
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
+                           model_pes,force_real,filter)
 
-        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,massfile,&
+        character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,&
                                           outfile,outmass,model_pes,newoutfile,filter
         logical,intent(inout)          :: force_real
 
@@ -451,6 +520,13 @@ program gen_fcc_state
                     argument_retrieved=.true.
                 case ("-ftg") 
                     call getarg(i+1, ftg)
+                    argument_retrieved=.true.
+                    
+                case ("-ie") 
+                    call getarg(i+1, enerfile)
+                    argument_retrieved=.true.
+                case ("-fte") 
+                    call getarg(i+1, fte)
                     argument_retrieved=.true.
 
                 case ("-im") 
@@ -499,9 +575,14 @@ program gen_fcc_state
             fth = "fts"
         endif
         if (adjustl(gradfile) == 'default') then
-            ! The try to read the hessian from strfile
+            ! The try to read the gradient from hessfile
             gradfile = hessfile
             ftg = "fth"
+        endif
+        if (adjustl(enerfile) == 'default') then
+            ! The try to read the energy from strfile
+            enerfile = strfile
+            fte = "fts"
         endif
         if (adjustl(outfile) == 'default') then
             ! Get relative path (split_line_back returns the line in the first part is the splitter is not present)
@@ -578,6 +659,8 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -fth   filetype(hess)    '//trim(adjustl(fth))
         write(0,'(A)'  ) ' -ig    grad_input_file   '//trim(adjustl(gradfile))
         write(0,'(A)'  ) ' -ftg   filetype(grad)    '//trim(adjustl(ftg))
+        write(0,'(A)'  ) ' -ie    ener_input_file   '//trim(adjustl(enerfile))
+        write(0,'(A)'  ) ' -fte   filetype(ener)    '//trim(adjustl(fte))
         write(0,'(A)'  ) ' -im    mass_file         '//trim(adjustl(massfile))
         write(0,'(A)'  ) ' -o     output_file(fcc2) '//trim(adjustl(outfile))
         write(0,'(A)'  ) ' -ofcc  output_file(fcc3) '//trim(adjustl(newoutfile))

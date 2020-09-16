@@ -39,6 +39,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/gmx_manage.f90\
                           ../modules/psi4_manage.f90\
                           ../modules/molcas_manage.f90\
+                          ../modules/molden_manage.f90\
                           ../modules/molpro_manage.f90\
                           ../modules/turbomol_manage.f90\
                           ../modules/orca_manage.f90\

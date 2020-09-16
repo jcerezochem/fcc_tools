@@ -273,7 +273,7 @@ module vibrational_analysis
     end subroutine Lmwc_to_Lcart
 
 
-    subroutine Lcart_to_LcartNrm(Nat,Nvib,Lcart,LcartNrm,error_flag)
+    subroutine Lcart_to_LcartNrm(Nat,Nvib,Lcart,LcartNrm,RedMass,error_flag)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -298,6 +298,7 @@ module vibrational_analysis
         integer,intent(in)                      :: Nat, Nvib
         real(kind=8),dimension(:,:),intent(in)  :: Lcart
         real(kind=8),dimension(:,:),intent(out) :: LcartNrm
+        real(kind=8),dimension(:),intent(out)   :: RedMass
         integer,intent(out)                     :: error_flag
 
         !Local
@@ -312,6 +313,7 @@ module vibrational_analysis
             enddo
             !Reduced_mass(i) = 1.d0/Factor
             Factor = 1.d0/dsqrt(Factor)
+            RedMass(i) = Factor
             LcartNrm(1:3*Nat,i) = Lcart(1:3*Nat,i)*Factor
         enddo
 

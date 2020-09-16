@@ -110,6 +110,7 @@ am_gen_fcc_dipfile_OBJECTS = version.$(OBJEXT) \
 	../modules/gmx_manage.$(OBJEXT) \
 	../modules/psi4_manage.$(OBJEXT) \
 	../modules/molcas_manage.$(OBJEXT) \
+	../modules/molden_manage.$(OBJEXT) \
 	../modules/molpro_manage.$(OBJEXT) \
 	../modules/turbomol_manage.$(OBJEXT) \
 	../modules/orca_manage.$(OBJEXT) \
@@ -311,6 +312,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/gmx_manage.f90\
                           ../modules/psi4_manage.f90\
                           ../modules/molcas_manage.f90\
+                          ../modules/molden_manage.f90\
                           ../modules/molpro_manage.f90\
                           ../modules/turbomol_manage.f90\
                           ../modules/orca_manage.f90\
@@ -425,6 +427,8 @@ clean-binPROGRAMS:
 	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/molcas_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
+../modules/molden_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
+	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/molpro_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/turbomol_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
@@ -439,8 +443,6 @@ clean-binPROGRAMS:
 gen_fcc_dipfile$(EXEEXT): $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_DEPENDENCIES) $(EXTRA_gen_fcc_dipfile_DEPENDENCIES) 
 	@rm -f gen_fcc_dipfile$(EXEEXT)
 	$(AM_V_FCLD)$(gen_fcc_dipfile_LINK) $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_LDADD) $(LIBS)
-../modules/molden_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/vibrational_analysis.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 

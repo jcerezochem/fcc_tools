@@ -392,7 +392,8 @@ uninstall-am:
 
 # Build standalone binary with pyinstaller
 python-standalone-local:
-	pyinstaller fcc_analyzer_PyQt4.py --onefile
+	pyinstaller fcc_analyzer_PyQt4.py --onefile; continue
+	pyinstaller fcc_analyzer_PyQt5.py --onefile; continue
 
 python-update-version-local:
 	@echo "  "
