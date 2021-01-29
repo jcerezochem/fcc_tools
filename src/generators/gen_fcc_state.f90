@@ -198,7 +198,7 @@ program gen_fcc_state
     
     !Read Energy
     !Only for supported filetypes
-    if (ftg=='log' .or. ftg=='fchk') then
+    if (ftg=='fchk') then
         is_energy=.true.
         !Open gradient file
         open(I_ENE,file=enerfile,iostat=ios)

@@ -228,7 +228,7 @@ module fcc_io
 
         integer,intent(in)              :: unt
         character(len=*),intent(in)     :: filetype
-        real(8)                         :: E
+        real(8),intent(out)             :: E
         integer,intent(out),optional    :: error_flag
 
         !Local
