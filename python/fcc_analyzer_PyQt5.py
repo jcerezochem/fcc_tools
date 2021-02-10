@@ -25,7 +25,7 @@ import sys, os, random
 from PyQt5 import QtGui, QtCore, uic, QtWidgets
 from PyQt5.QtWidgets import QMainWindow, QApplication, QAction, QWidget, QLineEdit, QPushButton, QComboBox, \
                             QSlider, QCheckBox, QLabel, QFrame, QTextEdit, QTableWidget, QTableWidgetItem,  \
-                            QVBoxLayout, QHBoxLayout, QGridLayout, QInputDialog, QFileDialog
+                            QVBoxLayout, QHBoxLayout, QGridLayout, QInputDialog, QFileDialog, QMessageBox
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import *
 
@@ -1215,9 +1215,9 @@ class AppForm(QMainWindow):
             return
         if (i,j) == (1,2):
             clear_msg = "Clear reference spectrum?"
-            reply = QtGui.QMessageBox.question(self, 'Clear Spectrum', 
-                         clear_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Clear Spectrum', 
+                         clear_msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return            
             self.spectrum_ref[0].remove()
             self.spectrum_ref = None
@@ -1238,9 +1238,9 @@ class AppForm(QMainWindow):
         elif (i,j) == (2,2):
             # Tare the shift
             msg = "Reset shift to current value?"
-            reply = QtGui.QMessageBox.question(self, 'Reset Shift', 
-                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Reset Shift', 
+                         msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return      
             self.ref_shift = 0.0
             self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
@@ -1248,9 +1248,9 @@ class AppForm(QMainWindow):
         elif (i,j) == (3,2):
             # Tare the scale
             msg = "Reset scale to current value?"
-            reply = QtGui.QMessageBox.question(self, 'Reset Scale', 
-                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Reset Scale', 
+                         msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return      
             self.ref_scale = 1.0
             self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
