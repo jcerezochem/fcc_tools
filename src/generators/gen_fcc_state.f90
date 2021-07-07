@@ -40,6 +40,10 @@ program gen_fcc_state
     logical :: is_hessian = .true., &
                is_gradient= .true., &
                is_energy= .false.
+               
+    ! Tunings of the output files
+    logical :: write_fcc2  = .false.
+    logical :: write_modes = .false.
 
     !Auxiliars
     character :: cnull
@@ -64,6 +68,7 @@ program gen_fcc_state
                           fth='guess', &
                           fte='guess', &
                           ftg='guess'
+    character(len=100) :: msg
     integer :: ios
     integer :: I_INP = 11, &
                I_HES = 12, &
@@ -78,7 +83,7 @@ program gen_fcc_state
 
     ! Read options
     call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
-                     model_pes,force_real,filter)
+                     model_pes,force_real,filter,write_fcc2,write_modes)
     call set_word_upper_case(model_pes)
 
     !Open input file
@@ -123,7 +128,17 @@ program gen_fcc_state
     
     ! Open new fcc3 file (will overwrite previous one)
     open(O_NEW,file=newoutfile) !,iostat=ios)
-
+    ! Add a initial INFO section
+    write(O_NEW,'(A)') 'INFO'
+    write(O_NEW,'(A)') 'State file generated from file: '//trim(adjustl(strfile))//' (format: '//trim(adjustl(fts))//')'
+    if (gradfile/=strfile) &
+      write(O_NEW,'(A)') ' with gradient from: '//trim(adjustl(gradfile))//' (format: '//trim(adjustl(ftg))//')'
+    if (hessfile/=strfile) &
+      write(O_NEW,'(A)') ' with Hessian from:  '//trim(adjustl(hessfile))//' (format: '//trim(adjustl(fth))//')'
+    if (massfile/='none') &
+      write(O_NEW,'(A)') ' with masses from:      '//trim(adjustl(massfile))
+    write(O_NEW,*) ""
+    
     !Read structure
     print*, "Reading structure...", fts
     call generic_structure_reader(I_INP,fts,Nat,X,Y,Z,Mass,error)
@@ -144,7 +159,16 @@ program gen_fcc_state
     write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format (with filter: '//trim(adjustl(filter))//')'
     do ii=1,Nfilt
         i=ifilter(ii)
-        call atominfo_from_atmass(Mass(i),j,atname)
+        ! Replaced
+        ! call atominfo_from_atmass(Mass(i),j,atname)
+        j = atnum_from_atmass(Mass(i))
+        if (j == 0) then
+            atname = 'X'
+            write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
+            call alert_msg('note',msg)
+        else
+            atname = atname_from_atnum(j)
+        endif 
         write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
     enddo
     write(O_NEW,*) ""
@@ -167,14 +191,16 @@ program gen_fcc_state
     allocate(Mass(Nfilt))
     Mass=Vec
     deallocate(Vec)
-    print*, "  and writting masses to mass file..."
-    open(O_MAS,file=outmass)
-    do ii=1,Nfilt 
-        write(O_MAS,*) Mass(ii)
-    enddo
-    write(O_MAS,*) ""
-    close(O_MAS)
-    print'(X,A,/)', "OK"
+    if (write_fcc2) then
+        print*, "  and writting masses to mass file..."
+        open(O_MAS,file=outmass)
+        do ii=1,Nfilt 
+            write(O_MAS,*) Mass(ii)
+        enddo
+        write(O_MAS,*) ""
+        close(O_MAS)
+        print'(X,A,/)', "OK"
+    endif
 
     close(I_INP)
 
@@ -224,7 +250,7 @@ program gen_fcc_state
         close(I_ENE)
     
         ! Print to fcc3 file
-        print*, "  and writting grad to fcc3 file..."
+        print*, "  and writting energy to fcc3 file..."
         write(O_NEW,'(A)') 'ENER      UNITS=AU' !,enerunits
         write(O_NEW,'(ES16.8)') E
         write(O_NEW,*) ""
@@ -372,7 +398,7 @@ program gen_fcc_state
         call Lcart_to_LcartNrm(Nat,Nvib,L,L,RedMass,error)
         !Transform Force Constants to Freq
         do i=1,Nvib
-            Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
+            Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/AMUtoKG)/2.d0/pi/cvel/1.d2,Freq(i))
             if (Freq(i)<0.d0 .and. force_real) then
                 print'(3X,A,X,F12.3)', "Warning: an imaginary frequency turned real:", Freq(i)
                 Freq(i)=dabs(Freq(i))
@@ -386,85 +412,92 @@ program gen_fcc_state
         endif
     endif
 
+    if (write_fcc2) then
     !WRITE STATE FILE
     print*, "Writting state file..."
-    open(O_STA,file=outfile,status="replace",iostat=ios)
-    if (ios /= 0) then
-        print*, "Cannot open "//trim(adjustl(outfile))//" to write"
-        stop
-    endif
-
-    if (adjustl(model_pes) == "AH") then
-        do j=1,Nat
-            write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
-        enddo
-        if (is_hessian) then
-            do j=1,3*Nat
-            do i=1,Nvib
-                write(O_STA,'(E17.8)',iostat=ios) L(j,i)
-            enddo
-            enddo
-            do j=1,Nvib
-                write(O_STA,'(F10.4)',iostat=ios) Freq(j)
-            enddo
+        open(O_STA,file=outfile,status="replace",iostat=ios)
+        if (ios /= 0) then
+            print*, "Cannot open "//trim(adjustl(outfile))//" to write"
+            stop
         endif
-    elseif (adjustl(model_pes) == "VH") then
-        
-        call write_fchk(O_STA,"Cartesian Gradient",'R',3*Nat,Grad,IAux,error)
-        call write_fchk(O_STA,"Cartesian Force Constants",'R',3*Nat*(3*Nat+1)/2,Hlt,IAux,error)
-    else
-        print*, "Error: Unkown model PES: "//adjustl(model_pes)
-        stop
+
+        if (adjustl(model_pes) == "AH") then
+            do j=1,Nat
+                write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
+            enddo
+            if (is_hessian) then
+                do j=1,3*Nat
+                do i=1,Nvib
+                    write(O_STA,'(E17.8)',iostat=ios) L(j,i)
+                enddo
+                enddo
+                do j=1,Nvib
+                    write(O_STA,'(F10.4)',iostat=ios) Freq(j)
+                enddo
+            endif
+        elseif (adjustl(model_pes) == "VH") then
+            
+            call write_fchk(O_STA,"Cartesian Gradient",'R',3*Nat,Grad,IAux,error)
+            call write_fchk(O_STA,"Cartesian Force Constants",'R',3*Nat*(3*Nat+1)/2,Hlt,IAux,error)
+        else
+            print*, "Error: Unkown model PES: "//adjustl(model_pes)
+            stop
+        endif
+        close(O_STA)
+        if (ios /= 0) then
+            print*, "Error writting state file"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
     endif
-    close(O_STA)
     
-    ! Print discription of vibrations
-    open(O_STA,file='description.dat')
-    do i=1,Nvib
-        write(O_STA,'(A5,I4,A1,F8.2,A)') 'Mode ', i, ':', Freq(i), ' cm-1'
-        write(O_STA,'(     10X,F8.2,A)') RedMass(i), ' amu'
-        do jj = 1,Nat
-            j=3*jj-2
-            call atominfo_from_atmass(Mass(jj),k,atname)
-            ! Factor to transform into MWC (original L elements)
-            aaa = dsqrt(Mass(jj))/RedMass(i)
-            ! Keep Gaussian output
-            aaa = 1.d0
-            write(O_STA,'(A,3X,3F8.4)') atname, L(j,i)  *aaa,&
-                                                L(j+1,i)*aaa,&
-                                                L(j+2,i)*aaa
+    if (write_modes) then
+        ! Print discription of vibrations
+        open(O_STA,file='description.dat')
+        do i=1,Nvib
+            write(O_STA,'(A5,I4,A1,F8.2,A)') 'Mode ', i, ':', Freq(i), ' cm-1'
+            write(O_STA,'(     10X,F8.2,A)') RedMass(i), ' amu'
+            do jj = 1,Nat
+                j=3*jj-2
+                ! Replaced
+                ! call atominfo_from_atmass(Mass(i),k,atname)
+                k = atnum_from_atmass(Mass(i))
+                if (k == 0) then
+                    atname = 'X'
+                    write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
+                    call alert_msg('note',msg)
+                else
+                    atname = atname_from_atnum(k)
+                endif 
+                ! Factor to transform into MWC (original L elements)
+                aaa = dsqrt(Mass(jj))/RedMass(i)
+                ! Keep Gaussian output
+                aaa = 1.d0
+                write(O_STA,'(A,3X,3F8.4)') atname, L(j,i)  *aaa,&
+                                                    L(j+1,i)*aaa,&
+                                                    L(j+2,i)*aaa
+            enddo
+            write(O_STA,*)  ''
         enddo
-        write(O_STA,*)  ''
-    enddo
-
-    if (ios /= 0) then
-        print*, "Error writting state file"
-        stop
-    else
-        print'(X,A,/)', "OK"
     endif
 
-    !We profit to generate a first input template
-    print*, "Writting input template: 'fcc_template.inp'..."
-    open(O_FCI,file="fcc_template.inp")
-    DE = -1.d0
-    T  = -1.d0
-    call prepare_fccinput(O_FCI,Nat,Nvib,Mass,DE,T,error)
-    close(O_FCI)
-    if (error /= 0) then
-        print*, "Error writting input template"
-        stop
+    if (write_fcc2) then
+        !We profit to generate a first input template
+        print*, "Writting input template: 'fcc2_template.inp'..."
+        open(O_FCI,file="fcc2_template.inp")
+        DE = -1.d0
+        T  = -1.d0
+        call prepare_fccinput(O_FCI,Nat,Nvib,Mass,DE,T,error)
+        close(O_FCI)
+        if (error /= 0) then
+            print*, "Error writting input template"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
     endif
-    print*, "Writting input template: 'fcc3_template.inp'..."
-    open(O_FCI,file="fcc3_template.inp")
-    call prepare_fcc3input(O_FCI,Nat,Nvib,Mass,DE,T,error)
-    close(O_FCI)
-    if (error /= 0) then
-        print*, "Error writting input template"
-        stop
-    else
-        print'(X,A,/)', "OK"
-    endif
+
 
     print*, "** Successful end **"
 
@@ -477,11 +510,11 @@ program gen_fcc_state
     contains
 
     subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
-                           model_pes,force_real,filter)
+                           model_pes,force_real,filter,write_fcc2,write_modes)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,&
                                           outfile,outmass,model_pes,newoutfile,filter
-        logical,intent(inout)          :: force_real
+        logical,intent(inout)          :: force_real,write_fcc2,write_modes
 
         ! Local
         logical :: argument_retrieved,  &
@@ -533,11 +566,11 @@ program gen_fcc_state
                     call getarg(i+1, massfile)
                     argument_retrieved=.true.
 
-                case ("-o") 
+                case ("-ofcc2") 
                     call getarg(i+1, outfile)
                     argument_retrieved=.true.
                     
-                case ("-ofcc") 
+                case ("-o") 
                     call getarg(i+1, newoutfile)
                     argument_retrieved=.true.
 
@@ -557,6 +590,16 @@ program gen_fcc_state
                     force_real=.true.
                 case ("-noforce-real")
                     force_real=.false.
+                    
+                case ("-write-modes")
+                    write_modes=.true.
+                case ("-nowrite-modes")
+                    write_modes=.false.
+                    
+                case ("-write-fcc2")
+                    write_fcc2=.true.
+                case ("-nowrite-fcc2")
+                    write_fcc2=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -612,7 +655,7 @@ program gen_fcc_state
             call split_line_back(newoutfile,".",newoutfile,arg)
             if (adjustl(fts) /= 'guess') arg=fts
 !             newoutfile = trim(adjustl(prfx))//&
-            newoutfile = trim(adjustl(newoutfile))//'_'//trim(adjustl(arg))//'.fcc'
+            newoutfile = trim(adjustl(newoutfile))//'.fcc'
                          
         endif
         if (adjustl(outmass) == 'default') then
@@ -639,9 +682,11 @@ program gen_fcc_state
         write(0,'(A)'  ) 'by -fts flag. If the structure file also contains the hessian, it will'
         write(0,'(A)'  ) 'be read from that file by default. Otherwise, another file containing the'
         write(0,'(A)'  ) 'Hessian should be indicated (-ih) with filetype detected based on extension'
-        write(0,'(A)'  ) 'of specified (-fth). The output is named automatiacally as state_{input}_{ext}'
-        write(0,'(A)'  ) 'or can be indicated (-o). Masses are taken from an internal database but you'
-        write(0,'(A)'  ) 'can specify different values in a file (with Nat lines, each with the mass of'
+        write(0,'(A)'  ) 'of specified (-fth). By default, only FCC3 states files are generated. '
+        write(0,'(A)'  ) 'Optionally, FCC2 files (including mass file) can be written. FCC2 output would'
+        write(0,'(A)'  ) 'be named automatiacally as state_{input}_{ext}, or can be indicated (-ofcc2).'
+        write(0,'(A)'  ) 'Masses to carry out the analsis are taken from an internal database but they'
+        write(0,'(A)'  ) 'can be specified differently in a file (with Nat lines, each with the mass of'
         write(0,'(A)'  ) 'the atom in amu) through -im flag. The Hessian and masses used in the calculations'
         write(0,'(A)'  ) 'are writen to files, which can be specified on input (-oh -om).'
 
@@ -649,7 +694,7 @@ program gen_fcc_state
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&
-                         '[-o output_file] [-om mass_file] [-model model_PES] [-h]'
+                         '[-o output_file] [-om mass_file] [-filter X-Y,Z] [-write-fcc2] [write-modes] [-h]'
 
         write(0,'(/,A)') 'OPTIONS'
         write(0,'(A)'  ) 'Flag    Description       Current Value'
@@ -662,11 +707,15 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -ie    ener_input_file   '//trim(adjustl(enerfile))
         write(0,'(A)'  ) ' -fte   filetype(ener)    '//trim(adjustl(fte))
         write(0,'(A)'  ) ' -im    mass_file         '//trim(adjustl(massfile))
-        write(0,'(A)'  ) ' -o     output_file(fcc2) '//trim(adjustl(outfile))
-        write(0,'(A)'  ) ' -ofcc  output_file(fcc3) '//trim(adjustl(newoutfile))
+        write(0,'(A)'  ) ' -o     output_file(fcc3) '//trim(adjustl(newoutfile))
+        write(0,'(A)'  ) ' -ofcc2 output_file(fcc2) '//trim(adjustl(outfile))
         write(0,'(A)'  ) ' -om    mass_file         '//trim(adjustl(outmass))
-        write(0,'(A)'  ) ' -model model_pes[AH|VH]  '//trim(adjustl(model_pes))
+!         write(0,'(A)'  ) ' -model model_pes[AH|VH]  '//trim(adjustl(model_pes))
         write(0,'(A)'  ) ' -filt  Filter atoms      '//trim(adjustl(filter))
+        write(0,'(A,A)') ' -write-fcc2  Write fcc2 '
+        write(0,'(A,A)') '              state files',  write_fcc2
+        write(0,'(A,A)') ' -write-modes Write normal'
+        write(0,'(A,A)') '              modes descr',  write_modes
         write(0,'(A,A)') ' -force-real  turn real  ',  force_real
         write(0,'(A)'  ) '        all imag freqs' 
         write(0,'(A)'  ) ' -h     print help  '

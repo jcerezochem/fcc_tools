@@ -23,6 +23,118 @@ module gaussian_manage
     implicit none
 
     contains
+    
+    subroutine summary_parser_array(unt,isect,section,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! New summary parser, that reads in the summary section, and get
+        ! the requested section as an array of floats, instead of getting
+        ! back the whole section as a string, which may lead to excesively
+        ! large strings namely for the Gradient and (mainly) the Hessian
+        ! sections. 
+        ! 
+        ! The max length of each summary line is hardcoded to 240
+        !
+        !Arguments
+        ! unt     (inp) int /scalar   unit for the file 
+        ! isect   (inp) int /scalar   number of the section
+        !                             -- not parsed --
+        !                             1: General info (host,user,date and 
+        !                                job info: job type, method, basis set
+        !                                molecular formula)
+        !                             2: Route section
+        !                             3: Job title
+        !                             4: Molecular geometry (and atnames)
+        !                             5: Electronic properties
+        !                             -- parsed --
+        !                             6: Hessian (lower triangular form)
+        !                             7: Gradient
+        ! section (out) float/array   array with the selected section
+        ! error_flag (out) flag  0 : success
+        !                        1 : Requested secction not present in the summary
+        !                            Returns the last section read
+        !                     10+i : read error in line i
+        !
+        !==============================================================
+
+
+        integer,intent(in)           :: unt
+        integer,intent(in)           :: isect
+        real(8),dimension(:), intent(out) :: section
+        integer,intent(out),optional :: error_flag
+
+        !Local
+        ! Counters
+        integer :: i, isection
+        ! I/O
+        integer :: IOstatus
+        character(len=240) :: line
+        character(len=500) :: section_str !can hold 2 lines
+        
+        if (isect<6) then
+            call alert_msg('fatal','Only sections 6 and 7 can be read parsed with summary_parser_array')
+        endif
+
+        !Locate summary
+        error_flag = 0
+        i=0
+        do
+            i=i+1
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            if ( IOstatus < 0 ) then
+                error_flag = i+10
+                rewind(unt)
+                return
+            endif
+            if ( INDEX(line,"GINC") /= 0 ) exit
+        enddo
+
+        !Read sections
+        isection = 1
+        do isection=1,7
+            error_flag = 0
+            section_str  = ""
+            do
+                i=i+1
+                !Check if there is space for a line. Otherwise, make 
+                ! space and continue
+                if (len(section_str)-len_trim(section_str) <= len_trim(line)) then
+                    section_str=section_str(len_trim(line)+1:len(section_str))
+                endif
+                !Append last line to section_str
+                section_str=adjustl(trim(section_str))//line
+                !If we reach a section end "\\", split and finish section
+                if ( INDEX(section_str,'\\') /= 0 ) then
+                    call split_line(section_str,'\\',section_str,line)
+                    exit
+                endif
+                !Read in new line
+                read(unt,'(X,A)',IOSTAT=IOstatus) line
+                if ( IOstatus < 0 ) then
+                    error_flag = i+10
+                    rewind(unt)
+                    return
+                endif
+            enddo
+            if (isection == isect) then
+                rewind(unt)
+                return
+            endif
+            if (line == "@") then
+                error_flag = 1
+                rewind(unt)
+                return
+            endif
+
+        enddo
+
+        rewind(unt)
+        return
+
+    end subroutine summary_parser_array
 
     subroutine summary_parser(unt,isect,section,error_flag)
 
