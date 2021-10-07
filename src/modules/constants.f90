@@ -16,6 +16,7 @@ module constants
 !#endif
                            PI      = 4.0d0*datan(1.0d0),   &
                            clight  = 2.99792458D8,    &
+                           cvel    = 2.99792458d8,    & ! (alias)
                            plank   = 6.62606957D-34,  &
                            plankbar= 1.054571726D-34, &
                            boltz   = 1.3806488D-23,   &
@@ -31,6 +32,7 @@ module constants
 !#endif
                            BOHRtoAMS = 5.2917720859D-1, &
                            BOHRtoANGS= 5.2917720859D-1, &
+                           AMUtoKG   = 1.66053873d-27,  &
                            UMAtoKG   = 1.66053873d-27,  &
                            UMAtoAU   = 1.82288839d3,    &
                            AUtoKG    = 9.10938291d-31,  &
@@ -270,5 +272,26 @@ module constants
         return
 
     end subroutine atominfo_from_atmass
+    
+    function atnum_from_atmass(mass) result(Zat)
+        
+        real(8),intent(in)           :: mass
+        integer                      :: Zat
+        !Local
+        integer :: i, n
+
+        Zat = 0
+        n = size(atmass_from_atnum)
+        do i=1,n
+            if (abs(mass-atmass_from_atnum(i)) < 1.d-2) then
+                Zat  = i
+                exit
+            endif
+        enddo
+        ! There is no warning here. Need to be handle from the caller (if detects Zat=0)
+        
+        return
+
+    end function atnum_from_atmass
 
 end module constants
