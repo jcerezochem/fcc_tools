@@ -259,7 +259,7 @@ program gen_fcc_state
 
     !Read Gradient 
     !Only for supported filetypes
-    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour') then
+    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem') then
         is_gradient=.true.
         !Open gradient file
         open(I_GRD,file=gradfile,iostat=ios)

@@ -25,6 +25,7 @@ module fcc_io
     use turbomol_manage
     use gmx_manage
     use orca_manage
+    use qchem_manage
     use fcc_manage
     implicit none
 
@@ -87,6 +88,8 @@ module fcc_io
              call read_orca_natoms(unt,Nat,error_flag)
             case("orca4")
              call read_orca_natoms(unt,Nat,error_flag)
+            case("qchem")
+             call read_qchem_natoms(unt,Nat,error_flag)
             case("fcc")
              call read_fcc_natoms(unt,Nat,error_flag)
             case default
@@ -196,6 +199,9 @@ module fcc_io
              call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
             case("orca4")
              call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
+            case("qchem")
+             call read_qchem_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
             case("fcc")
              call read_fcc_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
@@ -328,6 +334,8 @@ module fcc_io
              call read_molcas_grad(unt,Nat,Grad,error_flag,symm="CI")
             case("molcas")
              call read_molcas_grad(unt,Nat,Grad,error_flag)
+            case("qchem")
+             call read_qchem_grad(unt,Nat,Grad,error_flag)
             case("fcc")
              call read_fcc_grad(unt,Nat,Grad,error_flag)
             case default
@@ -411,6 +419,8 @@ module fcc_io
              call read_orca_hess(unt,Nat,Hlt,error_flag)
             case("orca4")
              call read_orca4_hess(unt,Nat,Hlt,error_flag)
+             case("qchem")
+             call read_qchem_hess(unt,Nat,Hlt,error_flag)
             case("fcc")
              call read_fcc_hess(unt,Nat,Hlt,error_flag)
             case default
@@ -579,12 +589,14 @@ module fcc_io
             write(0,*)     "  orca     : ORCA hess file"
             write(0,*)     "  orca4    : ORCA4 hess file"
             write(0,*)     "  cfour    : cfour output"
+            write(0,*)     "  qchem    : QChem output"
             write(0,*)     "  fcc      : fcclasses new state files"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log      : g09 log"
             write(0,*)     "  fchk     : g09 fchk"
             write(0,*)     "  molcas   : grad file (no symm)"
             write(0,*)     "  cfour    : cfour output"
+            write(0,*)     "  qchem    : QChem output"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
