@@ -278,7 +278,7 @@ module qchem_manage
                     return
                 endif
                 ! 2) Found what looked for!      
-                if ( INDEX(line,"Gradient of the state") /= 0 ) then
+                if ( INDEX(line,"Gradient of ") /= 0 ) then
                     exit
                 endif
         enddo
@@ -364,7 +364,8 @@ module qchem_manage
                     return
                 endif
                 ! 2) Found what looked for!      
-                if ( INDEX(line,"Final Hessian.") /= 0 ) then
+                if ( INDEX(line,"Final Hessian.") /= 0 .or. &
+                     INDEX(line,"Hessian of the SCF Energy") /= 0) then
                     exit
                 endif
         enddo
