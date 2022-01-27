@@ -103,7 +103,8 @@ module fcc_io
     end subroutine generic_natoms_reader
 
 
-    subroutine generic_structure_reader(unt,filetype,Nat,X,Y,Z,Mass,error_flag)
+    subroutine generic_structure_reader(unt,filetype,Nat,&!AtNum, (TODO)
+                                        X,Y,Z,Mass,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -115,6 +116,7 @@ module fcc_io
         ! unt     (inp)  int /scalar   Unit of the file
         ! filetype(inp)  char/scalar   Filetype  
         ! Nat     (io )  int /scalar   Number of atoms
+        ! AtNum   (out)  int/vetor     Atomic Numbers
         ! X,Y,Z   (out)  real/vectors  Coordinates
         ! error_flag (out) flag        0: Success
         !                              1: 
@@ -124,6 +126,7 @@ module fcc_io
         integer,intent(in)              :: unt
         character(len=*),intent(in)     :: filetype
         integer,intent(inout)           :: Nat
+!         integer,dimension(:),intent(out):: AtNum (TODO)
         real(8),dimension(:),intent(out):: X,Y,Z
         real(8),dimension(:),intent(out):: Mass
         integer,intent(out),optional    :: error_flag
@@ -197,8 +200,10 @@ module fcc_io
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("orca")
              call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
             case("orca4")
              call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
             case("qchem")
              call read_qchem_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
@@ -308,19 +313,13 @@ module fcc_io
         integer,dimension(:),allocatable :: IA
         character(len=1)                 :: data_type
         integer                          :: N
-        !For gausslog read
-!         character(12*size(Grad)),dimension(:),allocatable :: section
-        character(100),dimension(:),allocatable :: section
         !Other auxiliar
         integer                          :: i
 
         error_flag = 0
         select case (adjustl(filetype))
             case("log")
-             allocate(section(1))
-             call summary_parser(unt,7,section(1),error_flag)
-             read(section(1),*) Grad(1:3*Nat)
-             deallocate(section)
+             call summary_parser_array(unt,7,Grad(1:3*Nat),error_flag)
             case("fchk")
              call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_flag)
              if (error_flag /= 0) return
@@ -378,20 +377,13 @@ module fcc_io
         integer,dimension(:),allocatable :: IA
         character(len=1)                 :: data_type
         integer                          :: N
-        !For gausslog read
-!         character(len=12*size(Hlt)),dimension(:),allocatable :: section
-        character(len=1000),dimension(:),allocatable :: section
-!         character(len=100)          :: section
         !Other auxiliar
         integer                          :: i
         
         error_flag = 0
         select case (adjustl(filetype))
             case("log")
-             allocate(section(1))
-             call summary_parser(unt,6,section(1),error_flag)
-             read(section(1),*) Hlt(1:3*Nat*(3*Nat+1)/2)
-             deallocate(section)
+             call summary_parser_array(unt,6,Hlt(1:3*Nat*(3*Nat+1)/2),error_flag)
             case("fchk")
              call read_fchk(unt,'Cartesian Force Constants',data_type,N,A,IA,error_flag)
              if (error_flag /= 0) return
@@ -419,7 +411,7 @@ module fcc_io
              call read_orca_hess(unt,Nat,Hlt,error_flag)
             case("orca4")
              call read_orca4_hess(unt,Nat,Hlt,error_flag)
-             case("qchem")
+            case("qchem")
              call read_qchem_hess(unt,Nat,Hlt,error_flag)
             case("fcc")
              call read_fcc_hess(unt,Nat,Hlt,error_flag)
@@ -510,6 +502,8 @@ module fcc_io
              call alert_msg("fatal","Filetype not supported")
             case("molpro")
              call alert_msg("fatal","Filetype not supported")
+            case("qchem")
+             call alert_msg("fatal","Filetype not (yet) supported")
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -589,14 +583,14 @@ module fcc_io
             write(0,*)     "  orca     : ORCA hess file"
             write(0,*)     "  orca4    : ORCA4 hess file"
             write(0,*)     "  cfour    : cfour output"
-            write(0,*)     "  qchem    : QChem output"
+            write(0,*)     "  qchem    : cfour output"
             write(0,*)     "  fcc      : fcclasses new state files"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log      : g09 log"
             write(0,*)     "  fchk     : g09 fchk"
             write(0,*)     "  molcas   : grad file (no symm)"
             write(0,*)     "  cfour    : cfour output"
-            write(0,*)     "  qchem    : QChem output"
+            write(0,*)     "  qchem    : cfour output"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"
