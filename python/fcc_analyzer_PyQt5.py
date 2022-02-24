@@ -1090,7 +1090,7 @@ class AppForm(QMainWindow):
     # RESPONSES TO SIGNALS
     def update_fixlegend(self):
         fixlegend = not self.fixlegend_cb.isChecked()
-        self.legend.draggable(fixlegend)
+        self.legend.set(draggable=fixlegend)
         
     
     def update_hwhm_from_slider(self,UpdateConvolute=True):
