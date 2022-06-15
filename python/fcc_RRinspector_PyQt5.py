@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf8 -*-
 
 """
@@ -17,20 +17,28 @@ License: this code is in the public domain
 Last modified: 19.01.2009
 """
 import sys, os, random
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4 import QtCore, QtGui
+# PyQt4
+# from PyQt4.QtCore import *
+# from PyQt4.QtGui import *
+# from PyQt4 import QtCore, QtGui
+# PyQt5
+from PyQt5 import QtGui, QtCore, uic, QtWidgets
+from PyQt5.QtWidgets import QMainWindow, QApplication, QAction, QWidget, QLineEdit, QPushButton, QComboBox, \
+                            QSlider, QCheckBox, QLabel, QFrame, QTextEdit, QTableWidget, QTableWidgetItem,  \
+                            QVBoxLayout, QHBoxLayout, QGridLayout, QInputDialog, QFileDialog, QMessageBox
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import *
 
 import numpy as np
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 #from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib
 import re
 
 try:
-    import version_tag
+    import fcc_analyzer_PyQt5_version as version_tag
 except:
     class version_tag:
         COMMIT="Untracked"
@@ -39,7 +47,7 @@ except:
 stick_type = 'fc'
 
 def helptext():
-    print """
+    print("""
     Description:
     ------------
     This python script parses fort.21/Assignments.dat retrieving the informaition 
@@ -52,7 +60,7 @@ def helptext():
     ------------
     General call:
     
-        fcc_analyzer_PyQt4 [options]
+        fcc_analyzer_PyQt5 [options]
     
     The data to be analyzed (fort.21) should be on the folder from where the script is being called
     If no fort.21 file is present, a window will pop-up to select the appropriate path. It the type
@@ -70,15 +78,16 @@ def helptext():
       -Clean info about transitons: push "Clean(panel)" button
       -Clean all labels: push "Clean(labels)" button
       -Export to xmgrace: use File->Export to xmgrace
-    """
+    """)
 
 class SpcConstants:
-    exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
-    factor = {"abs":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216}
+    exp = {"opa":1,"ecd":1,"emi":3,"cpl":3,'mcd':1,'tpa':2,'tpcd':2}
+    factor = {"opa":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216,'mcd':5.98442e-3,'tpa':8.35150e-4,'tpcd':8.35150e-4}
+    # JC: 'mcd':-5.98442e-3 (should be negative), but then it seems not consistent with fcc3
     # The factors already include the conversion between eV <-> au
     # to handle some issues in the emission Lineshape (need to used
     # (27.2116) factor instead of (27.2116)^3)
-    #factor = {"abs":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
+    #factor = {"opa":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
 
 
 class spectral_transition:
@@ -130,22 +139,24 @@ class spectral_transition:
     
     def info(self):
         transition = self.def_transitions()
-        msg = """ Transition:   \t%s 
+        msg = """ Transition: %s 
   =========================
-  MotherState:\t%s
-  FC class:     \t%s 
-  Einit(eV):    \t%s 
-  Efin (eV):    \t%s 
-  DE   (eV):    \t%s 
-  Intensity:    \t%s 
-  FCfactor:     \t%s 
-  INDEX:        \t%s
+  MotherState: %s
+  FC class:    %s 
+  Einit(eV):   %s 
+  Efin (eV):   %s 
+  DE   (eV):   %s 
+  DE-00(cm-1): %s 
+  Intensity:   %s 
+  FCfactor:    %s 
+  INDEX:       %s
         """%(transition,
              self.motherstate,
              self.fcclass,
              self.einit,
              self.efin,
              self.DE,
+             self.DE00cm,
              self.intensity,
              self.fcfactor,
              self.index)
@@ -160,7 +171,7 @@ class AppForm(QMainWindow):
         3) Initialize some variables
         """
         QMainWindow.__init__(self, parent)
-        self.setWindowTitle('FCclasses analyzer')
+        self.setWindowTitle('FCclasses RR inspector')
 
         self.create_menu()
         self.create_main_frame()
@@ -170,8 +181,8 @@ class AppForm(QMainWindow):
         # Broadening info
         self.broadening="Gau"
         self.update_hwhm_from_slider(UpdateConvolute=False)
-        # Data type
-        self.data_type ="Intensity"
+        # UpdateW (required to get the right value from textbox)
+        self.updateW = True
         # Line markers
         self.selected  = None
         # Label dictionary
@@ -187,97 +198,81 @@ class AppForm(QMainWindow):
         cml_args = get_args()
         
         # First locate the fort.21 file
-        if os.path.isfile('fort.21'):
+        if os.path.isfile('RR_Spectrum_2D.dat'):
             path=""
-            fort21file="fort.21"
-        elif os.path.isfile('Assignments.dat'):
-            path=""
-            fort21file="Assignments.dat"
+            RR2D_file='RR_Spectrum_2D.dat'
         else:
-            file_choices = r"Assignments.dat (Assignments.dat);;FCclasses aux (fort.21) (fort.21);; All files (*)"
-            path = unicode(QFileDialog.getOpenFileName(self, 
+            file_choices = r"RR_Spectrum_2D.dat (RR_Spectrum_2D.dat);; All files (*)"
+            path = QFileDialog.getOpenFileName(self, 
                             'Set the location of FClasses output', '', 
-                            file_choices))
-            if not path or (not "fort.21" in path and not "Assignments.dat"):
+                            file_choices)
+            # Management of QFileDialog output is different in PyQt5
+            #  * Do not use unicode() to wrap the call
+            #  * It is now an array. Take first value
+            path = path[0]
+            if not path or not 'RR_Spectrum_2D.dat' in path:
                 return
-            if "fort.21" in path:
-                path = path.replace("fort.21","")
-                fort21file="fort.21"
-            else:
-                path = path.replace("Assignments.dat","")
-                fort21file="Assignments.dat"
-        # Parse command line args
-        MaxClass = cml_args.get("-maxC")
-        MaxClass = int(MaxClass)
-        self.spc_type = cml_args.get("-type")
-        self.spc_type = str(self.spc_type).lower()
-        calc_type_list = ("abs","emi","ecd","cpl")
-        if self.spc_type not in calc_type_list:
-            # Get spc_type if not given on input or was wrong
-            get_option,self.spc_type = self.start_assistant()
-            if not get_option:
-                sys.exit()
-        # Data load
-        # Stick transitions (fort.21)
-        self.fcclass_list = read_fort21(path+fort21file,MaxClass)
-
-        # Bins to convolute spectrum (only in new versions of FCclasses)
-        if os.path.isfile(path+'fort.22'):
-            self.with_fort22 = True
-            x,y = read_spc_xy(path+'fort.22')
-            # If there are hot bands, the fort.22 file
-            # repeats the bins for each MotherState.
-            # Here we just want them all together (so as
-            # to properly handle the "Input bins" checkbox option
-            nMotherStates = x.count(x[0])
-            nbins = len(x)/nMotherStates
-            self.xbin = np.array(x[:nbins])
-            self.ybin = np.array(y[:nbins])
-            # Sum all MotherStates into the same bins
-            for i in range(nMotherStates-1):
-                n = (i+1)*nbins
-                self.ybin += np.array(y[n:n+nbins])
-            # ybin is in intensity and atomic inits. Changed to "experimental" units
-            factor = SpcConstants.factor[self.spc_type]
-            self.ybin = self.ybin*factor
-        elif os.path.isfile(path+'Bin_Spectrum.dat'):
-            self.with_fort22 = True
-            x,y = read_spc_xy(path+'Bin_Spectrum.dat')
-            # If there are hot bands, the fort.22 file
-            # repeats the bins for each MotherState.
-            # Here we just want them all together (so as
-            # to properly handle the "Input bins" checkbox option
-            nMotherStates = x.count(x[0])
-            nbins = len(x)/nMotherStates
-            self.xbin = np.array(x[:nbins])
-            self.ybin = np.array(y[:nbins])
-            # Sum all MotherStates into the same bins
-            for i in range(nMotherStates-1):
-                n = (i+1)*nbins
-                self.ybin += np.array(y[n:n+nbins])
-            # ybin is in intensity and atomic inits. Changed to "experimental" units
-            factor = SpcConstants.factor[self.spc_type]
-            self.ybin = self.ybin*factor
-        elif os.path.isfile(path+'fort.18'):
-            self.with_fort22 = False
-            x,y = read_spc_xy(path+'fort.18',fromsection="Total spectrum at the chosen temperature")
-            # Deactivate convolution controls
-            self.inputBins_cb.setEnabled(False)
-            self.broadbox.setText("-")
-            self.broadbox.setEnabled(False)
-            self.slider.setEnabled(False)
-            self.select_broad.setEnabled(False)
+            path = path.replace('RR_Spectrum_2D.dat',"")
+            RR2D_file='RR_Spectrum_2D.dat'
+        ## Parse command line args
+        #MaxClass = cml_args.get("-maxC")
+        #MaxClass = int(MaxClass)
+        #self.spc_type = cml_args.get("-type")
+        #self.spc_type = str(self.spc_type).lower()
+        #calc_type_list = ("opa","emi","ecd","cpl","mcd","tpa","tpcd")
+        #if self.spc_type not in calc_type_list:
+            ## Get spc_type if not given on input or was wrong
+            #get_option,self.spc_type = self.start_assistant()
+            #if not get_option:
+                #sys.exit()
+                
+        # Get Ev from RR_Spectrum_VertE.dat
+        if os.path.isfile(path+'RR_Spectrum_VertE.dat'):
+            with open(path+'RR_Spectrum_VertE.dat') as f:
+                line = f.readline()
+                line = f.readline()
+                line = line.split('maximum')[-1]
+                Ev = float(line.split()[0]) / 1.23981e-4
         else:
-            sys.exit("No convoluted spectrum could be loaded")
+            Ev = -1
+
+        # Read all data from file
+        data = np.loadtxt(path+RR2D_file)
+        x = data[:,0]
+        y = data[:,1]
+        z = data[:,2]
+        # Get size of x(vib bands) and y(indicend freqs)
+        nx = len(np.where(y==y[0])[0])
+        ny = len(np.where(x==x[0])[0])
+        # Expose all data to the class methods
+        self.X = x.reshape(nx,ny)
+        self.Y = y.reshape(nx,ny)
+        self.Z = z.reshape(nx,ny)
+        
+        # Get vector with wI
+        self.wI = self.Y[0,:]
+        if Ev>0:
+            w_ind = (np.abs(self.wI - Ev)).argmin()
+        else:
+            w_ind = int(len(self.wI)/2)
+        w = self.wI[w_ind]
+        self.winc_box.setText(str(round(w,2)))
+        self.winc_slider.setRange(1, len(self.wI))
+        #self.update_incident_freq_from_slider()
+        
+        # First selections
+        i0=1
+        self.xbin = self.X[i0:,100]
+        self.ybin = self.Z[i0:,100]
         
         # This is the load driver
-        self.load_sticks(cml_args.get("-stick"))
+        #self.load_sticks()
+        self.load_convoluted()
         self.set_axis_labels()
-        if os.path.isfile(path+'fort.22') or os.path.isfile(path+'Bin_Spectrum.dat'):
-            self.load_convoluted()
-        else:
-            self.load_fixconvolution(x,y)
-        self.load_legend()        
+        #self.load_legend()
+        
+        # We call update to get fix the slider
+        self.update_incident_freq_from_textbox()
         
         if cml_args.get("--test"):
             sys.exit()
@@ -289,9 +284,13 @@ class AppForm(QMainWindow):
     def save_plot(self):
         file_choices = r"Portable Network Graphics (*.png) (*.png);; All files (*)"
         
-        path = unicode(QFileDialog.getSaveFileName(self, 
+        path = QFileDialog.getSaveFileName(self, 
                         'Save file', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             self.canvas.print_figure(path, dpi=100)
             self.statusBar().showMessage('Saved to %s' % path, 2000)
@@ -299,45 +298,26 @@ class AppForm(QMainWindow):
     def open_plot(self):
         file_choices = r"Data file (*.dat) (*.dat);; All files (*)"
         
-        path = unicode(QFileDialog.getOpenFileName(self, 
+        path = QFileDialog.getOpenFileName(self, 
                         'Open spectrum', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             self.statusBar().showMessage('Opened %s' % path, 2000)    
             x,y = read_spc_xy(path)
             x = np.array(x)
             y = np.array(y)
-            # Pop-up a selector to indicate units of Xaxis
-            ok, units = self.spc_import_assitant_Xaxis()
-            if not ok:
-                self.statusBar().showMessage('Load data aborted', 2000)
-                return
-            # Transform X axis if needed
-            if units == "cm^-1":
-                x = x * 1.23981e-4
-            elif units == "nm":
-                x = 1239.81/x
-                
-            # Pop-up a selector to indicate units of Yaxis
-            ok, data_type = self.spc_import_assitant_Yaxis()
-            if not ok:
-                self.statusBar().showMessage('Load data aborted', 2000)
-                return
-            if data_type != self.data_type:
-                # If data_type is not the same as the graph, transform the data
-                n = SpcConstants.exp[self.spc_type]
-                factor = SpcConstants.factor[self.spc_type]
-                if self.data_type == "Lineshape":
-                    # Division x/27.2116 could be included in the factor
-                    y /= (x/27.2116)**n * factor
-                elif self.data_type == "Intensity":
-                    # Division x/27.2116 could included in the factor
-                    y *= (x/27.2116)**n * factor
             
             # Update Table
             self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
             cell = self.refspc_table.item(1,1)
-            cell.setTextColor(Qt.black)
+            # PyQt4
+            #cell.setTextColor(Qt.black)
+            # PyQt5
+            cell.setForeground(Qt.black)
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
                 
             self.load_experiment_spc(x,y)
@@ -357,7 +337,7 @@ class AppForm(QMainWindow):
     # POP-UP WINDOWS
     #==========================================================
     def start_assistant(self):
-        calc_type_list = ("abs","emi","ecd","cpl")
+        calc_type_list = ("opa","emi","ecd","cpl","mcd","tpa","tpcd")
                  
         spc_type, ok = QInputDialog.getItem(self, "Select type of calculation", 
                             "Type of calculation", calc_type_list, 0, False)
@@ -366,7 +346,7 @@ class AppForm(QMainWindow):
     
     
     def spc_import_assitant_Xaxis(self):
-        unit_list = ("eV", "cm^-1", "nm")
+        unit_list = ("cm^-1", "eV", "nm")
                  
         units, ok = QInputDialog.getItem(self, "Import Assistant", 
                     "X-Units", unit_list, 0, False)
@@ -400,9 +380,13 @@ class AppForm(QMainWindow):
         # File Dialog
         file_choices = "xmgrace graph (*.agr) (*.agr);; All files (*)"
         
-        path = unicode(QFileDialog.getSaveFileName(self, 
+        path = QFileDialog.getSaveFileName(self, 
                         'Export to file', '', 
-                        file_choices))
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
         if path:
             if self.spectrum_ref:
                 spc = self.spectrum_sim+self.spectrum_ref
@@ -413,6 +397,27 @@ class AppForm(QMainWindow):
             else:
                 ax2 = None
             export_xmgrace(path,self.axes,self.fcclass_list,self.labs,ax2=ax2,specs=spc)
+            
+    def dat_export(self):
+        # File Dialog
+        file_choices = "dat file (*.dat) (*.dat);; All files (*)"
+        
+        path = QFileDialog.getSaveFileName(self, 
+                        'Export to file', '', 
+                        file_choices)
+        # Management of QFileDialog output is different in PyQt5
+        #  * Do not use unicode() to wrap the call
+        #  * It is now an array. Take first value
+        path = path[0]
+        if path:
+            # Export simulated spectrum only:
+            spc = self.spectrum_sim
+            f = open(path,'w')
+            x = spc[0].get_xdata()
+            y = spc[0].get_ydata()
+            for j in range(len(x)):
+                print(x[j], y[j], file=f)
+            f.close()
     
     def on_about(self):
         msg = """
@@ -607,46 +612,43 @@ class AppForm(QMainWindow):
     #==========================================================
     # LOAD DATA AND ELEMENTS
     #==========================================================
-    def load_sticks(self,stick_type):
+    def load_sticks(self,wi_index=0):
         """ 
         Load stick spectra for all classes (C0,C1...,CHot)
         - The spectra objects are stored in a list: self.stickspc
         """
         # clear the axes and redraw the plot anew
         # 
-        self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
-        self.axes.set_xlabel('Energy (eV)',fontsize=16)
+        self.axes.set_title('RR stick spectrum from $\mathcal{FC}classes$',fontsize=18)
+        self.axes.set_xlabel('Energy (cm-1)',fontsize=16)
         self.axes.set_ylabel('Stick Intensity',fontsize=16)
         self.axes.tick_params(direction='out',top=False, right=False)
         
         
         #Plotting sticks and store objects
         # Set labels and colors
-        label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
-        color_list = ['k', 'b', 'r', 'g', 'c', 'm', 'brown', 'pink', 'orange' ]
-
+        label_list = ['Rayleigh','Stokes']
+        color_list = ['k', 'b']
+        
+        # Get data
 
         #Inialize variables
         self.stickspc = []
         xmin =  999.
         xmax = -999
-        for iclass in range(9):
-            x = np.array([ self.fcclass_list[iclass][i].DE        for i in range(len(self.fcclass_list[iclass])) ])
-            if stick_type == "fc":
-                # Get intensity as FC^2
-                for i in range(len(self.fcclass_list[iclass])):
-                    self.fcclass_list[iclass][i].intensity = self.fcclass_list[iclass][i].fcfactor**2
-            y = np.array([ self.fcclass_list[iclass][i].intensity for i in range(len(self.fcclass_list[iclass])) ])
-            z = np.zeros(len(x))
-            if len(x) == 0:
-                self.stickspc.append(None)
-            else:
-                self.stickspc.append(self.axes.vlines(x,z,y,linewidths=1,color=color_list[iclass],
-                                                      label=label_list[iclass],picker=5))
-                xmin = min([xmin,min(x)])
-                xmax = max([xmax,max(x)])
-                # Getting the type from the objects when loaded for future use
-                self.LineCollectionType = type(self.stickspc[-1])
+        # Rayleigh
+        x = self.X[0,wi_index]
+        y = self.Y[0,wi_index]
+        z = self.Z[0,wi_index]
+        if len(x) == 0:
+            self.stickspc.append(None)
+        else:
+            self.stickspc.append(self.axes.vlines(x,z,y,linewidths=1,color=color_list[iclass],
+                                                  label=label_list[iclass],picker=5))
+            xmin = min([xmin,min(x)])
+            xmax = max([xmax,max(x)])
+            # Getting the type from the objects when loaded for future use
+            self.LineCollectionType = type(self.stickspc[-1])
                 
         self.axes2.set_xlim([xmin-0.15,xmax+0.15])
         
@@ -660,13 +662,10 @@ class AppForm(QMainWindow):
         
         #Legends management
         # First get lines from both axes
-        lns  = list(filter(lambda x:x,self.stickspc))+self.spectrum_sim
+        lns  = self.spectrum_sim
         labs = [l.get_label() for l in lns]
         # Set the location according to the type of calculation
-        if self.spc_type in ["abs","ecd"]:
-            position="upper right"
-        else:
-            position="upper left"
+        position="upper right"
         self.legend = self.axes.legend(lns,labs,loc=position, fancybox=True, shadow=True)
         self.LegendType = type(self.legend)
         self.legend.get_frame().set_alpha(0.4)
@@ -685,35 +684,20 @@ class AppForm(QMainWindow):
             
             
     def set_axis_labels(self):
-        if self.data_type == "Lineshape":
-            self.axes2.set_ylabel(r'Lineshape (a.u.)',fontsize=16)
-        elif self.spc_type == 'abs':
-            self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
-        elif self.spc_type == 'ecd':
-            self.axes2.set_ylabel(r'$\Delta\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
-        elif self.spc_type == 'emi':
-            self.axes2.set_ylabel(r'I (molecule$^{-1}$ns$^{-1}$]',fontsize=16)
-        elif self.spc_type == 'cpl':
-            self.axes2.set_ylabel(r'$\Delta$I (molec$^{-1}$ns$^{-1}$]',fontsize=16)
-        self.axes2.set_xlabel('Energy (eV)',fontsize=16)
+        self.axes.set_title('vRR spectrum from $\mathcal{FC}classes$',fontsize=18)
+        self.axes2.set_ylabel(r'$d\sigma/d\Omega$ (cm$^2$/sr)',fontsize=16)
+        self.axes2.set_xlabel('Frequency (cm$^{-1}$)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
-            
-
-    def load_fixconvolution(self,x,y):
-        self.spectrum_sim = self.axes2.plot(x,y,'--',color='k',label="Conv")
-        
-        self.canvas.draw()
         
             
     def load_convoluted(self):
-        str = unicode(self.broadbox.text())
-        hwhm = float(str)
+        txt = str(self.broadbox.text())
+        hwhm = float(txt)
         fixaxes = self.fixaxes_cb.isChecked()
-        
         #Convolution
-        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
         # Plot convoluted
-        self.spectrum_sim = self.axes2.plot(xc,yc,'--',color='k',label="Conv")
+        self.spectrum_sim = self.axes2.plot(xc,yc,color='k',label="RR spectrum")
         if not fixaxes:
             self.rescale_yaxis()
         
@@ -721,12 +705,12 @@ class AppForm(QMainWindow):
         
         
     def update_convolute(self):
-        str = unicode(self.broadbox.text())
-        hwhm = float(str)
+        txt = str(self.broadbox.text())
+        hwhm = float(txt)
         fixaxes = self.fixaxes_cb.isChecked()
         
         #Convolution (in energy(eV))
-        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
+        xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening)
         # Re-Plot convoluted
         #self.spectrum_sim[0].remove()
         self.spectrum_sim[0].set_xdata(xc)
@@ -778,16 +762,11 @@ class AppForm(QMainWindow):
     
     def shift_spectrum(self,x,y,shift):
         # If Intensity, we need to pass to LS before shifting
-        if self.data_type == "Intensity":
-            n = SpcConstants.exp[self.spc_type]
-            factor = SpcConstants.factor[self.spc_type]
-            # Division x/27.2116 could be included in the factor
-            y /= (x/27.2116)**n * factor
+        n = 1 # w_s * w_I³ ?
+        y /= x**n 
         x = x + shift
         # If Intensity, set back from Lineshape
-        if self.data_type == "Intensity":
-            # Division x/27.2116 could be included in the factor
-            y *= (x/27.2116)**n * factor
+        y *= x**n
         
         return x,y
         
@@ -816,12 +795,12 @@ class AppForm(QMainWindow):
         so as to avoid the need of knowing them
         So, we get the type from the object when it is called
         """
-        if type(event.artist) == self.LineCollectionType:
-            self.select_stick(event)
-        elif type(event.artist) == self.AnnotationType:
+        #if type(event.artist) == self.LineCollectionType:
+            #self.select_stick(event)
+        if type(event.artist) == self.AnnotationType:
             self.active_label = event.artist
         elif type(event.artist) == self.Line2DType:
-            self.del_stick_marker()
+            #self.del_stick_marker()
             self.interact_with_legend(event)
         #elif type(event.artist) == self.LegendType:
             #self.legend.draggable()
@@ -1020,7 +999,7 @@ class AppForm(QMainWindow):
                 # For Hot bands, write also initial state
                 for i in range(0,len(tr.init)):
                     label = label+str(tr.init[i])+'^{'+str(tr.qinit[i])+'},'
-                    agrlabel = agrlabel+str(tr.init[i])+'\S'+str(tr.qinit[i])+'\N,'
+                    agrlabel = agrlabel+str(tr.init[i])+'\\S'+str(tr.qinit[i])+'\\N,'
                 if len(tr.init) == 0:
                     label=label+"0,"
                     agrlabel=agrlabel+"0,"
@@ -1028,7 +1007,7 @@ class AppForm(QMainWindow):
                 agrlabel = agrlabel[0:-1]+'-'
             for i in range(0,len(tr.final)):
                 label = label+str(tr.final[i])+'^{'+str(tr.qfinal[i])+'},'
-                agrlabel = agrlabel+str(tr.final[i])+'\S'+str(tr.qfinal[i])+'\N,'
+                agrlabel = agrlabel+str(tr.final[i])+'\\S'+str(tr.qfinal[i])+'\\N,'
             if len(tr.final) == 0:
                 label=label+"0,"
                 agrlabel=agrlabel+"0,"
@@ -1048,7 +1027,7 @@ class AppForm(QMainWindow):
         for labref in self.labs:
             lab = self.labs[labref]
             if lab == agrlabel:
-                print "This label was already defined"
+                print("This label was already defined")
                 set_lab = False
         if set_lab:
             # The dictionary labs relates each labelref(annotation) to 
@@ -1062,33 +1041,89 @@ class AppForm(QMainWindow):
     
     # RESPONSES TO SIGNALS
     def update_fixlegend(self):
-        fixlegend = not self.fixlegend_cb.isChecked()
-        self.legend.draggable(fixlegend)
+        #fixlegend = not self.fixlegend_cb.isChecked()
+        #self.legend.set(draggable=fixlegend)
+        pass
         
     
     def update_hwhm_from_slider(self,UpdateConvolute=True):
-        hwhmmin = 0.01
-        hwhmmax = 0.1
+        hwhmmin = 1
+        hwhmmax = 26
         slidermin = 1   # this is not changed
-        slidermax = 100 # this is not changed
+        slidermax = 101 # this is not changed
         hwhm = float((hwhmmax-hwhmmin)/(slidermax-slidermin) * (self.slider.value()-slidermin) + hwhmmin)
         hwhm = round(hwhm,3)
         self.broadbox.setText(str(hwhm))
         if (UpdateConvolute):
             self.update_convolute()
+            
         
+    def update_incident_freq_from_slider(self):
+        wmin = self.wI.min()
+        wmax = self.wI.max()
+        slidermin = 1   # this is not changed
+        slidermax = len(self.wI) # this is not changed
+        w = float((wmax-wmin)/(slidermax-slidermin) * (self.winc_slider.value()-slidermin) + wmin)
+        # Get the closest value
+        w_ind = (np.abs(self.wI - w)).argmin()
+        w = self.wI[w_ind]
+        # Update slider
+        sliderval = int((slidermax-slidermin)/(wmax-wmin) * (w-wmin) + slidermin)
+        sliderval = min(sliderval,slidermax)
+        sliderval = max(sliderval,slidermin)
+        self.winc_slider.setValue(sliderval)
+        # Update textbox (this will trigger the update)
+        if self.updateW:
+            self.winc_box.setText(str(round(w,2)))
+            # Get new bins
+            if self.showRayleigh_cb.isChecked():
+                i0 = 0
+            else:
+                i0 = 1
+            self.xbin = self.X[i0:,w_ind] * float(self.scale_factor_box.text())
+            self.ybin = self.Z[i0:,w_ind]
+            self.update_convolute()
+            
         
     def update_hwhm_from_textbox(self):
-        hwhmmin = 0.01
-        hwhmmax = 0.1
+        hwhmmin = 1
+        hwhmmax = 25
         slidermin = 1   # this is not changed
         slidermax = 100 # this is not changed
-        str = unicode(self.broadbox.text())
-        hwhm = float(str)
+        msg = str(self.broadbox.text())
+        hwhm = float(msg)
         sliderval = int((slidermax-slidermin)/(hwhmmax-hwhmmin) * (hwhm-hwhmmin) + slidermin)
         sliderval = min(sliderval,slidermax)
         sliderval = max(sliderval,slidermin)
         self.slider.setValue(sliderval)
+        self.update_convolute()
+        
+        
+    def update_incident_freq_from_textbox(self):
+        wmin = self.wI.min()
+        wmax = self.wI.max()
+        slidermin = 1   # this is not changed
+        slidermax = len(self.wI) # this is not changed
+        msg = str(self.winc_box.text())
+        w = float(msg)
+        # Get the closest value
+        w_ind = (np.abs(self.wI - w)).argmin()
+        w = self.wI[w_ind]
+        self.winc_box.setText(str(round(w,2)))
+        # Update slider
+        sliderval = int((slidermax-slidermin)/(wmax-wmin) * (w-wmin) + slidermin)
+        sliderval = min(sliderval,slidermax)
+        sliderval = max(sliderval,slidermin)
+        self.updateW = False
+        self.winc_slider.setValue(sliderval)
+        self.updateW = True
+        # Get new bins
+        if self.showRayleigh_cb.isChecked():
+            i0 = 0
+        else:
+            i0 = 1
+        self.xbin = self.X[i0:,w_ind] * float(self.scale_factor_box.text())
+        self.ybin = self.Z[i0:,w_ind]
         self.update_convolute()
         
         
@@ -1134,51 +1169,51 @@ class AppForm(QMainWindow):
         self.update_convolute()
         
         
-    def update_data_type(self):
-        current_data_type = self.data_type
-        self.data_type = self.select_data_type.currentText()
+    #def update_incident_freq(self):
+        #current_incident_freq = self.incident_freq
+        #self.data_type = self.select_data_type.currentText()
         
-        if current_data_type != self.data_type:
-            factor = SpcConstants.factor[self.spc_type]
-            n = SpcConstants.exp[self.spc_type]
-            if self.with_fort22:
-                if self.data_type == "Lineshape":
-                    # Division x/27.2116 could be included in the factor
-                    self.ybin /= (self.xbin/27.2116)**n * factor
-                elif self.data_type == "Intensity":
-                    # Division x/27.2116 could be included in the factor
-                    self.ybin *= (self.xbin/27.2116)**n * factor
-            else:
-                if self.spectrum_sim:
-                    x = self.spectrum_sim[0].get_xdata()
-                    y = self.spectrum_sim[0].get_ydata()
-                    if self.data_type == "Lineshape":
-                        # Division x/27.2116 could be included in the factor
-                        y /= (x/27.2116)**n * factor
-                    elif self.data_type == "Intensity":
-                        # Division x/27.2116 could be included in the factor
-                        y *= (x/27.2116)**n * factor
-                    self.spectrum_sim[0].set_ydata(y)
+        #if current_data_type != self.data_type:
+            #factor = SpcConstants.factor[self.spc_type]
+            #n = SpcConstants.exp[self.spc_type]
+            #if self.with_fort22:
+                #if self.data_type == "Lineshape":
+                    ## Division x/27.2116 could be included in the factor
+                    #self.ybin /= (self.xbin/27.2116)**n * factor
+                #elif self.data_type == "Intensity":
+                    ## Division x/27.2116 could be included in the factor
+                    #self.ybin *= (self.xbin/27.2116)**n * factor
+            #else:
+                #if self.spectrum_sim:
+                    #x = self.spectrum_sim[0].get_xdata()
+                    #y = self.spectrum_sim[0].get_ydata()
+                    #if self.data_type == "Lineshape":
+                        ## Division x/27.2116 could be included in the factor
+                        #y /= (x/27.2116)**n * factor
+                    #elif self.data_type == "Intensity":
+                        ## Division x/27.2116 could be included in the factor
+                        #y *= (x/27.2116)**n * factor
+                    #self.spectrum_sim[0].set_ydata(y)
             
-            if self.spectrum_ref:
-                x = self.spectrum_ref[0].get_xdata()
-                y = self.spectrum_ref[0].get_ydata()
-                if self.data_type == "Lineshape":
-                    # Division x/27.2116 could be included in the factor
-                    y /= (x/27.2116)**n * factor
-                elif self.data_type == "Intensity":
-                    # Division x/27.2116 could be included in the factor
-                    y *= (x/27.2116)**n * factor
-                self.spectrum_ref[0].set_ydata(y)
+            #if self.spectrum_ref:
+                #x = self.spectrum_ref[0].get_xdata()
+                #y = self.spectrum_ref[0].get_ydata()
+                #if self.data_type == "Lineshape":
+                    ## Division x/27.2116 could be included in the factor
+                    #y /= (x/27.2116)**n * factor
+                #elif self.data_type == "Intensity":
+                    ## Division x/27.2116 could be included in the factor
+                    #y *= (x/27.2116)**n * factor
+                #self.spectrum_ref[0].set_ydata(y)
                 
-            self.set_axis_labels()
-            if self.with_fort22:
-                self.update_convolute()
-            else:
-                fixaxes = self.fixaxes_cb.isChecked()
-                if not fixaxes:
-                    self.rescale_yaxis()
-                self.canvas.draw()
+            #self.set_axis_labels()
+            #if self.with_fort22:
+                #self.update_convolute()
+            #else:
+                #fixaxes = self.fixaxes_cb.isChecked()
+                #if not fixaxes:
+                    #self.rescale_yaxis()
+                #self.canvas.draw()
                 
                 
     def table_buttons_action(self,i,j):
@@ -1188,9 +1223,9 @@ class AppForm(QMainWindow):
             return
         if (i,j) == (1,2):
             clear_msg = "Clear reference spectrum?"
-            reply = QtGui.QMessageBox.question(self, 'Clear Spectrum', 
-                         clear_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Clear Spectrum', 
+                         clear_msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return            
             self.spectrum_ref[0].remove()
             self.spectrum_ref = None
@@ -1199,7 +1234,10 @@ class AppForm(QMainWindow):
             for i,j in [(1,1),(2,1),(3,1)]:
                 self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
                 cell = self.refspc_table.item(i,j)
-                cell.setTextColor(Qt.black)
+                # PyQt4 (function deprecated in PyQt5)
+                #cell.setTextColor(Qt.black)
+                # PyQt5
+                cell.setForeground(Qt.black)
                 cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
             # Disable manipulations
             self.shiftref_action.setEnabled(False)
@@ -1208,9 +1246,9 @@ class AppForm(QMainWindow):
         elif (i,j) == (2,2):
             # Tare the shift
             msg = "Reset shift to current value?"
-            reply = QtGui.QMessageBox.question(self, 'Reset Shift', 
-                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Reset Shift', 
+                         msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return      
             self.ref_shift = 0.0
             self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
@@ -1218,9 +1256,9 @@ class AppForm(QMainWindow):
         elif (i,j) == (3,2):
             # Tare the scale
             msg = "Reset scale to current value?"
-            reply = QtGui.QMessageBox.question(self, 'Reset Scale', 
-                         msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.No:
+            reply = QMessageBox.question(self, 'Reset Scale', 
+                         msg, QMessageBox.Yes, QMessageBox.No)
+            if reply == QMessageBox.No:
                 return      
             self.ref_scale = 1.0
             self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
@@ -1263,206 +1301,207 @@ class AppForm(QMainWindow):
         Read the content in the seach box and interpret
         it to a search action to pick the selected transitions
         """
-        command = str(self.search_box.text())
+        return
+        #command = str(self.search_box.text())
         
-        # First, check if the used is only asking for help
-        if command == 'help':
-            msg = """ 
-Examples
----------
-1(1),2(1)   - From ground to 1(1),2(1)
-1(1),2(P)   - Progression over mode 2
-1(1)-->1(1) - Hot transition
-1(1)-->0    - M-0 transition
-0-->0       - 0-0 transition
-        """
-            self.analysis_box.setText(msg)
-            return
+        ## First, check if the used is only asking for help
+        #if command == 'help':
+            #msg = """ 
+#Examples
+#---------
+#1(1),2(1)   - From ground to 1(1),2(1)
+#1(1),2(P)   - Progression over mode 2
+#1(1)-->1(1) - Hot transition
+#1(1)-->0    - M-0 transition
+#0-->0       - 0-0 transition
+        #"""
+            #self.analysis_box.setText(msg)
+            #return
         
-        # Start processing the command
-        self.statusBar().showMessage('Searching transition '+command, 2000)
-        # Here, use regexp to set the validity of the command
-        pattern = r'(( )*(([0-9pP]+\([0-9]+\)( )*\,( )*)*( )*[0-9pP]+\([0-9]+\)|0)( )*\-\->( )*){0,1}(( )*([0-9]+\([0-9pP]+\)( )*\,( )*)*( )*[0-9]+\([0-9pP]+\)|0)( )*'
-        match = re.match(pattern,command)
-        if not match or match.group() != command:
-        #     [m'1(q'1),m'2(q'2)... -->] m1(q1),m2(q2)...
-        # or: 0 --> 0 
-            if self.selected:
-                self.selected.remove()
-                self.selected = None
-                self.canvas.draw()
-            self.analysis_box.setText("")
-            self.statusBar().showMessage('Invalid syntax', 2000)
-            return
-        transition_list=command.split('-->')
-        if len(transition_list) == 2:
-            state_ini,state_fin = transition_list
-        elif len(transition_list) == 1:
-            state_ini  = "0"
-            state_fin, = transition_list
+        ## Start processing the command
+        #self.statusBar().showMessage('Searching transition '+command, 2000)
+        ## Here, use regexp to set the validity of the command
+        #pattern = r'(( )*(([0-9pP]+\([0-9]+\)( )*\,( )*)*( )*[0-9pP]+\([0-9]+\)|0)( )*\-\->( )*){0,1}(( )*([0-9]+\([0-9pP]+\)( )*\,( )*)*( )*[0-9]+\([0-9pP]+\)|0)( )*'
+        #match = re.match(pattern,command)
+        #if not match or match.group() != command:
+        ##     [m'1(q'1),m'2(q'2)... -->] m1(q1),m2(q2)...
+        ## or: 0 --> 0 
+            #if self.selected:
+                #self.selected.remove()
+                #self.selected = None
+                #self.canvas.draw()
+            #self.analysis_box.setText("")
+            #self.statusBar().showMessage('Invalid syntax', 2000)
+            #return
+        #transition_list=command.split('-->')
+        #if len(transition_list) == 2:
+            #state_ini,state_fin = transition_list
+        #elif len(transition_list) == 1:
+            #state_ini  = "0"
+            #state_fin, = transition_list
             
             
-        # Initial state
-        imodes  = []
-        iquanta = []
-        if not "(" in state_ini and int(state_ini) == 0:
-            transitions = []
-        else:
-            transitions = state_ini.split(',')
-        for tr in transitions:
-            m,q = tr.split('(')
-            # If re.match is done well (as it is?) these try/except
-            # should no be needed. To be removed
-            try:
-                imodes.append(int(m))
-            except:
-                self.statusBar().showMessage('Invalid syntax', 2000)
-                return
-            try:
-                iquanta.append(int(q.replace(')','')))
-            except:
-                self.statusBar().showMessage('Invalid syntax', 2000)
-                return
+        ## Initial state
+        #imodes  = []
+        #iquanta = []
+        #if not "(" in state_ini and int(state_ini) == 0:
+            #transitions = []
+        #else:
+            #transitions = state_ini.split(',')
+        #for tr in transitions:
+            #m,q = tr.split('(')
+            ## If re.match is done well (as it is?) these try/except
+            ## should no be needed. To be removed
+            #try:
+                #imodes.append(int(m))
+            #except:
+                #self.statusBar().showMessage('Invalid syntax', 2000)
+                #return
+            #try:
+                #iquanta.append(int(q.replace(')','')))
+            #except:
+                #self.statusBar().showMessage('Invalid syntax', 2000)
+                #return
         
         
-        # Final state
-        fmodes  = []
-        fquanta = []
-        pindex = []
-        if not "(" in state_fin and int(state_fin) == 0:
-            transitions = []
-        else:
-            transitions = state_fin.split(',')
-        for tr in transitions:
-            m,q = tr.split('(')
-            try:
-                fmodes.append(int(m))
-            except:
-                self.statusBar().showMessage('Invalid syntax', 2000)
-                return
-            if q.strip().upper() == 'P)':
-                progression=True
-                pindex.append(len(fquanta))
-                fquanta.append(-1)
-            else:
-                try:
-                    fquanta.append(int(q.replace(')','')))
-                except:
-                    self.statusBar().showMessage('Invalid syntax', 2000)
-                    return
+        ## Final state
+        #fmodes  = []
+        #fquanta = []
+        #pindex = []
+        #if not "(" in state_fin and int(state_fin) == 0:
+            #transitions = []
+        #else:
+            #transitions = state_fin.split(',')
+        #for tr in transitions:
+            #m,q = tr.split('(')
+            #try:
+                #fmodes.append(int(m))
+            #except:
+                #self.statusBar().showMessage('Invalid syntax', 2000)
+                #return
+            #if q.strip().upper() == 'P)':
+                #progression=True
+                #pindex.append(len(fquanta))
+                #fquanta.append(-1)
+            #else:
+                #try:
+                    #fquanta.append(int(q.replace(')','')))
+                #except:
+                    #self.statusBar().showMessage('Invalid syntax', 2000)
+                    #return
 
-        if (len(pindex) > 1):
-            self.statusBar().showMessage('Invalid syntax', 2000)
-            return
-        elif (len(pindex) == 1):
-            pindex = pindex[0]
-        elif (len(pindex) == 0):
-            progression = False
+        #if (len(pindex) > 1):
+            #self.statusBar().showMessage('Invalid syntax', 2000)
+            #return
+        #elif (len(pindex) == 1):
+            #pindex = pindex[0]
+        #elif (len(pindex) == 0):
+            #progression = False
 
-        # Set FCclass
-        fclass = len(fmodes)
-        iclass = len(imodes)
-        if iclass != 0:
-            fcclass = self.fcclass_list[8]
-        else:
-            fcclass = self.fcclass_list[fclass]
+        ## Set FCclass
+        #fclass = len(fmodes)
+        #iclass = len(imodes)
+        #if iclass != 0:
+            #fcclass = self.fcclass_list[8]
+        #else:
+            #fcclass = self.fcclass_list[fclass]
         
-        tr_select = []
-        i  = 0
-        take_next_tr = True
-        # To handle the cases where the even are active but not the odd ones we use the imissing counter
-        imissing = 0
-        # Sorting two list (apply change of one into the other)
-        # http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
-        while take_next_tr:
-            take_next_tr = False
-            if progression:
-                i += 1
-                fquanta[pindex] = i
-            for tr in fcclass:
-                if iclass != 0:
-                    mi_srch,qi_srch = zip(*sorted(zip(imodes,iquanta)))
-                    mi_tr,qi_tr     = zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass])))
-                else:
-                    mi_srch,qi_srch = 0,0
-                    mi_tr,qi_tr     = 0,0
-                if fclass != 0:
-                    # HotClass include X->0, which has len(tr.final)=0
-                    # and crash with the zip. This is becase in tr.info()
-                    # the lists tr.init and tr.final are cut to delete the 
-                    # zeroes
-                    if len(tr.final) == 0:
-                        continue
-                    mf_srch,qf_srch = zip(*sorted(zip(fmodes,fquanta)))
-                    mf_tr,qf_tr     = zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass])))
-                else:
-                    mf_srch,qf_srch = 0,0
-                    mf_tr,qf_tr     = 0,0
-                if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
-                    tr_select.append(tr)
-                    imissing -= 2
-                    break
-            imissing += 1
-            if progression and imissing<2:
-                take_next_tr = True
+        #tr_select = []
+        #i  = 0
+        #take_next_tr = True
+        ## To handle the cases where the even are active but not the odd ones we use the imissing counter
+        #imissing = 0
+        ## Sorting two list (apply change of one into the other)
+        ## http://stackoverflow.com/questions/9764298/is-it-possible-to-sort-two-listswhich-reference-each-other-in-the-exact-same-w
+        #while take_next_tr:
+            #take_next_tr = False
+            #if progression:
+                #i += 1
+                #fquanta[pindex] = i
+            #for tr in fcclass:
+                #if iclass != 0:
+                    #mi_srch,qi_srch = list(zip(*sorted(zip(imodes,iquanta))))
+                    #mi_tr,qi_tr     = list(zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass]))))
+                #else:
+                    #mi_srch,qi_srch = 0,0
+                    #mi_tr,qi_tr     = 0,0
+                #if fclass != 0:
+                    ## HotClass include X->0, which has len(tr.final)=0
+                    ## and crash with the zip. This is becase in tr.info()
+                    ## the lists tr.init and tr.final are cut to delete the 
+                    ## zeroes
+                    #if len(tr.final) == 0:
+                        #continue
+                    #mf_srch,qf_srch = list(zip(*sorted(zip(fmodes,fquanta))))
+                    #mf_tr,qf_tr     = list(zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass]))))
+                #else:
+                    #mf_srch,qf_srch = 0,0
+                    #mf_tr,qf_tr     = 0,0
+                #if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
+                    #tr_select.append(tr)
+                    #imissing -= 2
+                    #break
+            #imissing += 1
+            #if progression and imissing<2:
+                #take_next_tr = True
         
-        if progression and tr_select:
-            # Get the origin of the transition
-            fclass -= 1
-            if iclass == 0:
-                fcclass = self.fcclass_list[fclass]
-            if fclass == 0:
-                tr = fcclass[0]
-                tr_select.insert(0,tr)
-            else:
-                fmodes.pop(pindex)
-                fquanta.pop(pindex)
-                for tr in fcclass:
-                    if iclass != 0:
-                        mi_srch,qi_srch = zip(*sorted(zip(imodes,iquanta)))
-                        mi_tr,qi_tr     = zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass])))
-                    else:
-                        mi_srch,qi_srch = 0,0
-                        mi_tr,qi_tr     = 0,0
-                    if fclass != 0:
-                        mf_srch,qf_srch = zip(*sorted(zip(fmodes,fquanta)))
-                        mf_tr,qf_tr     = zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass])))
-                    else:
-                        mf_srch,qf_srch = 0,0
-                        mf_tr,qf_tr     = 0,0
-                    if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
-                        tr_select.insert(0,tr)
-                        break
+        #if progression and tr_select:
+            ## Get the origin of the transition
+            #fclass -= 1
+            #if iclass == 0:
+                #fcclass = self.fcclass_list[fclass]
+            #if fclass == 0:
+                #tr = fcclass[0]
+                #tr_select.insert(0,tr)
+            #else:
+                #fmodes.pop(pindex)
+                #fquanta.pop(pindex)
+                #for tr in fcclass:
+                    #if iclass != 0:
+                        #mi_srch,qi_srch = list(zip(*sorted(zip(imodes,iquanta))))
+                        #mi_tr,qi_tr     = list(zip(*sorted(zip(tr.init[:iclass],tr.qinit[:iclass]))))
+                    #else:
+                        #mi_srch,qi_srch = 0,0
+                        #mi_tr,qi_tr     = 0,0
+                    #if fclass != 0:
+                        #mf_srch,qf_srch = list(zip(*sorted(zip(fmodes,fquanta))))
+                        #mf_tr,qf_tr     = list(zip(*sorted(zip(tr.final[:fclass],tr.qfinal[:fclass]))))
+                    #else:
+                        #mf_srch,qf_srch = 0,0
+                        #mf_tr,qf_tr     = 0,0
+                    #if mf_srch==mf_tr and qf_srch==qf_tr and mi_srch==mi_tr and qi_srch==qi_tr:
+                        #tr_select.insert(0,tr)
+                        #break
         
-        # If only one tr selected, set it to active_tr
-        # This allows to browse with +/- from this tr
-        if (len(tr_select)) == 1:
-            self.active_tr
+        ## If only one tr selected, set it to active_tr
+        ## This allows to browse with +/- from this tr
+        #if (len(tr_select)) == 1:
+            #self.active_tr
             
-        # Remove stick if there was already 
-        if self.selected:
-            self.selected.remove()
-            self.selected = None
-            self.canvas.draw()
-        self.analysis_box.setText("")
+        ## Remove stick if there was already 
+        #if self.selected:
+            #self.selected.remove()
+            #self.selected = None
+            #self.canvas.draw()
+        #self.analysis_box.setText("")
                 
-        if tr_select:
-            self.statusBar().showMessage('Found', 2000)
-            msg=""
-            stick_x = []
-            stick_y = []
-            for tr in tr_select:
-                stick_x.append(tr.DE)
-                stick_y.append(tr.intensity)
-                msg = msg+"\n"+tr.info()
-            zero = np.zeros(len(stick_x))
-            # Add transition info to analysis_box
-            self.analysis_box.setText(msg.strip())
-            self.selected  = self.axes.vlines(stick_x, zero, stick_y, linewidths=3,
-                                      color='yellow', visible=True, alpha=0.7)
-            self.canvas.draw()
-        else:
-            self.statusBar().showMessage('Not found', 2000)
+        #if tr_select:
+            #self.statusBar().showMessage('Found', 2000)
+            #msg=""
+            #stick_x = []
+            #stick_y = []
+            #for tr in tr_select:
+                #stick_x.append(tr.DE)
+                #stick_y.append(tr.intensity)
+                #msg = msg+"\n"+tr.info()
+            #zero = np.zeros(len(stick_x))
+            ## Add transition info to analysis_box
+            #self.analysis_box.setText(msg.strip())
+            #self.selected  = self.axes.vlines(stick_x, zero, stick_y, linewidths=3,
+                                      #color='yellow', visible=True, alpha=0.7)
+            #self.canvas.draw()
+        #else:
+            #self.statusBar().showMessage('Not found', 2000)
 
         
         
@@ -1517,50 +1556,94 @@ Examples
         # 
         self.broadbox = QLineEdit()
         self.broadbox.setMinimumWidth(50)
-        self.broadbox.setMaximumWidth(50)
-        self.connect(self.broadbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
+        self.broadbox.setMaximumWidth(150)
+        # PyQt4 (old-style signals)
+        #self.connect(self.broadbox, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
+        # PyQt5 (new-style signals)
+        self.broadbox.editingFinished.connect(self.update_hwhm_from_textbox)
+        
+        self.winc_box = QLineEdit()
+        self.winc_box.setMinimumWidth(100)
+        self.winc_box.setMaximumWidth(150)
+        # PyQt4 (old-style signals)
+        #self.connect(self.winc_box, SIGNAL('editingFinished ()'), self.update_hwhm_from_textbox)
+        # PyQt5 (new-style signals)
+        self.winc_box.editingFinished.connect(self.update_incident_freq_from_textbox)
+        
+        self.scale_factor_box = QLineEdit()
+        self.scale_factor_box.setMinimumWidth(100)
+        self.scale_factor_box.setMaximumWidth(100)
+        self.scale_factor_box.setText('1.000')
+        self.scale_factor_box.editingFinished.connect(self.update_incident_freq_from_textbox)
         
         clean_button1 = QPushButton("&Clean(Panel)")
-        self.connect(clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
+        # PyQt4 (old-style signals)
+        #self.connect(clean_button1, SIGNAL('clicked()'), self.del_stick_marker)
+        # PyQt5 (new-style signals)
+        clean_button1.clicked.connect(self.del_stick_marker)
         clean_button2 = QPushButton("&Clean(Labels)")
-        self.connect(clean_button2, SIGNAL('clicked()'), self.reset_labels)
+        # PyQt4 (old-style signals)
+        #self.connect(clean_button2, SIGNAL('clicked()'), self.reset_labels)
+        # PyQt5 (new-style signals)
+        clean_button2.clicked.connect(self.reset_labels)
         
         self.select_broad = QComboBox()
         self.select_broad.addItems(["Gau","Lor"])
         self.select_broad.currentIndexChanged.connect(self.update_broad_function)
         
         self.select_data_type = QComboBox()
-        self.select_data_type.addItems(["Intensity","Lineshape"])
-        self.select_data_type.currentIndexChanged.connect(self.update_data_type)
+        self.select_data_type.addItems(["Disabled"])
+        #self.select_data_type.currentIndexChanged.connect(self.update_data_type)
         
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMaximumWidth(200)
-        self.slider.setRange(1, 100)
+        self.slider.setRange(1, 101)
         self.slider.setValue(30)
         self.slider.setTracking(True)
         self.slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.update_hwhm_from_slider)
+        # PyQt4 (old-style signals)
+        #self.connect(self.slider, SIGNAL('valueChanged(int)'), self.update_hwhm_from_slider)
+        # PyQt5 (new-style signals)
+        self.slider.valueChanged.connect(self.update_hwhm_from_slider)
+        
+        self.winc_slider = QSlider(Qt.Horizontal)
+        self.winc_slider.setMaximumWidth(200)
+        self.winc_slider.setValue(30)
+        self.winc_slider.setTracking(True)
+        self.winc_slider.setTickPosition(QSlider.TicksBothSides)
+        # PyQt4 (old-style signals)
+        #self.connect(self.winc_slider, SIGNAL('valueChanged(int)'), self.update_hwhm_from_slider)
+        # PyQt5 (new-style signals)
+        self.winc_slider.valueChanged.connect(self.update_incident_freq_from_slider)
         
         self.fixaxes_cb = QCheckBox("Fix y-axis")
         self.fixaxes_cb.setChecked(False)
         self.fixaxes_cb.setMaximumWidth(100)
-        
+
         self.fixlegend_cb = QCheckBox("Fix legend")
         self.fixlegend_cb.setChecked(True)
         self.fixlegend_cb.setMaximumWidth(100)
-        self.connect(self.fixlegend_cb, SIGNAL('stateChanged(int)'), self.update_fixlegend)
+        # PyQt4 (old-style signals)
+        #self.connect(self.fixlegend_cb, SIGNAL('stateChanged(int)'), self.update_fixlegend)
+        # PyQt5 (new-style signals)
+        self.fixlegend_cb.stateChanged.connect(self.update_fixlegend)
         
-        self.inputBins_cb = QCheckBox("Input bins")
-        self.inputBins_cb.setChecked(False)
-        self.inputBins_cb.setMaximumWidth(100)
+        self.showRayleigh_cb = QCheckBox("Show Rayleigh")
+        self.showRayleigh_cb.setChecked(False)
+        self.showRayleigh_cb.setMaximumWidth(100)
         # Update when clicking
-        self.connect(self.inputBins_cb, SIGNAL('stateChanged(int)'), self.update_convolute)
+        # PyQt4 (old-style signals)
+        #self.connect(self.show_Rayleigh, SIGNAL('stateChanged(int)'), self.update_convolute)
+        # PyQt5 (new-style signals)
+        self.showRayleigh_cb.stateChanged.connect(self.update_incident_freq_from_slider)
         
         # Labels
         hwhm_label  = QLabel('   HWHM')
-        eV_label    = QLabel('(eV)')
+        cm_label    = QLabel('(cm-1)')
+        cm_label2   = QLabel('(cm-1)')
         broad_label = QLabel('Broadening')
         datatype_label = QLabel('Data Type')
+        scalefactor_label = QLabel('Scale')
         search_label = QLabel('Select transition/progression')
         # Splitters
         vline = QFrame()
@@ -1572,7 +1655,7 @@ Examples
         
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
-        self.analysis_box.setFontFamily('Arial')
+        self.analysis_box.setFontFamily('Courier') #use a monospaced typeface to ensure good aligment of the text
         self.analysis_box.setReadOnly(True)
         self.analysis_box.setMinimumWidth(200)
         self.analysis_box.setMaximumWidth(250)
@@ -1602,8 +1685,14 @@ Examples
         #font.setWeight(75)
         font.setPointSize(12)
         title = self.refspc_table.item(0,0)
-        title.setBackgroundColor(Qt.lightGray)
-        title.setTextColor(Qt.black)
+        # PyQt4
+        #title.setBackgroundColor(Qt.lightGray)
+        # PyQt5
+        title.setBackground(Qt.lightGray)
+        # PyQt4 (function deprecated in PyQt5)
+        #title.setTextColor(Qt.black)
+        # PyQt5
+        title.setForeground(Qt.black)
         title.setFont(font)
         title.setTextAlignment(Qt.AlignCenter)
         title.setFlags(title.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
@@ -1615,8 +1704,14 @@ Examples
         for i,j in cellids[0]:
             self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
             cell = self.refspc_table.item(i,j)
-            cell.setBackgroundColor(Qt.gray)
-            cell.setTextColor(Qt.white)
+            # PyQt4
+            #cell.setBackgroundColor(Qt.gray)
+            # PyQt5
+            cell.setBackground(Qt.gray)
+            # PyQt4
+            #cell.setTextColor(Qt.white)
+            # PyQt5
+            cell.setForeground(Qt.white)
             cell.setFont(font)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             #cell.setFlags(cell.flags() ^ Qt.ItemIsEditable)
@@ -1626,7 +1721,10 @@ Examples
         for i,j in cellids[1]:
             self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
             cell = self.refspc_table.item(i,j)
-            cell.setTextColor(Qt.black)
+            # PyQt4
+            #cell.setTextColor(Qt.black)
+            # PyQt5
+            cell.setForeground(Qt.black)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
         ## Last column
@@ -1638,14 +1736,29 @@ Examples
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEditable ^ QtCore.Qt.ItemIsSelectable)
         ## Tune the X button
         xbutton = self.refspc_table.item(1,2)
-        xbutton.setBackgroundColor(Qt.red)
+        # PyQt4
+        #xbutton.setBackgroundColor(Qt.red)
+        # PyQt5
+        xbutton.setBackground(Qt.red)
         ## Tune the Tare buttons
         tbutton = self.refspc_table.item(2,2)
-        tbutton.setBackgroundColor(Qt.blue)
-        tbutton.setTextColor(Qt.white)
+        # PyQt4
+        #tbutton.setBackgroundColor(Qt.blue)
+        # PyQt5
+        tbutton.setBackground(Qt.blue)
+        # PyQt4
+        #tbutton.setTextColor(Qt.white)
+        # PyQt5
+        tbutton.setForeground(Qt.white)
         tbutton = self.refspc_table.item(3,2)
-        tbutton.setBackgroundColor(Qt.blue)
-        tbutton.setTextColor(Qt.white)
+        # PyQt4
+        #tbutton.setBackgroundColor(Qt.blue)
+        # PyQt5
+        tbutton.setBackground(Qt.blue)
+        # PyQt4
+        #tbutton.setTextColor(Qt.white)
+        # PyQt5
+        tbutton.setForeground(Qt.white)
         # Connecting cellPressed(int,int), passing its arguments to the called function
         # My function definition uses the irow and icol pressed:
         # self.table_buttons_action(self,irow,icol)
@@ -1676,29 +1789,36 @@ Examples
         hbox_slider = QHBoxLayout()
         hbox_slider.addWidget(self.slider)
         hbox_slider.addWidget(self.broadbox)
-        hbox_slider.addWidget(eV_label)
+        hbox_slider.addWidget(cm_label)
+        # WInc slider with textbox
+        hbox_wslider = QHBoxLayout()
+        hbox_wslider.addWidget(self.winc_slider)
+        hbox_wslider.addWidget(self.winc_box)
+        hbox_wslider.addWidget(cm_label2)
         # HWHM label with inputBins checkbox
         hbox_hwhmlab = QHBoxLayout()
         hbox_hwhmlab.addWidget(hwhm_label)
         hbox_hwhmlab.setAlignment(hwhm_label, Qt.AlignLeft)
-        hbox_hwhmlab.addWidget(self.inputBins_cb)
-        hbox_hwhmlab.setAlignment(self.inputBins_cb, Qt.AlignLeft)
+        hbox_hwhmlab.addWidget(self.showRayleigh_cb)
+        hbox_hwhmlab.setAlignment(self.showRayleigh_cb, Qt.AlignLeft)
         # Complete HWHM widget merging all box here
         vbox_slider = QVBoxLayout()
         vbox_slider.addLayout(hbox_hwhmlab)
         vbox_slider.setAlignment(hbox_hwhmlab, Qt.AlignLeft)
         vbox_slider.addLayout(hbox_slider)
         vbox_slider.setAlignment(hbox_slider, Qt.AlignLeft)
+        vbox_slider.addLayout(hbox_wslider)
+        vbox_slider.setAlignment(hbox_wslider, Qt.AlignLeft)
         # Clean button
         vbox_cleaner = QVBoxLayout()
         vbox_cleaner.addWidget(clean_button1)
         vbox_cleaner.addWidget(clean_button2)
         # DataType sector
-        vbox_datatype = QVBoxLayout()
-        vbox_datatype.addWidget(datatype_label)
-        vbox_datatype.setAlignment(datatype_label, Qt.AlignLeft)
-        vbox_datatype.addWidget(self.select_data_type)
-        vbox_datatype.setAlignment(self.select_data_type, Qt.AlignLeft)
+        vbox_scalefactor = QVBoxLayout()
+        vbox_scalefactor.addWidget(scalefactor_label)
+        vbox_scalefactor.setAlignment(scalefactor_label, Qt.AlignLeft)
+        vbox_scalefactor.addWidget(self.scale_factor_box)
+        vbox_scalefactor.setAlignment(self.scale_factor_box, Qt.AlignLeft)
         ## MAIN LOWER BOX
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_cleaner)
@@ -1710,8 +1830,8 @@ Examples
         hbox.setAlignment(vbox_slider, Qt.AlignLeft)
         hbox.addWidget(vline2)
         hbox.setAlignment(vline2, Qt.AlignLeft)
-        hbox.addLayout(vbox_datatype)
-        hbox.setAlignment(vbox_datatype, Qt.AlignTop)
+        hbox.addLayout(vbox_scalefactor)
+        hbox.setAlignment(vbox_scalefactor, Qt.AlignTop)
         
         # Hbox below plot
         hbox2 = QHBoxLayout()
@@ -1769,11 +1889,13 @@ Examples
             shortcut="Ctrl+Q", tip="Close the application")
         xmgr_export_action = self.create_action("&Export to xmgrace", slot=self.xmgr_export, 
             shortcut="Ctrl+E", tip="Export to xmgrace format")
+        dat_export_action = self.create_action("&Export to dat", slot=self.dat_export, 
+            shortcut="Ctrl+D", tip="Export to text file (dat)")
         spc_import_action = self.create_action("&Import plot", slot=self.open_plot, 
             shortcut="Ctrl+N", tip="Import spectrum")
         # Now place the actions in the menu
         self.add_actions(self.file_menu, 
-            (load_file_action, xmgr_export_action, spc_import_action, None, quit_action))
+            (load_file_action, xmgr_export_action, dat_export_action, spc_import_action, None, quit_action))
         
         # /Analyze
         self.anlyze_menu = self.menuBar().addMenu("&Analyze")
@@ -1815,9 +1937,13 @@ Examples
                 target.addAction(action)
                 
 
+    # PyQt4
+    #def create_action(  self, text, slot=None, shortcut=None, 
+    #                    icon=None, tip=None, checkable=False, 
+    #                    signal="triggered()"):
+    # PyQt5
     def create_action(  self, text, slot=None, shortcut=None, 
-                        icon=None, tip=None, checkable=False, 
-                        signal="triggered()"):
+                        icon=None, tip=None, checkable=False):
         action = QAction(text, self)
         if icon is not None:
             action.setIcon(QIcon(":/%s.png" % icon))
@@ -1827,7 +1953,10 @@ Examples
             action.setToolTip(tip)
             action.setStatusTip(tip)
         if slot is not None:
-            self.connect(action, SIGNAL(signal), slot)
+            # PyQt4 (old-style signals)
+            #self.connect(action, SIGNAL(signal), slot)
+            # PyQt5 (new-style signals)
+            action.triggered.connect(slot)
         if checkable:
             action.setCheckable(True)
         return action
@@ -1837,205 +1966,6 @@ Examples
 # GLOBAL FUNCTIONS
 #==========================================================
 # FILE READERS
-def read_fort21(fort21file,MaxClass):
-    """
-    Function to extract transtion infor from fort.21 file
-    The content is taken from the standard version and may
-    need some polish
-    
-    Arguments:
-     MaxClass (int): maximum class to be loaded (0 to 7)
-                     Hot bands are always loaded
-                     
-    Returns:
-     List of list of transitions: [ [C0], [C1], .., [Chot] ]
-    """
-    # Open and read file
-    tr=[]
-    print "Loading transitions (fort.21)..."
-    try:
-        f = open(fort21file,'r')
-    except:
-        exit("ERROR: Cannot open file 'fort.21' not 'Assignments.dat'")
-        
-    #First read 0-0 transition
-    itrans = 0
-    for line in f:
-        if "INDEX" in line:
-            line = f.next()
-            data = line.split()
-            tr.append(spectral_transition())
-            tr[itrans].motherstate = 1
-            tr[itrans].fcclass     = 0
-            tr[itrans].index       = float(data[0])
-            tr[itrans].einit       = float(data[1])
-            tr[itrans].efin        = float(data[2])
-            tr[itrans].DE          = float(data[3])
-            tr[itrans].DE00cm      = float(data[4])
-            tr[itrans].fcfactor    = float(data[5])
-            """
-            Sometimes, intens for 0-0 is ******
-            Could be read from fort.8 although 
-            the cleanest is to fix it fcclasses
-            """ 
-            try: tr[itrans].intensity   = float(data[6])
-            except: exit("ERROR: Check 0-0 transition") 
-            #For this case, modes are assigned manually
-            tr[itrans].init = [0] 
-            tr[itrans].final = [0]
-        elif "*************************************************" in line:
-            nclass0 = len(tr)
-            itrans  = nclass0-1
-            break
-
-    nhot = 0
-    nclass1 = 0
-    nclass2 = 0
-    nclass3 = 0
-    nclass4 = 0
-    nclass5 = 0
-    nclass6 = 0
-    nclass7 = 0
-    fcclass = 0
-    nclass  = 0
-    for line in f:
-        if "MOTHER STATE" in line:
-            motherstate = int(line.split("N.")[1])
-        elif "C1 " in line:
-            fcclass = 1
-            if motherstate == 1:
-                nclass = 0
-        elif "C2 " in line:
-            fcclass = 2
-            if motherstate == 1:
-                nclass1 = nclass
-                nclass = 0
-        elif "C3 " in line:
-            fcclass = 3
-            if motherstate == 1:
-                nclass2 = nclass
-                nclass = 0
-        elif "C4 " in line:
-            fcclass = 4
-            if motherstate == 1:
-                nclass3 = nclass
-                nclass = 0
-        elif "C5 " in line:
-            fcclass = 5
-            if motherstate == 1:
-                nclass4 = nclass
-                nclass = 0
-        elif "C6 " in line:
-            fcclass = 6
-            if motherstate == 1:
-                nclass5 = nclass
-                nclass = 0
-        elif "C7 " in line:
-            fcclass = 7
-            if motherstate == 1:
-                nclass6 = nclass
-                nclass = 0
-        elif "M-0 TRANSITION" in line and motherstate == 2:
-            if fcclass == 1:
-                nclass1 = nclass
-            elif fcclass == 2:
-                nclass2 = nclass
-            elif fcclass == 3:
-                nclass3 = nclass
-            elif fcclass == 4:
-                nclass4 = nclass
-            elif fcclass == 5:
-                nclass5 = nclass
-            elif fcclass == 6:
-                nclass6 = nclass
-            elif fcclass == 7:
-                nclass7 = nclass
-            nclass = 0
-            fcclass = 0
-        elif ("E+" in line) | ("E-" in line):
-            nclass += 1
-            if fcclass<=MaxClass:
-                data = line.split()
-                itrans += 1
-                tr.append(spectral_transition())
-                tr[itrans].motherstate = motherstate
-                tr[itrans].fcclass     = fcclass
-                tr[itrans].index       = float(data[0])
-                tr[itrans].efin        = float(data[1])
-                tr[itrans].einit       = float(data[2])
-                tr[itrans].DE          = float(data[3])
-                tr[itrans].DE00cm      = float(data[4])
-                tr[itrans].fcfactor    = float(data[5])
-                tr[itrans].intensity   = float(data[6])
-        #Indentify modes in the transition
-        #Initial
-        elif 'state 1 = GROUND' in line and fcclass<=MaxClass:
-            tr[itrans].init = [0]
-        elif 'Osc1=' in line:
-            A = line.split('Osc1=')
-            del A[0]
-            for i in range(0,len(A)):
-                A[i] = int(A[i])
-            tr[itrans].init = A 
-        #Number of quanta involved
-        elif 'Nqu1=' in line and fcclass<=MaxClass:
-            A = line.split('Nqu1=')
-            del A[0]
-            for i in range(0,len(A)):
-                A[i] = int(A[i])
-            tr[itrans].qinit = A 
-        #Final
-        elif 'state 2 = GROUND' in line and fcclass<=MaxClass:
-            tr[itrans].final = [0]
-        elif 'Osc2=' in line and fcclass<=MaxClass:
-            A = line.split('Osc2=')
-            del A[0]
-            for i in range(0,len(A)):
-                A[i] = int(A[i])
-            tr[itrans].final = A 
-        #Number of quanta involved
-        elif 'Nqu2=' in line and fcclass<=MaxClass:
-            A = line.split('Nqu2=')
-            del A[0]
-            for i in range(0,len(A)):
-                A[i] = int(A[i])
-            tr[itrans].qfinal = A 
-    #If there were mother states>1, no nclass7 was already updated, otherwise:
-    if tr[itrans].motherstate == 1: nclass7 = nclass
-    else: nhot = nclass
-
-    f.close()
-    
-    # Load filter transitions if required
-    loadC=True
-    total_transitions = 0
-    nclass_list = [nclass0,nclass1,nclass2,nclass3,nclass4,nclass5,nclass6,nclass7]
-    print 'Transitions read:'
-    print ' Class     N. trans.         Load?  '
-    for i,nclass in enumerate(nclass_list):
-        if MaxClass<i: 
-            loadC=False
-        total_transitions += nclass
-        print ' C{0}        {1:5d}             {2}   '.format(i,nclass,loadC)
-        if MaxClass<i: 
-            nclass_list[i]=0
-    print     ' Hot       {0:5d}             {1}   '.format(nhot,True)
-    nclass_list.append(nhot)
-    total_transitions += nhot
-    print 'Total transitions : ',(total_transitions)
-    print 'Loaded transitions: ',(itrans+1)
-    print ''
-    #========== Done with fort.21 ====================================
-
-    # This is a conversion from old stile reader to class_list
-    # maybe it'd be better to change the code above
-    class_list = []
-    for nclass in nclass_list:
-        class_list.append([tr.pop(0) for i in range(nclass)])
-
-    return class_list
-
-
 def read_spc_xy(filename,fromsection=None):
     """
     Function to read fort.22, which contains the bins to reconstruct
@@ -2045,7 +1975,7 @@ def read_spc_xy(filename,fromsection=None):
     moment we leave it like that
     """
     # Open and read file
-    print "Loading spectral data from '"+filename+"'..."
+    print("Loading spectral data from '"+filename+"'...")
     try:
         f = open(filename,'r')
     except:
@@ -2072,7 +2002,7 @@ def read_spc_xy(filename,fromsection=None):
     return x,y
 
 # CONVOLUTION
-def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
+def convolute(spc_stick,res=1,hwhm=0.1,broad="Gau",input_bins=False):
     """
     Make a Gaussian convolution of the stick spectrum
     The spectrum must be in energy(eV) vs Intens (LS?)
@@ -2080,7 +2010,7 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
     Arguments:
     spc_stick  list of list  stick spectrum as [x,y]
                list of array
-    npoints    int           number of points (for the final graph)
+    res        float         resolution (for the final graph)
                              Can be a bit more if input_bins is False
     hwhm       float         half width at half maximum
     
@@ -2096,8 +2026,10 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
     # Make the histogram for an additional 20% (if the baseline is not recovered, enlarge this)
     extra_factor = 0.2
     recovered_baseline=False
+    n_extensions = 0
     sigma = hwhm / np.sqrt(2.*np.log(2.))
     while not recovered_baseline:
+        n_extensions += 1
         if input_bins:
             # Backup npoints
             npts = npoints
@@ -2107,6 +2039,7 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
             width = (x[1] - x[0])
         else:
             extra_x = (x[-1] - x[0])*extra_factor
+            npoints = int((x[-1]+extra_x-x[0]-extra_x)/res)
             yhisto, bins =np.histogram(x,range=[x[0]-extra_x,x[-1]+extra_x],bins=npoints,weights=y)
             # Use bin centers as x points
             width = (bins[1] - bins[0])
@@ -2145,7 +2078,12 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
         xconv = xhisto
 
         # Check baseline recovery (only with automatic bins
-        if yconv[0] < yconv.max()/100.0 and yconv[-1] < yconv.max()/100.0:
+        ymax = max(abs(yconv.max()),abs(yconv.min()))
+        if abs(yconv[0]) < ymax/100.0 and abs(yconv[-1]) < ymax/100.0:
+            recovered_baseline=True
+        # If exteded 100 times exit anyway
+        if n_extensions > 100:
+            print('WARNING in convolution: Baseline cannot be recovered!')
             recovered_baseline=True
         if input_bins:
             recovered_baseline=True
@@ -2179,83 +2117,83 @@ def export_xmgrace(filename,ax,sticks,labs,ax2=None,specs=None):
 
     f = open(filename,'w')
     
-    print >> f, "# XMGRACE CREATED BY FCC_ANALYZER"
-    print >> f, "# Only data and labels. Format will"
-    print >> f, "# be added by your default xmgrace"
-    print >> f, "# defaults (including colors, fonts...)"
-    print >> f, "# Except the followins color scheme:"
-    print >> f, '@map color 0  to (255, 255, 255), "white"'
-    print >> f, '@map color 1  to (0, 0, 0), "black"'
-    print >> f, '@map color 2  to (0, 0, 255), "blue"'
-    print >> f, '@map color 3  to (255, 0, 0), "red"'
-    print >> f, '@map color 4  to (0, 139, 0), "green4"'
-    print >> f, '@map color 5  to (0, 255, 255), "cyan"'
-    print >> f, '@map color 6  to (255, 0, 255), "magenta"'
-    print >> f, '@map color 7  to (188, 143, 143), "brown"'
-    print >> f, '@map color 8  to (100, 0, 100), "pink"'
-    print >> f, '@map color 9  to (255, 165, 0), "orange"'
-    print >> f, '@map color 10 to (255, 255, 0), "yellow"'
-    print >> f, '@map color 11 to (220, 220, 220), "grey"'
-    print >> f, '@map color 12 to (0, 255, 0), "green"'
-    print >> f, '@map color 13 to (148, 0, 211), "violet"'
-    print >> f, '@map color 14 to (114, 33, 188), "indigo"'
-    print >> f, '@map color 15 to (103, 7, 72), "maroon"'
-    print >> f, '@map color 16 to (64, 224, 208), "turquoise"'
-    print >> f, '@map color 17 to (50, 50, 50), "gris2"'
-    print >> f, '@map color 18 to (100, 100, 100), "gris3"'
-    print >> f, '@map color 19 to (150, 150, 150), "gris4"'
-    print >> f, '@map color 20 to (200, 200, 200), "gris5"'
-    print >> f, '@map color 21 to (255, 150, 150), "red2"'
-    print >> f, '@map color 22 to (150, 255, 150), "green2"'
-    print >> f, '@map color 23 to (150, 150, 255), "blue2"'  
+    print("# XMGRACE CREATED BY FCC_ANALYZER", file=f)
+    print("# Only data and labels. Format will", file=f)
+    print("# be added by your default xmgrace", file=f)
+    print("# defaults (including colors, fonts...)", file=f)
+    print("# Except the followins color scheme:", file=f)
+    print('@map color 0  to (255, 255, 255), "white"', file=f)
+    print('@map color 1  to (0, 0, 0), "black"', file=f)
+    print('@map color 2  to (0, 0, 255), "blue"', file=f)
+    print('@map color 3  to (255, 0, 0), "red"', file=f)
+    print('@map color 4  to (0, 139, 0), "green4"', file=f)
+    print('@map color 5  to (0, 255, 255), "cyan"', file=f)
+    print('@map color 6  to (255, 0, 255), "magenta"', file=f)
+    print('@map color 7  to (188, 143, 143), "brown"', file=f)
+    print('@map color 8  to (100, 0, 100), "pink"', file=f)
+    print('@map color 9  to (255, 165, 0), "orange"', file=f)
+    print('@map color 10 to (255, 255, 0), "yellow"', file=f)
+    print('@map color 11 to (220, 220, 220), "grey"', file=f)
+    print('@map color 12 to (0, 255, 0), "green"', file=f)
+    print('@map color 13 to (148, 0, 211), "violet"', file=f)
+    print('@map color 14 to (114, 33, 188), "indigo"', file=f)
+    print('@map color 15 to (103, 7, 72), "maroon"', file=f)
+    print('@map color 16 to (64, 224, 208), "turquoise"', file=f)
+    print('@map color 17 to (50, 50, 50), "gris2"', file=f)
+    print('@map color 18 to (100, 100, 100), "gris3"', file=f)
+    print('@map color 19 to (150, 150, 150), "gris4"', file=f)
+    print('@map color 20 to (200, 200, 200), "gris5"', file=f)
+    print('@map color 21 to (255, 150, 150), "red2"', file=f)
+    print('@map color 22 to (150, 255, 150), "green2"', file=f)
+    print('@map color 23 to (150, 150, 255), "blue2"', file=f)  
     # Without the @version, it makes auto-zoom (instead of taking world coords) 
-    print >> f, "@version 50123"
-    print >> f, "@page size 792, 612"
-    print >> f, "@default symbol size 0.010000"
-    print >> f, "@default char size 0.800000"
+    print("@version 50123", file=f)
+    print("@page size 792, 612", file=f)
+    print("@default symbol size 0.010000", file=f)
+    print("@default char size 0.800000", file=f)
     for lab in labs:
-        print >> f, "@with line"
-        print >> f, "@    line on"
-        print >> f, "@    line g0"
-        print >> f, "@    line loctype world"
-        print >> f, "@    line color 20"
-        print >> f, "@    line ",lab.xy[0],",",lab.xy[1],",",lab.xyann[0],",",lab.xyann[1]
-        print >> f, "@line def"
-        print >> f, "@with string"
-        print >> f, "@    string on"
-        print >> f, "@    string g0"
-        print >> f, "@    string loctype world"
-        print >> f, "@    string ", lab.xyann[0],",",lab.xyann[1]
-        print >> f, "@    string def \"",labs[lab],"\""
-    print >> f, "@with g0"
+        print("@with line", file=f)
+        print("@    line on", file=f)
+        print("@    line g0", file=f)
+        print("@    line loctype world", file=f)
+        print("@    line color 20", file=f)
+        print("@    line ",lab.xy[0],",",lab.xy[1],",",lab.xyann[0],",",lab.xyann[1], file=f)
+        print("@line def", file=f)
+        print("@with string", file=f)
+        print("@    string on", file=f)
+        print("@    string g0", file=f)
+        print("@    string loctype world", file=f)
+        print("@    string ", lab.xyann[0],",",lab.xyann[1], file=f)
+        print("@    string def \"",labs[lab],"\"", file=f)
+    print("@with g0", file=f)
     # Set a large view
-    print >> f, "@    view 0.180000, 0.150000, 1.15, 0.92"
+    print("@    view 0.180000, 0.150000, 1.15, 0.92", file=f)
     #Get plotting range from mplt
     x=ax.get_xbound()
     y=ax.get_ybound()
-    print >> f, "@    world ",x[0],",",y[0],",",x[1],",",y[1]
+    print("@    world ",x[0],",",y[0],",",x[1],",",y[1], file=f)
     #Get xlabel from mplt
-    print >> f, "@    xaxis  label \""+ax.get_xlabel()+"\""
-    print >> f, "@    yaxis  label \""+ax.get_ylabel()+"\""
+    print("@    xaxis  label \""+ax.get_xlabel()+"\"", file=f)
+    print("@    yaxis  label \""+ax.get_ylabel()+"\"", file=f)
     if ax2:
         # Position
-        print >> f, "@    yaxis  label place opposite"
-        print >> f, "@    yaxis  ticklabel place opposite"
-        print >> f, "@    yaxis  tick place opposite"
+        print("@    yaxis  label place opposite", file=f)
+        print("@    yaxis  ticklabel place opposite", file=f)
+        print("@    yaxis  tick place opposite", file=f)
     # Char sizes
-    print >> f, "@    xaxis  ticklabel char size 1.250000"
-    print >> f, "@    yaxis  ticklabel char size 1.250000"
-    print >> f, "@    xaxis  label char size 1.500000"
-    print >> f, "@    yaxis  label char size 1.500000"
+    print("@    xaxis  ticklabel char size 1.250000", file=f)
+    print("@    yaxis  ticklabel char size 1.250000", file=f)
+    print("@    xaxis  label char size 1.500000", file=f)
+    print("@    yaxis  label char size 1.500000", file=f)
     #Get tick spacing from mplt
     x=ax.get_xticks()
     y=ax.get_yticks()
-    print >> f, "@    xaxis  tick major", x[1]-x[0]
-    print >> f, "@    yaxis  tick major", y[1]-y[0]
+    print("@    xaxis  tick major", x[1]-x[0], file=f)
+    print("@    yaxis  tick major", y[1]-y[0], file=f)
     #Legend
-    print >> f, "@    legend char size 1.250000"
-    print >> f, "@    legend loctype view"
-    print >> f, "@    legend 0.95, 0.9"
+    print("@    legend char size 1.250000", file=f)
+    print("@    legend loctype view", file=f)
+    print("@    legend 0.95, 0.9", file=f)
     #Now include data
     label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
     color_list = [ 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -2268,13 +2206,13 @@ def export_xmgrace(filename,ax,sticks,labs,ax2=None,specs=None):
         k += 1
         x = np.array([ sticks[iclass][i].DE        for i in range(len(sticks[iclass])) ])
         y = np.array([ sticks[iclass][i].intensity for i in range(len(sticks[iclass])) ])
-        print >> f, "& %s"%(label_list[iclass])
-        print >> f, "@type bar"
-        print >> f, "@    s"+str(k)," line type 0"
-        print >> f, "@    s"+str(k)," legend  \"%s\""%(label_list[iclass])
-        print >> f, "@    s"+str(k)," symbol color %s"%(color_list[iclass])
+        print("& %s"%(label_list[iclass]), file=f)
+        print("@type bar", file=f)
+        print("@    s"+str(k)," line type 0", file=f)
+        print("@    s"+str(k)," legend  \"%s\""%(label_list[iclass]), file=f)
+        print("@    s"+str(k)," symbol color %s"%(color_list[iclass]), file=f)
         for i in range(len(x)):
-            print >> f, x[i], y[i]
+            print(x[i], y[i], file=f)
         ymax = max(ymax,y.max())
         ymin = max(ymin,y.min())
             
@@ -2288,38 +2226,38 @@ def export_xmgrace(filename,ax,sticks,labs,ax2=None,specs=None):
             scale_factor = ymax/ys_max
         else:
             scale_factor = abs(ymax)/abs(ys_max)
-        print "Scale factor applied to convoluted spectrum %s"%(scale_factor)
+        print("Scale factor applied to convoluted spectrum %s"%(scale_factor))
     else:
         k = 0
-        print >> f, "@g1 on"
-        print >> f, "@g1 hidden false"
-        print >> f, "@with g1"
+        print("@g1 on", file=f)
+        print("@g1 hidden false", file=f)
+        print("@with g1", file=f)
         # Set a large view
-        print >> f, "@    view 0.180000, 0.150000, 1.15, 0.92"
+        print("@    view 0.180000, 0.150000, 1.15, 0.92", file=f)
         #Get plotting range from mplt
         x=ax2.get_xbound()
         y=ax2.get_ybound()
-        print >> f, "@    world ",x[0],",",y[0],",",x[1],",",y[1]
+        print("@    world ",x[0],",",y[0],",",x[1],",",y[1], file=f)
         #Get labels from mplt
-        print >> f, "@    yaxis  label \""+latex2xmgrace(ax2.get_ylabel())+"\""
+        print("@    yaxis  label \""+latex2xmgrace(ax2.get_ylabel())+"\"", file=f)
         # Char sizes
-        print >> f, "@    xaxis  ticklabel char size 1.250000"
-        print >> f, "@    yaxis  ticklabel char size 1.250000"
-        print >> f, "@    xaxis  label char size 1.500000"
-        print >> f, "@    yaxis  label char size 1.500000"
+        print("@    xaxis  ticklabel char size 1.250000", file=f)
+        print("@    yaxis  ticklabel char size 1.250000", file=f)
+        print("@    xaxis  label char size 1.500000", file=f)
+        print("@    yaxis  label char size 1.500000", file=f)
         #Set axis ticks on the left
-        print >> f, "@    xaxis  off"
-        print >> f, "@    yaxis  tick out"
-        print >> f, "@    yaxis  label place normal"
-        print >> f, "@    yaxis  ticklabel place normal"
-        print >> f, "@    yaxis  tick place normal"
+        print("@    xaxis  off", file=f)
+        print("@    yaxis  tick out", file=f)
+        print("@    yaxis  label place normal", file=f)
+        print("@    yaxis  ticklabel place normal", file=f)
+        print("@    yaxis  tick place normal", file=f)
         #Get tick spacing from mplt
         y=ax2.get_yticks()
-        print >> f, "@    yaxis  tick major", y[1]-y[0]
+        print("@    yaxis  tick major", y[1]-y[0], file=f)
         #Legend
-        print >> f, "@    legend char size 1.250000"
-        print >> f, "@    legend loctype view"
-        print >> f, "@    legend 0.8, 0.9"
+        print("@    legend char size 1.250000", file=f)
+        print("@    legend loctype view", file=f)
+        print("@    legend 0.8, 0.9", file=f)
         # No scale
         scale_factor = 1.0
         
@@ -2331,14 +2269,14 @@ def export_xmgrace(filename,ax,sticks,labs,ax2=None,specs=None):
         leg_label=specs[i].get_label()
         x = s.get_xdata()
         y = s.get_ydata()
-        print >> f, "& "+leg_label
-        print >> f, "@type xy"
-        print >> f, "@    s"+str(k)," line type 1"
-        print >> f, "@    s"+str(k)," line linestyle %s"%(style_list[i])
-        print >> f, "@    s"+str(k)," line color %s"%(color_list[i])
-        print >> f, "@    s"+str(k)," legend  \""+leg_label+"\""
+        print("& "+leg_label, file=f)
+        print("@type xy", file=f)
+        print("@    s"+str(k)," line type 1", file=f)
+        print("@    s"+str(k)," line linestyle %s"%(style_list[i]), file=f)
+        print("@    s"+str(k)," line color %s"%(color_list[i]), file=f)
+        print("@    s"+str(k)," legend  \""+leg_label+"\"", file=f)
         for j in range(len(x)):
-            print >> f, x[j], y[j]*scale_factor
+            print(x[j], y[j]*scale_factor, file=f)
         k += 1
             
     f.close()
@@ -2443,7 +2381,7 @@ def get_args():
 
         input_args_dict[input_arg[0]] = input_arg[1]
     
-    for key,value in input_args_dict.iteritems():
+    for key,value in input_args_dict.items():
         # Check it is allowed
         isValid = final_arguments.get(key,None)
         if isValid is None:
@@ -2453,7 +2391,7 @@ def get_args():
         
     if final_arguments.get("-h"):
         
-        print """
+        print("""
  ----------------------------------------
            FCclasses analyzer
    A GUI to analyze FCclasses output 
@@ -2461,18 +2399,18 @@ def get_args():
  Version info 
         Git commit: %s
         Date: %s
-        """%(version_tag.COMMIT,version_tag.DATE)
+        """%(version_tag.COMMIT,version_tag.DATE))
         helptext()
-        print "    Options:"
-        print "    --------"
-        print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format("Flag","Type","Description","Value")
-        print '      {0:-<10}  {1:-^4}  {2:-<41}  {3:-<7}'.format("","","","")
-        for key,value in final_arguments.iteritems():
+        print("    Options:")
+        print("    --------")
+        print('      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format("Flag","Type","Description","Value"))
+        print('      {0:-<10}  {1:-^4}  {2:-<41}  {3:-<7}'.format("","","",""))
+        for key,value in final_arguments.items():
             descr = arg_description[key]
             atype = arg_type[key]
             #atype=str(type(value)).replace("<type '","").replace("'>","")
-            print '      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, str(value))
-        print ""
+            print('      {0:<10}  {1:^4}  {2:<41}  {3:<7}'.format(key, atype, descr, str(value)))
+        print("")
         
         sys.exit()
         
@@ -2481,7 +2419,7 @@ def get_args():
     
     
 def main():
-    app = QtGui.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     form = AppForm()
     form.show()
     app.exec_()

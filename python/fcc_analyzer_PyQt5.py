@@ -38,7 +38,7 @@ import matplotlib
 import re
 
 try:
-    import version_tag
+    import fcc_analyzer_PyQt5_version as version_tag
 except:
     class version_tag:
         COMMIT="Untracked"
@@ -60,7 +60,7 @@ def helptext():
     ------------
     General call:
     
-        fcc_analyzer_PyQt4 [options]
+        fcc_analyzer_PyQt5 [options]
     
     The data to be analyzed (fort.21) should be on the folder from where the script is being called
     If no fort.21 file is present, a window will pop-up to select the appropriate path. It the type
@@ -81,12 +81,13 @@ def helptext():
     """)
 
 class SpcConstants:
-    exp = {"abs":1,"ecd":1,"emi":3,"cpl":3}
-    factor = {"abs":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216}
+    exp = {"opa":1,"ecd":1,"emi":3,"cpl":3,'mcd':1,'tpa':2,'tpcd':2}
+    factor = {"opa":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216,'mcd':5.98442e-3,'tpa':8.35150e-4,'tpcd':8.35150e-4}
+    # JC: 'mcd':-5.98442e-3 (should be negative), but then it seems not consistent with fcc3
     # The factors already include the conversion between eV <-> au
     # to handle some issues in the emission Lineshape (need to used
     # (27.2116) factor instead of (27.2116)^3)
-    #factor = {"abs":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
+    #factor = {"opa":25.8459,"ecd":0.75441,"emi":39.0662,"cpl":156.265}
 
 
 class spectral_transition:
@@ -138,22 +139,24 @@ class spectral_transition:
     
     def info(self):
         transition = self.def_transitions()
-        msg = """ Transition:   \t%s 
+        msg = """ Transition: %s 
   =========================
-  MotherState:\t%s
-  FC class:     \t%s 
-  Einit(eV):    \t%s 
-  Efin (eV):    \t%s 
-  DE   (eV):    \t%s 
-  Intensity:    \t%s 
-  FCfactor:     \t%s 
-  INDEX:        \t%s
+  MotherState: %s
+  FC class:    %s 
+  Einit(eV):   %s 
+  Efin (eV):   %s 
+  DE   (eV):   %s 
+  DE-00(cm-1): %s 
+  Intensity:   %s 
+  FCfactor:    %s 
+  INDEX:       %s
         """%(transition,
              self.motherstate,
              self.fcclass,
              self.einit,
              self.efin,
              self.DE,
+             self.DE00cm,
              self.intensity,
              self.fcfactor,
              self.index)
@@ -210,7 +213,7 @@ class AppForm(QMainWindow):
             #  * Do not use unicode() to wrap the call
             #  * It is now an array. Take first value
             path = path[0]
-            if not path or (not "fort.21" in path and not "Assignments.dat"):
+            if not path or (not "fort.21" in path and not "Assignments.dat" in path):
                 return
             if "fort.21" in path:
                 path = path.replace("fort.21","")
@@ -223,7 +226,7 @@ class AppForm(QMainWindow):
         MaxClass = int(MaxClass)
         self.spc_type = cml_args.get("-type")
         self.spc_type = str(self.spc_type).lower()
-        calc_type_list = ("abs","emi","ecd","cpl")
+        calc_type_list = ("opa","emi","ecd","cpl","mcd","tpa","tpcd")
         if self.spc_type not in calc_type_list:
             # Get spc_type if not given on input or was wrong
             get_option,self.spc_type = self.start_assistant()
@@ -289,7 +292,7 @@ class AppForm(QMainWindow):
             self.load_convoluted()
         else:
             self.load_fixconvolution(x,y)
-        self.load_legend()        
+        self.load_legend()
         
         if cml_args.get("--test"):
             sys.exit()
@@ -380,7 +383,7 @@ class AppForm(QMainWindow):
     # POP-UP WINDOWS
     #==========================================================
     def start_assistant(self):
-        calc_type_list = ("abs","emi","ecd","cpl")
+        calc_type_list = ("opa","emi","ecd","cpl","mcd","tpa","tpcd")
                  
         spc_type, ok = QInputDialog.getItem(self, "Select type of calculation", 
                             "Type of calculation", calc_type_list, 0, False)
@@ -690,7 +693,7 @@ class AppForm(QMainWindow):
         lns  = list([x for x in self.stickspc if x])+self.spectrum_sim
         labs = [l.get_label() for l in lns]
         # Set the location according to the type of calculation
-        if self.spc_type in ["abs","ecd"]:
+        if self.spc_type in ["opa","ecd","mcd","tpa","tpcd"]:
             position="upper right"
         else:
             position="upper left"
@@ -714,7 +717,7 @@ class AppForm(QMainWindow):
     def set_axis_labels(self):
         if self.data_type == "Lineshape":
             self.axes2.set_ylabel(r'Lineshape (a.u.)',fontsize=16)
-        elif self.spc_type == 'abs':
+        elif self.spc_type == 'opa':
             self.axes2.set_ylabel(r'$\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
         elif self.spc_type == 'ecd':
             self.axes2.set_ylabel(r'$\Delta\varepsilon$ (dm$^3$mol$^{-1}$cm$^{-1}$)',fontsize=16)
@@ -722,6 +725,12 @@ class AppForm(QMainWindow):
             self.axes2.set_ylabel(r'I (molecule$^{-1}$ns$^{-1}$]',fontsize=16)
         elif self.spc_type == 'cpl':
             self.axes2.set_ylabel(r'$\Delta$I (molec$^{-1}$ns$^{-1}$]',fontsize=16)
+        elif self.spc_type == 'mcd':
+            self.axes2.set_ylabel(r'$\Delta\varepsilon/B_{ext}$ (dm$^3$cm$^{-1}$T$^{-1}$)',fontsize=16)
+        elif self.spc_type == 'tpa':
+            self.axes2.set_ylabel(r'TPA SPECTRUM (GP)',fontsize=16)
+        elif self.spc_type == 'tpcd':
+            self.axes2.set_ylabel(r'TPCD SPECTRUM (GP)',fontsize=16)
         self.axes2.set_xlabel('Energy (eV)',fontsize=16)
         #self.axes.tick_params(direction='out',top=False, right=False)
             
@@ -736,7 +745,6 @@ class AppForm(QMainWindow):
         txt = str(self.broadbox.text())
         hwhm = float(txt)
         fixaxes = self.fixaxes_cb.isChecked()
-        
         #Convolution
         xc,yc = convolute([self.xbin,self.ybin],hwhm=hwhm,broad=self.broadening,input_bins=self.inputBins_cb.isChecked())
         # Plot convoluted
@@ -1110,8 +1118,8 @@ class AppForm(QMainWindow):
         hwhmmax = 0.1
         slidermin = 1   # this is not changed
         slidermax = 100 # this is not changed
-        str = str(self.broadbox.text())
-        hwhm = float(str)
+        msg = str(self.broadbox.text())
+        hwhm = float(msg)
         sliderval = int((slidermax-slidermin)/(hwhmmax-hwhmmin) * (hwhm-hwhmmin) + slidermin)
         sliderval = min(sliderval,slidermax)
         sliderval = max(sliderval,slidermin)
@@ -1620,7 +1628,7 @@ Examples
         
         # Analysis box
         self.analysis_box = QTextEdit(self.main_frame)
-        self.analysis_box.setFontFamily('Arial')
+        self.analysis_box.setFontFamily('Courier') #use a monospaced typeface to ensure good aligment of the text
         self.analysis_box.setReadOnly(True)
         self.analysis_box.setMinimumWidth(200)
         self.analysis_box.setMaximumWidth(250)
@@ -2181,8 +2189,10 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
     # Make the histogram for an additional 20% (if the baseline is not recovered, enlarge this)
     extra_factor = 0.2
     recovered_baseline=False
+    n_extensions = 0
     sigma = hwhm / np.sqrt(2.*np.log(2.))
     while not recovered_baseline:
+        n_extensions += 1
         if input_bins:
             # Backup npoints
             npts = npoints
@@ -2230,7 +2240,12 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
         xconv = xhisto
 
         # Check baseline recovery (only with automatic bins
-        if yconv[0] < yconv.max()/100.0 and yconv[-1] < yconv.max()/100.0:
+        ymax = max(abs(yconv.max()),abs(yconv.min()))
+        if abs(yconv[0]) < ymax/100.0 and abs(yconv[-1]) < ymax/100.0:
+            recovered_baseline=True
+        # If exteded 100 times exit anyway
+        if n_extensions > 100:
+            print('WARNING in convolution: Baseline cannot be recovered!')
             recovered_baseline=True
         if input_bins:
             recovered_baseline=True

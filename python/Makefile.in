@@ -85,7 +85,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-subdir = python
+subdir = tools/python
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -129,8 +129,10 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EXEEXT = @EXEEXT@
+F77 = @F77@
 FC = @FC@
 FCFLAGS = @FCFLAGS@
+FFLAGS = @FFLAGS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -151,6 +153,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PDFLATEX = @PDFLATEX@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
@@ -159,6 +162,7 @@ abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
+ac_ct_F77 = @ac_ct_F77@
 ac_ct_FC = @ac_ct_FC@
 am__leading_dot = @am__leading_dot@
 am__tar = @am__tar@
@@ -198,7 +202,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
 # get *py files to the distribution with "make dist"
-EXTRA_DIST = fcc_analyzer.py version_tag.py sum_spectra.py
+EXTRA_DIST = fcc_analyzer_PyQt5.py fcc_analyzer_PyQt5_version.py fcc_RRinspector_PyQt5.py sum_spectra.py
 all: all-am
 
 .SUFFIXES:
@@ -211,9 +215,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign python/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tools/python/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign python/Makefile
+	  $(AUTOMAKE) --foreign tools/python/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -388,15 +392,7 @@ uninstall-am:
 .PRECIOUS: Makefile
 
 
-# ADDITIONAL RECURSIVE TARGETS
-# (see http://www.gnu.org/software/automake/manual/html_node/Subdirectories.html)
-# This has been added by first including them in configure.ac through
-# AM_EXTRA_RECURSIVE_TARGETS([target1 target2...])
-
-# Build standalone binary with pyinstaller
-python-standalone-local:
-	pyinstaller fcc_analyzer_PyQt4.py --onefile; continue
-	pyinstaller fcc_analyzer_PyQt5.py --onefile; continue
+fcc_analyzer_PyQt5_version.py:python-update-version-local
 
 python-update-version-local:
 	@echo "  "
@@ -409,13 +405,6 @@ all-local: python-update-version-local
 
 install-exec-local:
 	cp *.py $(bindir)
-
-# if we want an additional install file
-#if INSTALL_PYTHONBIN
-#install-exec-local:
-#	cp *.py $(prefix)/bin
-#	cp dist/fcc_analyzer $(prefix)/bin
-#endif
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

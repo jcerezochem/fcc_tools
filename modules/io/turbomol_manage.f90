@@ -465,7 +465,7 @@ module turbomol_manage
             read(unt,'(A)') line ! blank
             read(unt,'(A20,A)') check, line ! mode number
             if (trim(adjustl(check)) /= "mode") exit
-            call string2vector_int(line,modenums,nfreq," ")
+            call string2ivector(line,modenums,nfreq," ")
             imin = modenums(1)
             imax = modenums(nfreq)
             read(unt,'(A)') line ! blank

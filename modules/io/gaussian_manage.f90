@@ -67,18 +67,22 @@ module gaussian_manage
         integer,intent(out),optional :: error_flag
 
         !Local
+        logical :: section_read
         ! Counters
         integer :: i, isection
         ! I/O
         integer :: IOstatus
         character(len=240) :: line
-        character(len=500) :: section_str !can hold 2 lines
+        character(len=500) :: section_str     !can hold 2 lines
+        real(8),dimension(8) :: section_part !store the part of the section read (only 6-7 items)
+        integer              :: npart, ntot
         
         if (isect<6) then
             call alert_msg('fatal','Only sections 6 and 7 can be read parsed with summary_parser_array')
         endif
 
         !Locate summary
+        section_read = .false.
         error_flag = 0
         i=0
         do
@@ -97,6 +101,7 @@ module gaussian_manage
         do isection=1,7
             error_flag = 0
             section_str  = ""
+            ntot = 0
             do
                 i=i+1
                 !Check if there is space for a line. Otherwise, make 
@@ -106,6 +111,29 @@ module gaussian_manage
                 endif
                 !Append last line to section_str
                 section_str=adjustl(trim(section_str))//line
+                if (isection==isect) then
+                    ! Read data (maybe broken)
+!                     print*, section_str
+                    if ( INDEX(section_str,'\\') /= 0 ) then
+                        section_read = .true.
+                        call split_line(section_str,'\\',section_str,line)
+                        ! Read last section
+!                         print*, 'READ   : ', trim(adjustl(section_str))
+                        call string2rvector(section_str,section_part,npart,',')
+                        section(ntot+1:ntot+npart) = section_part(1:npart)
+                        ntot = ntot+npart
+!                         print*, 'DISCARD: ', trim(adjustl(line))
+!                         print*, "--------------------------------"
+                        exit
+                    endif
+                    call split_line_back(section_str,',',line,section_str)
+!                     print*, 'READ   : ', trim(adjustl(line))
+                    call string2rvector(line,section_part,npart,',')
+                    section(ntot+1:ntot+npart) = section_part(1:npart)
+                    ntot = ntot+npart
+!                     print*, 'DISCARD: ', trim(adjustl(section_str))
+!                     print*, "--------------------------------"
+                endif
                 !If we reach a section end "\\", split and finish section
                 if ( INDEX(section_str,'\\') /= 0 ) then
                     call split_line(section_str,'\\',section_str,line)
@@ -119,18 +147,17 @@ module gaussian_manage
                     return
                 endif
             enddo
-            if (isection == isect) then
-                rewind(unt)
-                return
-            endif
-            if (line == "@") then
-                error_flag = 1
-                rewind(unt)
-                return
-            endif
+            
+            if (section_read) exit
 
         enddo
 
+        if (.not.section_read) then
+            error_flag = 1
+        endif
+        
+!         print*, '*******', ntot
+        
         rewind(unt)
         return
 
@@ -592,7 +619,7 @@ module gaussian_manage
         !Read the first geometry entry
         call split_line(string,'\',geom_char,string)
         !Get the number of elements
-        call string2vector_char(geom_char,dummy_char,nitems,',')
+        call string2cvector(geom_char,dummy_char,nitems,',')
         !The decide the format
         if (nitems == 4) then
             !Read first entry
@@ -1178,7 +1205,7 @@ module gaussian_manage
         enddo
         
         ! Changed from G09 to G16
-        if (INDEX(line,"IAtom:")/=0) then !is G09
+        if (INDEX(line,"IAtom")/=0) then !is G09
             !Split line to get data
             ! First remove trailing dot
             call split_line(line,".",line,auxchar)

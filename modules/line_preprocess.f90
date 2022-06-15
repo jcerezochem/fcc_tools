@@ -224,7 +224,7 @@ module line_preprocess
     end subroutine set_word_upper_case
 
 
-    subroutine string2vector(raw_vector,array_vector,n_elem,sep)
+    subroutine string2rvector(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of comma sepparated values into an
@@ -265,9 +265,9 @@ module line_preprocess
 
         return
 
-    end subroutine string2vector
+    end subroutine string2rvector
 
-    subroutine string2vector_int(raw_vector,array_vector,n_elem,sep)
+    subroutine string2ivector(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of comma sepparated values into an
@@ -308,10 +308,10 @@ module line_preprocess
 
         return
 
-    end subroutine string2vector_int
+    end subroutine string2ivector
 
 
-    subroutine string2vector_char(raw_vector,array_vector,n_elem,sep)
+    subroutine string2cvector(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of <sep> sepparated values into an
@@ -355,7 +355,7 @@ module line_preprocess
 
         return
 
-    end subroutine string2vector_char
+    end subroutine string2cvector
     
 
     subroutine string2vector_getsize(raw_vector,n_elem,sep)
@@ -518,7 +518,7 @@ module line_preprocess
 
         call string2vector_getsize(selection_local,N," ")
         allocate(selection_split(N))
-        call string2vector_char(selection_local,selection_split,N," ")
+        call string2cvector(selection_local,selection_split,N," ")
 
         is_range = .false.
         j = 0
@@ -581,7 +581,7 @@ module line_preprocess
 
         call string2vector_getsize(selection_local,N," ")
         allocate(selection_split(N))
-        call string2vector_char(selection_local,selection_split,N," ")
+        call string2cvector(selection_local,selection_split,N," ")
 
         is_range = .false.
         j = 0
@@ -609,6 +609,103 @@ module line_preprocess
         return
 
     end subroutine selection2intlist
+    
+    subroutine selection2floatlist(selection,Nlist,list)
+
+       ! Interpret a selection to the array of floats
+       ! Requires Nlist as input if ranges are requested:
+       ! Syntaxis of the selection:
+       !  #  1.1 to 3.2   => (1.1,···,3.2)
+
+        character(len=*), intent(in) :: selection
+        integer, intent(in) :: Nlist
+        real(8),dimension(:) :: list
+        !local 
+        character(len=5),dimension(:),allocatable :: selection_split
+        integer :: i, j, jj
+        integer :: N
+        real(8) :: range_last, range_width, ranges_length
+        logical :: is_range
+        real(8),dimension(100) :: ranges ! can hold up to 50 ranges
+        integer :: n_ranges
+        character(len=len(selection)+10) :: selection_local
+        
+        ! Tranform "," into space 
+        selection_local = ""
+        j=0
+        is_range = .false.
+        do i=1,len_trim(selection)
+            if (is_range) then
+                is_range = .false.
+                cycle
+            endif
+            j=j+1
+            if (selection(i:i) == ",") then
+                selection_local(j:j) = " "
+            else if (selection(i:i+1) == "to") then
+                selection_local(j:j+3) = " to "
+                j=j+3
+                is_range = .true.
+            else if (selection(i:i) == "-") then
+                selection_local(j:j+3) = " to "
+                j=j+3 
+            else
+                selection_local(j:j) = selection(i:i)
+            endif
+        enddo
+
+        call string2vector_getsize(selection_local,N," ")
+        allocate(selection_split(N))
+        call string2cvector(selection_local,selection_split,N," ")
+
+        is_range = .false.
+        j = 0
+        n_ranges = 0
+        ranges_length = 0.d0
+        do i=1,N
+            if (selection_split(i) == "to") then
+                is_range =  .true.
+                n_ranges = n_ranges + 1
+                cycle
+            endif
+            ! Read number
+            if (.not.is_range) then
+                j = j+1
+                read(selection_split(i),*) list(j)
+            else
+                read(selection_split(i),*) range_last
+                jj = 2*n_ranges - 1
+                ranges(jj)   = list(j)
+                ranges(jj+1) = range_last
+                ranges_length = ranges_length + ranges(jj+1) - ranges(jj)
+                is_range = .false.
+                j = j-1
+            endif
+        enddo
+        if (n_ranges /= 0) then
+            range_width = ranges_length / dfloat(Nlist - j - 1)
+        endif
+        if (n_ranges > 1) then
+            print*, "ERROR: too many ranges in selection2floatlist"
+            stop
+        endif
+        do i=1,n_ranges,2
+            j = j + 1
+            list(j) = ranges(i)
+            N = max(1,int((ranges(i+1)-ranges(i))/range_width))
+            do jj = 1,N
+                j = j+1
+                list(j) = min(ranges(i+1),ranges(i)+jj*range_width) 
+            enddo
+        enddo
+        if (Nlist /= j) then
+            print*, "ERROR: malformed range in selection2floatlist"
+            stop
+        endif
+
+        return
+
+    end subroutine selection2floatlist
 
 
 end module line_preprocess

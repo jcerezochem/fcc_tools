@@ -351,7 +351,7 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) 'Generates dipfiles (eldip, magdip) for FCclasses'
         write(0,'(A)'  ) 'from the output of a QM program'
 
-        call print_version()
+        call print_version(0)
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_dipfile -i input_file [-ft filetype] [-oe out_eldip]'//&

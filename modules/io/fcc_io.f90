@@ -583,14 +583,14 @@ module fcc_io
             write(0,*)     "  orca     : ORCA hess file"
             write(0,*)     "  orca4    : ORCA4 hess file"
             write(0,*)     "  cfour    : cfour output"
-            write(0,*)     "  qchem    : cfour output"
+            write(0,*)     "  qchem    : QChem output"
             write(0,*)     "  fcc      : fcclasses new state files"
             write(0,'(A)') " Gradients (vertical models):"
             write(0,*)     "  log      : g09 log"
             write(0,*)     "  fchk     : g09 fchk"
             write(0,*)     "  molcas   : grad file (no symm)"
             write(0,*)     "  cfour    : cfour output"
-            write(0,*)     "  qchem    : cfour output"
+            write(0,*)     "  qchem    : QChem output"
 
         else if (adjustl(properties) == 'trdip') then
             write(0,'(A)') " Transition dipoles:"

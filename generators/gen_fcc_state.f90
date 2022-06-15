@@ -279,10 +279,13 @@ program gen_fcc_state
         print*, "Reading Gradient...", ftg
         call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
         if (error /= 0) then
-            print'(X,A,/)', "Error: Gradient not present in the file."
-            stop
+            print'(X,A,/)', "NOTE: Gradient not present: skiping gradient"
+            is_gradient=.false.
         endif
         close(I_GRD)
+    endif
+    
+    if (is_gradient) then
     
         ! Print to fcc3 file
         print*, "  and writting grad to fcc3 file..."
@@ -385,7 +388,7 @@ program gen_fcc_state
     !Close hessian file
     close(I_HES)
 
-    if (is_hessian .and. adjustl(model_pes) /= "VH") then
+    if (is_hessian .and. (write_fcc2 .or. write_modes)) then
         !Perform vibrational analysis
         print*, "Diagonalizing Hessian..."
         call diag_int(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error)
@@ -462,7 +465,7 @@ program gen_fcc_state
                 j=3*jj-2
                 ! Replaced
                 ! call atominfo_from_atmass(Mass(i),k,atname)
-                k = atnum_from_atmass(Mass(i))
+                k = atnum_from_atmass(Mass(jj))
                 if (k == 0) then
                     atname = 'X'
                     write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
@@ -690,7 +693,7 @@ program gen_fcc_state
         write(0,'(A)'  ) 'the atom in amu) through -im flag. The Hessian and masses used in the calculations'
         write(0,'(A)'  ) 'are writen to files, which can be specified on input (-oh -om).'
 
-        call print_version()
+        call print_version(0)
 
         write(0,'(/,A)') 'SYNOPSIS'
         write(0,'(A)'  ) 'gen_fcc_state -i input_file [-fts filetype-str] [-ih hess_inp_file] [-fth filetype-hess] '//&

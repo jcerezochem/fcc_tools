@@ -86,8 +86,17 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = gen_fcc_state$(EXEEXT) gen_fcc_dipfile$(EXEEXT)
-subdir = src/generators
+bin_PROGRAMS = reconvolute_TD$(EXEEXT) reconvolute_TI$(EXEEXT) \
+	convolute_RR$(EXEEXT)
+
+# Now use a conditional to use FFTW of DFT
+@FFTW_TRUE@am__append_1 = \
+@FFTW_TRUE@          ../modules/maths/fftw.f90                           
+
+@FFTW_FALSE@am__append_2 = \
+@FFTW_FALSE@          ../modules/maths/dft.f90 
+
+subdir = tools/postprocessing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -99,51 +108,36 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
-am_gen_fcc_dipfile_OBJECTS = version.$(OBJEXT) \
-	../modules/verbosity.$(OBJEXT) ../modules/constants.$(OBJEXT) \
-	../modules/alerts.$(OBJEXT) ../modules/MatrixMod_red.$(OBJEXT) \
+am_convolute_RR_OBJECTS = version.$(OBJEXT) \
 	../modules/line_preprocess.$(OBJEXT) \
-	../modules/fcc_basics.$(OBJEXT) \
-	../modules/gamess_manage.$(OBJEXT) \
-	../modules/gaussian_manage.$(OBJEXT) \
-	../modules/cfour_manage.$(OBJEXT) \
-	../modules/gmx_manage.$(OBJEXT) \
-	../modules/psi4_manage.$(OBJEXT) \
-	../modules/molcas_manage.$(OBJEXT) \
-	../modules/molden_manage.$(OBJEXT) \
-	../modules/molpro_manage.$(OBJEXT) \
-	../modules/turbomol_manage.$(OBJEXT) \
-	../modules/orca_manage.$(OBJEXT) \
-	../modules/qchem_manage.$(OBJEXT) \
-	../modules/fcc_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
-	gen_fcc_dipfile.$(OBJEXT)
-gen_fcc_dipfile_OBJECTS = $(am_gen_fcc_dipfile_OBJECTS)
-gen_fcc_dipfile_LDADD = $(LDADD)
-gen_fcc_dipfile_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
-	$(gen_fcc_dipfile_LDFLAGS) $(LDFLAGS) -o $@
-am_gen_fcc_state_OBJECTS = version.$(OBJEXT) \
-	../modules/verbosity.$(OBJEXT) ../modules/constants.$(OBJEXT) \
-	../modules/alerts.$(OBJEXT) ../modules/MatrixMod_red.$(OBJEXT) \
+	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
+	convolute_RR.$(OBJEXT)
+convolute_RR_OBJECTS = $(am_convolute_RR_OBJECTS)
+convolute_RR_LDADD = $(LDADD)
+convolute_RR_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(convolute_RR_LDFLAGS) $(LDFLAGS) -o $@
+am__reconvolute_TD_SOURCES_DIST = version.f90 \
+	../modules/line_preprocess.f90 ../modules/alerts.f90 \
+	../modules/constants.f90 ../modules/maths/fftw.f90 \
+	../modules/maths/dft.f90 reconvolute_TD.f90
+@FFTW_TRUE@am__objects_1 = ../modules/maths/fftw.$(OBJEXT)
+@FFTW_FALSE@am__objects_2 = ../modules/maths/dft.$(OBJEXT)
+am_reconvolute_TD_OBJECTS = version.$(OBJEXT) \
 	../modules/line_preprocess.$(OBJEXT) \
-	../modules/fcc_basics.$(OBJEXT) \
-	../modules/gamess_manage.$(OBJEXT) \
-	../modules/gaussian_manage.$(OBJEXT) \
-	../modules/cfour_manage.$(OBJEXT) \
-	../modules/gmx_manage.$(OBJEXT) \
-	../modules/psi4_manage.$(OBJEXT) \
-	../modules/molcas_manage.$(OBJEXT) \
-	../modules/molden_manage.$(OBJEXT) \
-	../modules/molpro_manage.$(OBJEXT) \
-	../modules/turbomol_manage.$(OBJEXT) \
-	../modules/orca_manage.$(OBJEXT) \
-	../modules/qchem_manage.$(OBJEXT) \
-	../modules/fcc_manage.$(OBJEXT) ../modules/fcc_io.$(OBJEXT) \
-	../modules/vibrational_analysis.$(OBJEXT) \
-	gen_fcc_state.$(OBJEXT)
-gen_fcc_state_OBJECTS = $(am_gen_fcc_state_OBJECTS)
-gen_fcc_state_LDADD = $(LDADD)
-gen_fcc_state_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
-	$(gen_fcc_state_LDFLAGS) $(LDFLAGS) -o $@
+	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
+	$(am__objects_1) $(am__objects_2) reconvolute_TD.$(OBJEXT)
+reconvolute_TD_OBJECTS = $(am_reconvolute_TD_OBJECTS)
+reconvolute_TD_LDADD = $(LDADD)
+reconvolute_TD_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(reconvolute_TD_LDFLAGS) $(LDFLAGS) -o $@
+am_reconvolute_TI_OBJECTS = version.$(OBJEXT) \
+	../modules/line_preprocess.$(OBJEXT) \
+	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
+	reconvolute_TI.$(OBJEXT)
+reconvolute_TI_OBJECTS = $(am_reconvolute_TI_OBJECTS)
+reconvolute_TI_LDADD = $(LDADD)
+reconvolute_TI_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(reconvolute_TI_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -169,8 +163,10 @@ AM_V_FCLD = $(am__v_FCLD_@AM_V@)
 am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
-SOURCES = $(gen_fcc_dipfile_SOURCES) $(gen_fcc_state_SOURCES)
-DIST_SOURCES = $(gen_fcc_dipfile_SOURCES) $(gen_fcc_state_SOURCES)
+SOURCES = $(convolute_RR_SOURCES) $(reconvolute_TD_SOURCES) \
+	$(reconvolute_TI_SOURCES)
+DIST_SOURCES = $(convolute_RR_SOURCES) \
+	$(am__reconvolute_TD_SOURCES_DIST) $(reconvolute_TI_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -210,8 +206,10 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EXEEXT = @EXEEXT@
+F77 = @F77@
 FC = @FC@
 FCFLAGS = @FCFLAGS@
+FFLAGS = @FFLAGS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -232,6 +230,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PDFLATEX = @PDFLATEX@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
@@ -240,6 +239,7 @@ abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
+ac_ct_F77 = @ac_ct_F77@
 ac_ct_FC = @ac_ct_FC@
 am__leading_dot = @am__leading_dot@
 am__tar = @am__tar@
@@ -278,53 +278,26 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
-gen_fcc_state_SOURCES = version.f90\
-                        ../modules/verbosity.f90\
-                        ../modules/constants.f90\
-                        ../modules/alerts.f90\
-                        ../modules/MatrixMod_red.f90\
-                        ../modules/line_preprocess.f90\
-                        ../modules/fcc_basics.f90\
-                        ../modules/gamess_manage.f90\
-                        ../modules/gaussian_manage.f90\
-                        ../modules/cfour_manage.f90\
-                        ../modules/gmx_manage.f90\
-                        ../modules/psi4_manage.f90\
-                        ../modules/molcas_manage.f90\
-                        ../modules/molden_manage.f90\
-                        ../modules/molpro_manage.f90\
-                        ../modules/turbomol_manage.f90\
-                        ../modules/orca_manage.f90\
-                        ../modules/qchem_manage.f90\
-                        ../modules/fcc_manage.f90\
-                        ../modules/fcc_io.f90\
-                        ../modules/vibrational_analysis.f90\
-                        gen_fcc_state.f90
+reconvolute_TD_SOURCES = version.f90 ../modules/line_preprocess.f90 \
+	../modules/alerts.f90 ../modules/constants.f90 $(am__append_1) \
+	$(am__append_2) reconvolute_TD.f90
+reconvolute_TD_LDFLAGS = @LIBS@
+reconvolute_TI_SOURCES = \
+          version.f90                                         \
+          ../modules/line_preprocess.f90                      \
+          ../modules/alerts.f90                               \
+          ../modules/constants.f90                            \
+          reconvolute_TI.f90
 
-gen_fcc_state_LDFLAGS = @LIBS@
-gen_fcc_dipfile_SOURCES = version.f90\
-                        ../modules/verbosity.f90\
-                          ../modules/constants.f90\
-                          ../modules/alerts.f90\
-                          ../modules/MatrixMod_red.f90\
-                          ../modules/line_preprocess.f90\
-                          ../modules/fcc_basics.f90\
-                          ../modules/gamess_manage.f90\
-                          ../modules/gaussian_manage.f90\
-                          ../modules/cfour_manage.f90\
-                          ../modules/gmx_manage.f90\
-                          ../modules/psi4_manage.f90\
-                          ../modules/molcas_manage.f90\
-                          ../modules/molden_manage.f90\
-                          ../modules/molpro_manage.f90\
-                          ../modules/turbomol_manage.f90\
-                          ../modules/orca_manage.f90\
-                          ../modules/qchem_manage.f90\
-                          ../modules/fcc_manage.f90\
-                          ../modules/fcc_io.f90\
-                          gen_fcc_dipfile.f90
+reconvolute_TI_LDFLAGS = @LIBS@
+convolute_RR_SOURCES = \
+          version.f90                                         \
+          ../modules/line_preprocess.f90                      \
+          ../modules/alerts.f90                               \
+          ../modules/constants.f90                            \
+          convolute_RR.f90
 
-gen_fcc_dipfile_LDFLAGS = @LIBS@
+convolute_RR_LDFLAGS = @LIBS@
 CLEANFILES = *.mod
 all: all-am
 
@@ -339,9 +312,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/generators/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tools/postprocessing/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/generators/Makefile
+	  $(AUTOMAKE) --foreign tools/postprocessing/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -407,58 +380,39 @@ clean-binPROGRAMS:
 ../modules/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) ../modules/$(DEPDIR)
 	@: > ../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/verbosity.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/constants.$(OBJEXT): ../modules/$(am__dirstamp) \
+../modules/line_preprocess.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/alerts.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/MatrixMod_red.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/line_preprocess.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/fcc_basics.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/gamess_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/gaussian_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/cfour_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/gmx_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/psi4_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/molcas_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/molden_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/molpro_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/turbomol_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/orca_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/qchem_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/fcc_manage.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
-../modules/fcc_io.$(OBJEXT): ../modules/$(am__dirstamp) \
+../modules/constants.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 
-gen_fcc_dipfile$(EXEEXT): $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_DEPENDENCIES) $(EXTRA_gen_fcc_dipfile_DEPENDENCIES) 
-	@rm -f gen_fcc_dipfile$(EXEEXT)
-	$(AM_V_FCLD)$(gen_fcc_dipfile_LINK) $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_LDADD) $(LIBS)
-../modules/vibrational_analysis.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
+convolute_RR$(EXEEXT): $(convolute_RR_OBJECTS) $(convolute_RR_DEPENDENCIES) $(EXTRA_convolute_RR_DEPENDENCIES) 
+	@rm -f convolute_RR$(EXEEXT)
+	$(AM_V_FCLD)$(convolute_RR_LINK) $(convolute_RR_OBJECTS) $(convolute_RR_LDADD) $(LIBS)
+../modules/maths/$(am__dirstamp):
+	@$(MKDIR_P) ../modules/maths
+	@: > ../modules/maths/$(am__dirstamp)
+../modules/maths/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) ../modules/maths/$(DEPDIR)
+	@: > ../modules/maths/$(DEPDIR)/$(am__dirstamp)
+../modules/maths/fftw.$(OBJEXT): ../modules/maths/$(am__dirstamp) \
+	../modules/maths/$(DEPDIR)/$(am__dirstamp)
+../modules/maths/dft.$(OBJEXT): ../modules/maths/$(am__dirstamp) \
+	../modules/maths/$(DEPDIR)/$(am__dirstamp)
 
-gen_fcc_state$(EXEEXT): $(gen_fcc_state_OBJECTS) $(gen_fcc_state_DEPENDENCIES) $(EXTRA_gen_fcc_state_DEPENDENCIES) 
-	@rm -f gen_fcc_state$(EXEEXT)
-	$(AM_V_FCLD)$(gen_fcc_state_LINK) $(gen_fcc_state_OBJECTS) $(gen_fcc_state_LDADD) $(LIBS)
+reconvolute_TD$(EXEEXT): $(reconvolute_TD_OBJECTS) $(reconvolute_TD_DEPENDENCIES) $(EXTRA_reconvolute_TD_DEPENDENCIES) 
+	@rm -f reconvolute_TD$(EXEEXT)
+	$(AM_V_FCLD)$(reconvolute_TD_LINK) $(reconvolute_TD_OBJECTS) $(reconvolute_TD_LDADD) $(LIBS)
+
+reconvolute_TI$(EXEEXT): $(reconvolute_TI_OBJECTS) $(reconvolute_TI_DEPENDENCIES) $(EXTRA_reconvolute_TI_DEPENDENCIES) 
+	@rm -f reconvolute_TI$(EXEEXT)
+	$(AM_V_FCLD)$(reconvolute_TI_LINK) $(reconvolute_TI_OBJECTS) $(reconvolute_TI_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 	-rm -f ../modules/*.$(OBJEXT)
+	-rm -f ../modules/maths/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -590,6 +544,8 @@ distclean-generic:
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
 	-rm -f ../modules/$(DEPDIR)/$(am__dirstamp)
 	-rm -f ../modules/$(am__dirstamp)
+	-rm -f ../modules/maths/$(DEPDIR)/$(am__dirstamp)
+	-rm -f ../modules/maths/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -680,7 +636,12 @@ uninstall-am: uninstall-binPROGRAMS
 .PRECIOUS: Makefile
 
 
-# .PHONY: version.f90
+.PHONY: ../modules/line_preprocess.f90 ../modules/alerts.f90 ../modules/constants.f90
+
+# Generate version file only if needed. To that end the
+# dependency of version.f90 is a non-file-associated 
+# instruction that only changes the file if requiered
+# This avoids recompiling everything every time
 version.f90: get_git_version
 get_git_version:
 	@bash ./get_git_version.sh $(FCFLAGS) $(LIBS) || echo "Reusing version file"
