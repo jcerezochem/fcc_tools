@@ -29,7 +29,7 @@ program reconvolute_TD
     real(8) :: hwhm_eV=0.01d0,  &
                hwhm2_eV=0.01d0, &
                hwhm3_eV=0.01d0
-    real(8) :: Eshift=-1.d0
+    real(8) :: Eshift=-9999.d0
     logical :: do_gibbs=.true.
     
     !IO
@@ -115,7 +115,7 @@ program reconvolute_TD
     rewind(I_CORR)
     
     ! Allocate
-    allocate(t(2*N),corr(2*N),spect(2*N),w(2*N))
+    allocate(t(2*N),corr(2*N),spect(2*N))
     
     ! Then read data and add new broadening and gibbs function
     do i=1,N
@@ -258,8 +258,19 @@ program reconvolute_TD
     call ft_calc(6,2*N,t(1:2*N),corr(1:2*N), &
                  spect(1:2*N),optrans)
                  
+    !
+    ! Get the full correlation function 
+    fullcorrfile="timecorr_hwhm"//trim(adjustl(hwhm_char))//".dat"
+    open(O_CORR,file=fullcorrfile,status="replace")
+    do i=1,2*N
+        write(O_CORR,*) t(i), dreal(corr(i)), aimag(corr(i))
+    enddo
+    close(O_CORR)
+                 
     ! Write spectrum (LS in au)
     df = 1.d0/(t(2*N) - t(1)) * ( dfloat(2*N-1)/dfloat(2*N) )
+    deallocate(t)
+    allocate(w(2*N))
     do i=1,2*N
         !Take into account the 1/2pi factor from the FT(delta)
         spect(i) = spect(i)/2./pi
@@ -267,7 +278,7 @@ program reconvolute_TD
     enddo
     
     ! Get Eshift if needed
-    if (Eshift<0.d0) then
+    if (Eshift==-9999.d0) then
         ! Try opening posible output files
         open(I_LOG,file=fccoutfile,status='old',iostat=ioflag)
         if (ioflag==0) then
@@ -281,7 +292,7 @@ program reconvolute_TD
             endif
             write(0,'(/,X,A,F12.5,A/)') "Read from file ("//&
                                         trim(adjustl(fccoutfile))//&
-                                        ": Eshift=", Eshift, ' eV'
+                                        "): Eshift=", Eshift, ' eV'
         endif
         ! If this does not work, set Eshift to zero
         if (ioflag/=0) then
@@ -322,14 +333,7 @@ program reconvolute_TD
         close(O_SPC1)
         close(O_SPC2)
     endif
-    !
-    ! And get the full correlation function 
-    fullcorrfile="timecorr_hwhm"//trim(adjustl(hwhm_char))//".dat"
-    open(O_CORR,file=fullcorrfile,status="replace")
-    do i=1,2*N
-        write(O_CORR,*) t(i), dreal(corr(i)), aimag(corr(i))
-    enddo
-    close(O_CORR)
+
     
                  
     stop
