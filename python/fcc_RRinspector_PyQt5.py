@@ -38,7 +38,7 @@ import matplotlib
 import re
 
 try:
-    import fcc_analyzer_PyQt5_version as version_tag
+    import fcc_version_tag as version_tag
 except:
     class version_tag:
         COMMIT="Untracked"
