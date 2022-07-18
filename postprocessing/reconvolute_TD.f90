@@ -7,6 +7,8 @@ program reconvolute_TD
     
     implicit none
     
+    real(8),parameter :: ZERO    = 1.d-10
+    
     double complex,parameter :: Im = (0,1), &
                                 Re = (1,0)
 
@@ -30,6 +32,7 @@ program reconvolute_TD
                hwhm2_eV=0.01d0, &
                hwhm3_eV=0.01d0
     real(8) :: Eshift=-9999.d0
+    real(8) :: de_eV = -9999.d0 ! for IC rate
     logical :: do_gibbs=.true.
     
     !IO
@@ -45,10 +48,15 @@ program reconvolute_TD
     character(len=200) :: line
     character :: cnull
     
+    ! IC rate interpolation
+    integer :: npoints
+    real(8) :: freq1, freq2, RI1, RI2, R_IC
+    character(len=100) :: msg
+    
     
     ! Read command_line_options
     call parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
-                     do_gibbs,property,Eshift,fccoutfile)
+                     do_gibbs,property,Eshift,de_eV,fccoutfile)
     
     ! Set options upper case
     call set_word_upper_case(property)
@@ -315,8 +323,8 @@ program reconvolute_TD
         open(O_SPC2,file=spc2file,status="replace")
         dw  = (w(2)-w(1))/autoev !in Au
         do i=1,2*N
-            wau=(w(i)+Eshift)/autoev
-            write(O_SPC2,'(F12.5,3X,G16.8)') w(i)+Eshift, spect(i)*factor*2.d0*pi
+            w(i) = w(i)+Eshift
+            write(O_SPC2,'(F12.5,3X,G16.8)') w(i), spect(i)*factor*2.d0*pi
         enddo
         close(O_SPC2)
     else
@@ -333,6 +341,92 @@ program reconvolute_TD
         close(O_SPC1)
         close(O_SPC2)
     endif
+    
+    
+    ! For IC, get Ead
+    if (property == 'IC') then
+    
+        ! Get Ead if needed
+        if (de_eV<-9990.d0) then
+            ! Try opening posible output files
+            open(I_LOG,file=fccoutfile,status='old',iostat=ioflag)
+            if (ioflag==0) then
+                do
+                    read(I_LOG,'(A)',iostat=ioflag) line
+                    if (ioflag/=0) exit
+                    if (index(line,'(for Ead =')/=0) exit
+                enddo
+                if (ioflag==0) then
+                    read(line,*) cnull,cnull,cnull,de_eV,cnull
+                endif
+                write(0,'(/,X,A,F12.5,A/)') "Ead read from file ("//&
+                                            trim(adjustl(fccoutfile))//&
+                                            "): Ead=", de_eV, ' eV'
+            endif
+            ! If this does not work, set Eshift to zero
+            if (ioflag/=0) then
+                call alert_msg('warning','Ead not set and could not be read from file,'//&
+                                        trim(adjustl(fccoutfile))//&
+                                        'setting to zero')
+                de_eV = 0.d0
+            endif
+            ! If anything worked, use Eshift = 0
+            if (ioflag/=0) then
+                de_eV=0.d0
+                write(0,'(/,X,A,F12.5,A/)') "Cannot read from file. Setting Ead=", de_eV, ' eV'
+            endif
+        endif
+    endif
+    
+    
+    ! For IC, get the rate
+    if (property == 'IC') then
+    
+        npoints = 2*N
+        
+        ! Non-radiative decay
+        freq1=-999.d0
+        do i=2,npoints
+            !Locate value for given de
+            if (de_eV.ge.w(i-1).and.de_eV.le.w(i)) then
+                RI1 = spect(i-1)
+                RI2 = spect(i)
+                freq1=w(i-1)
+                freq2=w(i)
+            endif
+        enddo
+        ! Check if we are close to the borders
+        if (freq1.eq.-999.d0) then
+            ! Start
+            if (dabs(de_eV-w(1))<ZERO) then
+                RI1 = spect(1)
+                RI2 = spect(2)
+                freq1=w(1)
+                freq2=w(2)
+            elseif (dabs(de_eV-w(npoints))<ZERO) then
+                RI1 = spect(npoints-1)
+                RI2 = spect(npoints)
+                freq1=w(npoints-1)
+                freq2=w(npoints)
+            endif
+        endif
+                
+        if (freq1.eq.-999.d0) then
+            write(6,*) "Ead:", de_eV, "out of range: ",w(1)," -- ",w(npoints)
+            call alert_msg('warning','IC rate could not be computed. Change settings')
+        else
+            ! interpolate value
+            R_IC = ((de_eV-freq1)/(freq2-freq1)*(RI2-RI1)+RI1) * factor*2.d0*pi
+            msg=' IC rate constant (s-1)'
+            write(6,*) ""
+            write(6,*) "========================================================"
+            write(6,'(X,A,X,ES10.3)') trim(adjustl(msg)), R_IC
+            write(6,'(X,A,X,F8.3,A)') "(for Ead = ", de_eV, " eV)"
+            write(6,*) "========================================================"
+            write(6,*) ""
+            write(6,*) ""
+        endif
+    endif
 
     
                  
@@ -341,11 +435,11 @@ program reconvolute_TD
     contains
     
     subroutine parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
-                           do_gibbs,property,Eshift,fccoutfile)
+                           do_gibbs,property,Eshift,de_eV,fccoutfile)
     
         character(len=*),intent(inout) :: corrfile,broadfun,broadfun2,broadfun3,property,fccoutfile
         logical,intent(inout)          :: do_gibbs
-        real(8),intent(inout)          :: hwhm_eV, hwhm2_eV, hwhm3_eV, Eshift
+        real(8),intent(inout)          :: hwhm_eV, hwhm2_eV, hwhm3_eV, Eshift, de_eV
 
         ! Local
         logical :: argument_retrieved,  &
@@ -405,6 +499,11 @@ program reconvolute_TD
                     call getarg(i+1, arg)
                     read(arg,*) Eshift
                     argument_retrieved=.true.
+                    
+                case ("-Ead") 
+                    call getarg(i+1, arg)
+                    read(arg,*) de_eV
+                    argument_retrieved=.true.
 
                 case ("-fccout") 
                     call getarg(i+1, fccoutfile)
@@ -449,6 +548,11 @@ program reconvolute_TD
         write(0,'(A)'  )   ' -prop     Property computed            '//trim(adjustl(property))
         write(0,'(A)'  )   '           (OPA|EMI|ECD|MCP|CPL)'
         write(0,'(A,F8.3)')' -Eshift   Energy shift (eV)         '   ,Eshift   
+        if (de_eV<-9990.d0) then
+        write(0,'(A)'  )   ' -Ead      Adiabatic energy (eV)        (default)'
+        else
+        write(0,'(A,F8.3)')' -Ead      Adiabatic energy (eV)     '   ,de_eV
+        endif
         write(0,'(A)'  )   ' -fccout   Output of FCclasses job      '//trim(adjustl(fccoutfile))
         write(0,'(A)'  )   ' -h        Print help  '
         write(0,*) ''

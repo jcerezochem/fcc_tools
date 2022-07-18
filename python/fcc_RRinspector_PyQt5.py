@@ -179,7 +179,7 @@ class AppForm(QMainWindow):
 
         # Initialize additional items
         # Broadening info
-        self.broadening="Gau"
+        self.broadening="Lor"
         self.update_hwhm_from_slider(UpdateConvolute=False)
         # UpdateW (required to get the right value from textbox)
         self.updateW = True
@@ -1588,7 +1588,7 @@ class AppForm(QMainWindow):
         clean_button2.clicked.connect(self.reset_labels)
         
         self.select_broad = QComboBox()
-        self.select_broad.addItems(["Gau","Lor"])
+        self.select_broad.addItems(["Lor","Gau"])
         self.select_broad.currentIndexChanged.connect(self.update_broad_function)
         
         self.select_data_type = QComboBox()

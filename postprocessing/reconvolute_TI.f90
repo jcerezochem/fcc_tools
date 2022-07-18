@@ -6,6 +6,8 @@ program reconvolute_TI
     
     implicit none
     
+    real(8),parameter :: ZERO    = 1.d-10
+    
     real(8),dimension(:),allocatable :: w,spect
     real(8),dimension(:),allocatable :: ystick,xstick
     real(8) :: factor, df, dw, &
@@ -45,6 +47,10 @@ program reconvolute_TI
     
     ! Aux arrays
     real(8),dimension(:),allocatable :: Vec
+    
+    ! IC rate interpolation
+    real(8) :: R_IC
+    character(len=100) :: msg
     
     
     ! Read command_line_options
@@ -258,7 +264,8 @@ program reconvolute_TI
         open(O_SPC2,file=spc2file,status="replace")
         dw  = (w(2)-w(1))/autoev !in Au
         do i=1,npoints
-            write(O_SPC2,'(F15.5,3X,G18.8E3)') -(w(i)+Eshift) + de_eV, spect(i)*factor*2.d0*pi
+            w(i) = -(w(i)+Eshift) + de_eV
+            write(O_SPC2,'(F15.5,3X,G18.8E3)') w(i), spect(i)*factor*2.d0*pi
         enddo
         close(O_SPC2)
     else
@@ -280,58 +287,18 @@ program reconvolute_TI
     endif
     !
     
-!     ! For IC, get the rate
-!     if (property == 'IC') then
-!         ! Non-radiative decay
-!         freq1=-999.d0
-!         do i=2,nene
-!             !Locate value for given de
-!             if (de_eV.ge.w(i-1).and.de_eV.le.w(i)) then
-!                 RI1 = spectrum(i-1)
-!                 RI2 = spectrum(i)
-!                 freq1=w(i-1)
-!                 freq2=w(i)
-!             endif
-!         enddo
-!         ! Check if we are close to the borders
-!         if (freq1.eq.-999.d0) then
-!             ! Start
-!             if (dabs(de_eV-w(1))<ZERO) then
-!                 RI1 = spectrum(1)
-!                 RI2 = spectrum(2)
-!                 freq1=w(1)
-!                 freq2=w(2)
-!             elseif (dabs(de_eV-w(nene))<ZERO) then
-!                 RI1 = spectrum(nene-1)
-!                 RI2 = spectrum(nene)
-!                 freq1=w(nene-1)
-!                 freq2=w(nene)
-!             endif
-!         endif
-!                 
-!         if (freq1.eq.-999.d0) then
-!             write(6,*) "Ead:", de_eV, "out of range: ",w(1)," -- ",w(nene)
-!             call alert_msg('warning','IC rate could not be computed. Change TD settings')
-!         else
-!     !                 if (method == "TD") then
-!             R_IC = (de_eV-freq1)/(freq2-freq1)*(RI2-RI1)+RI1   
-!     !                 else
-!     !                     R_IC = spectrum(1)
-!     !                 endif
-!             if (property == 'IC') then
-!                 msg=' IC rate constant (s-1)'
-!             else if (property == 'NR0' .or. property == 'NRSC') then
-!                 msg=' Non-radiative rate constant (s-1)'
-!             endif
-!             write(6,*) ""
-!             write(6,*) "========================================================"
-!             write(6,'(X,A,X,ES10.3)') trim(adjustl(msg)), R_IC/autofs*1d15
-!             write(6,'(X,A,X,F8.3,A)') "(for Ead = ", de_eV, " eV)"
-!             write(6,*) "========================================================"
-!             write(6,*) ""
-!             write(6,*) ""
-!         endif
-!     endif
+    ! For IC, get the rate
+    if (property == 'IC') then
+        R_IC = spect(npoints)*factor*2.d0*pi ! the rate at Ead is the last pont
+        msg=' IC rate constant (s-1)'
+        write(6,*) ""
+        write(6,*) "========================================================"
+        write(6,'(X,A,X,ES10.3)') trim(adjustl(msg)), R_IC
+        write(6,'(X,A,X,F8.3,A)') "(for Ead = ", w(npoints), " eV)"
+        write(6,*) "========================================================"
+        write(6,*) ""
+        write(6,*) ""
+    endif
     
                  
     stop
