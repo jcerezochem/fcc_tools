@@ -1,8 +1,8 @@
 AUTOMAKE_OPTIONS = subdir-objects
 # get *py files to the distribution with "make dist"
-EXTRA_DIST = fcc_analyzer_PyQt5.py fcc_analyzer_PyQt5_version.py fcc_RRinspector_PyQt5.py sum_spectra.py
+EXTRA_DIST = fcc_analyzer_PyQt5.py fcc_version_tag.py fcc_RRinspector_PyQt5.py sum_spectra.py
 
-fcc_analyzer_PyQt5_version.py:python-update-version-local
+fcc_version_tag.py:python-update-version-local
 
 python-update-version-local:
 	@echo "  "

@@ -5,7 +5,7 @@ import numpy as np
 from scipy import interpolate
 
 try:
-    import version_tag
+    import fcc_version_tag as version_tag
 except:
     class version_tag:
         COMMIT="Untracked"
