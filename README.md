@@ -1,5 +1,5 @@
 # fcc_tools
-Tools to facilitate input generation and analysis of FCclasses (see http://www.pi.iccom.cnr.it/fcclasses)
+Tools to facilitate input generation and analysis of FCclasses (see http://www.pi.iccom.cnr.it/en/fcclasses)
 
 ## Includes:
 * Generation of inptut data:
