@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = reconvolute_TD reconvolute_TI convolute_RR
+bin_PROGRAMS = reconvolute_TD reconvolute_TI convolute_RR excitation_RR
 
 reconvolute_TD_SOURCES =   \
           version.f90                                         \
@@ -37,6 +37,13 @@ convolute_RR_SOURCES =   \
           ../modules/alerts.f90                               \
           ../modules/constants.f90                            \
           convolute_RR.f90
+
+excitation_RR_SOURCES =   \
+          version.f90                                         \
+          ../modules/line_preprocess.f90                      \
+          ../modules/alerts.f90                               \
+          ../modules/constants.f90                            \
+          excitation_RR.f90
           
 convolute_RR_LDFLAGS = @LIBS@
 

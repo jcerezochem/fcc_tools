@@ -87,7 +87,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = reconvolute_TD$(EXEEXT) reconvolute_TI$(EXEEXT) \
-	convolute_RR$(EXEEXT)
+	convolute_RR$(EXEEXT) excitation_RR$(EXEEXT)
 
 # Now use a conditional to use FFTW of DFT
 @FFTW_TRUE@am__append_1 = \
@@ -116,6 +116,12 @@ convolute_RR_OBJECTS = $(am_convolute_RR_OBJECTS)
 convolute_RR_LDADD = $(LDADD)
 convolute_RR_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
 	$(convolute_RR_LDFLAGS) $(LDFLAGS) -o $@
+am_excitation_RR_OBJECTS = version.$(OBJEXT) \
+	../modules/line_preprocess.$(OBJEXT) \
+	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
+	excitation_RR.$(OBJEXT)
+excitation_RR_OBJECTS = $(am_excitation_RR_OBJECTS)
+excitation_RR_LDADD = $(LDADD)
 am__reconvolute_TD_SOURCES_DIST = version.f90 \
 	../modules/line_preprocess.f90 ../modules/alerts.f90 \
 	../modules/constants.f90 ../modules/maths/fftw.f90 \
@@ -163,9 +169,9 @@ AM_V_FCLD = $(am__v_FCLD_@AM_V@)
 am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
-SOURCES = $(convolute_RR_SOURCES) $(reconvolute_TD_SOURCES) \
-	$(reconvolute_TI_SOURCES)
-DIST_SOURCES = $(convolute_RR_SOURCES) \
+SOURCES = $(convolute_RR_SOURCES) $(excitation_RR_SOURCES) \
+	$(reconvolute_TD_SOURCES) $(reconvolute_TI_SOURCES)
+DIST_SOURCES = $(convolute_RR_SOURCES) $(excitation_RR_SOURCES) \
 	$(am__reconvolute_TD_SOURCES_DIST) $(reconvolute_TI_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -297,6 +303,13 @@ convolute_RR_SOURCES = \
           ../modules/constants.f90                            \
           convolute_RR.f90
 
+excitation_RR_SOURCES = \
+          version.f90                                         \
+          ../modules/line_preprocess.f90                      \
+          ../modules/alerts.f90                               \
+          ../modules/constants.f90                            \
+          excitation_RR.f90
+
 convolute_RR_LDFLAGS = @LIBS@
 CLEANFILES = *.mod
 all: all-am
@@ -390,6 +403,10 @@ clean-binPROGRAMS:
 convolute_RR$(EXEEXT): $(convolute_RR_OBJECTS) $(convolute_RR_DEPENDENCIES) $(EXTRA_convolute_RR_DEPENDENCIES) 
 	@rm -f convolute_RR$(EXEEXT)
 	$(AM_V_FCLD)$(convolute_RR_LINK) $(convolute_RR_OBJECTS) $(convolute_RR_LDADD) $(LIBS)
+
+excitation_RR$(EXEEXT): $(excitation_RR_OBJECTS) $(excitation_RR_DEPENDENCIES) $(EXTRA_excitation_RR_DEPENDENCIES) 
+	@rm -f excitation_RR$(EXEEXT)
+	$(AM_V_FCLD)$(FCLINK) $(excitation_RR_OBJECTS) $(excitation_RR_LDADD) $(LIBS)
 ../modules/maths/$(am__dirstamp):
 	@$(MKDIR_P) ../modules/maths
 	@: > ../modules/maths/$(am__dirstamp)
