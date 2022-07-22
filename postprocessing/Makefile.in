@@ -87,7 +87,8 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = reconvolute_TD$(EXEEXT) reconvolute_TI$(EXEEXT) \
-	convolute_RR$(EXEEXT) excitation_RR$(EXEEXT)
+	convolute_RR$(EXEEXT) excitation_RR$(EXEEXT) \
+	addconvolution_RR$(EXEEXT)
 
 # Now use a conditional to use FFTW of DFT
 @FFTW_TRUE@am__append_1 = \
@@ -108,6 +109,14 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
+am_addconvolution_RR_OBJECTS = version.$(OBJEXT) \
+	../modules/line_preprocess.$(OBJEXT) \
+	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
+	addconvolution_RR.$(OBJEXT)
+addconvolution_RR_OBJECTS = $(am_addconvolution_RR_OBJECTS)
+addconvolution_RR_LDADD = $(LDADD)
+addconvolution_RR_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(addconvolution_RR_LDFLAGS) $(LDFLAGS) -o $@
 am_convolute_RR_OBJECTS = version.$(OBJEXT) \
 	../modules/line_preprocess.$(OBJEXT) \
 	../modules/alerts.$(OBJEXT) ../modules/constants.$(OBJEXT) \
@@ -122,6 +131,8 @@ am_excitation_RR_OBJECTS = version.$(OBJEXT) \
 	excitation_RR.$(OBJEXT)
 excitation_RR_OBJECTS = $(am_excitation_RR_OBJECTS)
 excitation_RR_LDADD = $(LDADD)
+excitation_RR_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(excitation_RR_LDFLAGS) $(LDFLAGS) -o $@
 am__reconvolute_TD_SOURCES_DIST = version.f90 \
 	../modules/line_preprocess.f90 ../modules/alerts.f90 \
 	../modules/constants.f90 ../modules/maths/fftw.f90 \
@@ -169,10 +180,12 @@ AM_V_FCLD = $(am__v_FCLD_@AM_V@)
 am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
-SOURCES = $(convolute_RR_SOURCES) $(excitation_RR_SOURCES) \
-	$(reconvolute_TD_SOURCES) $(reconvolute_TI_SOURCES)
-DIST_SOURCES = $(convolute_RR_SOURCES) $(excitation_RR_SOURCES) \
-	$(am__reconvolute_TD_SOURCES_DIST) $(reconvolute_TI_SOURCES)
+SOURCES = $(addconvolution_RR_SOURCES) $(convolute_RR_SOURCES) \
+	$(excitation_RR_SOURCES) $(reconvolute_TD_SOURCES) \
+	$(reconvolute_TI_SOURCES)
+DIST_SOURCES = $(addconvolution_RR_SOURCES) $(convolute_RR_SOURCES) \
+	$(excitation_RR_SOURCES) $(am__reconvolute_TD_SOURCES_DIST) \
+	$(reconvolute_TI_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -303,6 +316,7 @@ convolute_RR_SOURCES = \
           ../modules/constants.f90                            \
           convolute_RR.f90
 
+convolute_RR_LDFLAGS = @LIBS@
 excitation_RR_SOURCES = \
           version.f90                                         \
           ../modules/line_preprocess.f90                      \
@@ -310,7 +324,15 @@ excitation_RR_SOURCES = \
           ../modules/constants.f90                            \
           excitation_RR.f90
 
-convolute_RR_LDFLAGS = @LIBS@
+excitation_RR_LDFLAGS = @LIBS@
+addconvolution_RR_SOURCES = \
+          version.f90                                         \
+          ../modules/line_preprocess.f90                      \
+          ../modules/alerts.f90                               \
+          ../modules/constants.f90                            \
+          addconvolution_RR.f90
+
+addconvolution_RR_LDFLAGS = @LIBS@
 CLEANFILES = *.mod
 all: all-am
 
@@ -400,13 +422,17 @@ clean-binPROGRAMS:
 ../modules/constants.$(OBJEXT): ../modules/$(am__dirstamp) \
 	../modules/$(DEPDIR)/$(am__dirstamp)
 
+addconvolution_RR$(EXEEXT): $(addconvolution_RR_OBJECTS) $(addconvolution_RR_DEPENDENCIES) $(EXTRA_addconvolution_RR_DEPENDENCIES) 
+	@rm -f addconvolution_RR$(EXEEXT)
+	$(AM_V_FCLD)$(addconvolution_RR_LINK) $(addconvolution_RR_OBJECTS) $(addconvolution_RR_LDADD) $(LIBS)
+
 convolute_RR$(EXEEXT): $(convolute_RR_OBJECTS) $(convolute_RR_DEPENDENCIES) $(EXTRA_convolute_RR_DEPENDENCIES) 
 	@rm -f convolute_RR$(EXEEXT)
 	$(AM_V_FCLD)$(convolute_RR_LINK) $(convolute_RR_OBJECTS) $(convolute_RR_LDADD) $(LIBS)
 
 excitation_RR$(EXEEXT): $(excitation_RR_OBJECTS) $(excitation_RR_DEPENDENCIES) $(EXTRA_excitation_RR_DEPENDENCIES) 
 	@rm -f excitation_RR$(EXEEXT)
-	$(AM_V_FCLD)$(FCLINK) $(excitation_RR_OBJECTS) $(excitation_RR_LDADD) $(LIBS)
+	$(AM_V_FCLD)$(excitation_RR_LINK) $(excitation_RR_OBJECTS) $(excitation_RR_LDADD) $(LIBS)
 ../modules/maths/$(am__dirstamp):
 	@$(MKDIR_P) ../modules/maths
 	@: > ../modules/maths/$(am__dirstamp)
