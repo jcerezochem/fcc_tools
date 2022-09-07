@@ -104,10 +104,12 @@ program addconvolution_RR
         spect(i) = rr
         
         if (i == N) then
+            ! Get lineshape
             do i=1,N
                 spect(i) = spect(i) / (w(i)-ws)**4
             enddo
             call add_convolution(w,spect,broadfun,hwhm_eV,ncut_gau,ncut_lor)
+            ! Return to RR intensity
             do i=1,N
                 write(O_SPC,'(F13.4,X,F15.4,X,E19.5)') ws, w(i), spect(i) * (w(i)-ws)**4
             enddo

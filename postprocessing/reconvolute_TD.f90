@@ -15,9 +15,9 @@ program reconvolute_TD
     real(8),dimension(:),allocatable        :: t,w,spect
     double complex,dimension(:),allocatable :: corr
     double complex :: broad
-    real(8) :: tt,tfin,c,ci,b,bi, factor, aexp, df, dw, &
+    real(8) :: tt,tfin,t0,c,ci,b,bi, factor, aexp, df, dw, &
                damp, wau, dgau, dgau2, dgau3
-    integer :: iexp, nbroad, N
+    integer :: iexp, nbroad, N, NN
     character(len=3) :: optrans
     character(len=8) :: hwhm_char
     !Counters
@@ -43,7 +43,8 @@ program reconvolute_TD
                I_LOG=11,  &
                O_SPC1=20, &
                O_SPC2=21, &
-               O_CORR=22
+               O_CORR=22, &
+               S_CORR=30
     integer :: ioflag
     character(len=200) :: line
     character :: cnull
@@ -111,24 +112,38 @@ program reconvolute_TD
     
     ! Read correlation function (without broadening and gibbs dumping)
     open(I_CORR,file=corrfile,iostat=ioflag)
+    open(S_CORR,status='scratch')
     if (ioflag/=0) call alert_msg('fatal','Cannot open corrfile: '//trim(adjustl(corrfile)))
     ! First get N
     i=0
     do
-        read(I_CORR,*,iostat=ioflag) tfin
+        read(I_CORR,'(A)',iostat=ioflag) line
         if (ioflag/=0) exit
+        if (INDEX(line,'#') == 1 ) cycle
+        read(line,*) tfin
+        write(S_CORR,*) line
+        if (i==0) t0 = tfin
+
         i=i+1
     enddo
     N=i
-    rewind(I_CORR)
+    close(I_CORR)
+    rewind(S_CORR)
+    
+    ! Manage series with initial t=0 or t>0
+    if (t0 == 0.d0) then
+        NN = 2*(N-1) + 1
+    else
+        NN = 2*N
+    endif
     
     ! Allocate
-    allocate(t(2*N),corr(2*N),spect(2*N))
+    allocate(t(NN),corr(NN),spect(NN))
     
     ! Then read data and add new broadening and gibbs function
     do i=1,N
         ! Read correlation (without broadening/gibbs)
-        read(I_CORR,*,iostat=ioflag) tt, c, ci
+        read(S_CORR,*,iostat=ioflag) tt, c, ci
         ! Compute new broadening
         if (broadfun.eq.'GAU') then
             ! Fourier tranfomr:
@@ -255,31 +270,46 @@ program reconvolute_TD
         ! Final corr (from -T to T)
         b  = dreal(broad)
         bi = aimag(broad)
-        t(i+N)      = tt        
-        corr(i+N)   = (c + ci*Im) * (b + bi*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
-        t(N-i+1)    =-tt
-        corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
+        if (tt == 0.d0) then
+            t(N) = tt
+            corr(N) = (c + ci*Im) * (b + bi*Im) * damp
+        else if (t0 == 0.d0) then
+            ! As t0>0, but substracting 1 for t>0 
+            t(i+N-1)    = tt        
+            corr(i+N-1) = (c + ci*Im) * (b + bi*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
+            t(N-i+1)    =-tt
+            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
+        else
+            t(i+N)      = tt        
+            corr(i+N)   = (c + ci*Im) * (b + bi*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
+            t(N-i+1)    =-tt
+            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
+        endif
     enddo
+    close(S_CORR)
 
+    print*, t(1)
+    
     ! Call DFT
-    write(6,'(X,A,I0,A,/)') "Calling DFT with ", 2*N, " points"
-    call ft_calc(6,2*N,t(1:2*N),corr(1:2*N), &
-                 spect(1:2*N),optrans)
+    write(6,'(X,A,I0,A,/)') "Calling DFT with ", NN, " points"
+    call ft_calc(6,NN,t(1:NN),corr(1:NN), &
+                 spect(1:NN),optrans)
                  
     !
     ! Get the full correlation function 
+    write(hwhm_char,'(F8.3)') hwhm_eV
     fullcorrfile="timecorr_hwhm"//trim(adjustl(hwhm_char))//".dat"
     open(O_CORR,file=fullcorrfile,status="replace")
-    do i=1,2*N
+    do i=1,NN
         write(O_CORR,*) t(i), dreal(corr(i)), aimag(corr(i))
     enddo
     close(O_CORR)
                  
     ! Write spectrum (LS in au)
-    df = 1.d0/(t(2*N) - t(1)) * ( dfloat(2*N-1)/dfloat(2*N) )
+    df = 1.d0/(t(NN) - t(1)) * ( dfloat(NN-1)/dfloat(NN) )
     deallocate(t)
-    allocate(w(2*N))
-    do i=1,2*N
+    allocate(w(NN))
+    do i=1,NN
         !Take into account the 1/2pi factor from the FT(delta)
         spect(i) = spect(i)/2./pi
         w(I)     = dfloat(i-1)*df*fstoev 
@@ -317,12 +347,11 @@ program reconvolute_TD
     endif
         
     ! Write spectrum to files
-    write(hwhm_char,'(F8.3)') hwhm_eV
     if (property=='IC') then
         spc2file="kic_vs_Ead_TD_hwhm"//trim(adjustl(hwhm_char))//".dat"
         open(O_SPC2,file=spc2file,status="replace")
         dw  = (w(2)-w(1))/autoev !in Au
-        do i=1,2*N
+        do i=1,NN
             w(i) = w(i)+Eshift
             write(O_SPC2,'(F12.5,3X,G16.8)') w(i), spect(i)*factor*2.d0*pi
         enddo
@@ -333,7 +362,7 @@ program reconvolute_TD
         open(O_SPC1,file=spc1file,status="replace")
         open(O_SPC2,file=spc2file,status="replace")
         dw  = (w(2)-w(1))/autoev !in Au
-        do i=1,2*N
+        do i=1,NN
             wau=(w(i)+Eshift)/autoev
             write(O_SPC2,'(F12.5,3X,G16.8)') w(i)+Eshift, spect(i)
             write(O_SPC1,'(F12.5,3X,G16.8)') w(i)+Eshift, spect(i)*factor*wau**iexp
