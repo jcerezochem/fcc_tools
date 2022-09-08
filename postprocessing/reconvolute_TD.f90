@@ -14,9 +14,9 @@ program reconvolute_TD
 
     real(8),dimension(:),allocatable        :: t,w,spect
     double complex,dimension(:),allocatable :: corr
-    double complex :: broad
-    real(8) :: tt,tfin,t0,c,ci,b,bi, factor, aexp, df, dw, &
-               damp, wau, dgau, dgau2, dgau3
+    double complex :: broad, exp_w0t, exp_w0t0
+    real(8) :: tt,tfin,t0,c,ci,b,bi,d,di, factor, aexp, df, dw, &
+               damp, wau, dgau, dgau2, dgau3, w0_eV, w0
     integer :: iexp, nbroad, N, NN
     character(len=3) :: optrans
     character(len=8) :: hwhm_char
@@ -54,10 +54,52 @@ program reconvolute_TD
     real(8) :: freq1, freq2, RI1, RI2, R_IC
     character(len=100) :: msg
     
+    ! Initialize
+    w0_eV = -9999.d0
+    
     
     ! Read command_line_options
     call parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
-                     do_gibbs,property,Eshift,de_eV,fccoutfile)
+                     do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
+                     
+    ! Get Eshift if needed
+    if (Eshift==-9999.d0) then
+        ! Try opening posible output files
+        open(I_LOG,file=fccoutfile,status='old',iostat=ioflag)
+        if (ioflag==0) then
+            do
+                read(I_LOG,'(A)',iostat=ioflag) line
+                if (ioflag/=0) exit
+                if (index(line,'Eshift=')/=0) exit
+            enddo
+            if (ioflag==0) then
+                read(line,*) cnull,Eshift
+            endif
+            write(0,'(/,X,A,F12.5,A/)') "Read from file ("//&
+                                        trim(adjustl(fccoutfile))//&
+                                        "): Eshift=", Eshift, ' eV'
+        endif
+        ! If this does not work, set Eshift to zero
+        if (ioflag/=0) then
+            call alert_msg('warning','Eshift not set and could not be read from file '//&
+                                     trim(adjustl(fccoutfile))//&
+                                     ', setting to zero')
+            Eshift = 0.d0
+        endif
+        ! If anything worked, use Eshift = 0
+        if (ioflag/=0) then
+            Eshift=0.d0
+            write(0,'(/,X,A,F12.5,A/)') "Cannot read from file. Setting Eshift=", Eshift, ' eV'
+        endif
+    endif
+    
+    !Update w0
+    if (w0_eV==-9999.d0) then
+        w0_eV = Eshift
+    endif
+    w0_eV = w0_eV - Eshift
+    
+    
     
     ! Set options upper case
     call set_word_upper_case(property)
@@ -109,6 +151,8 @@ program reconvolute_TD
     dgau  = hwhm_eV *evtown/autown
     dgau2 = hwhm2_eV*evtown/autown
     dgau3 = hwhm3_eV*evtown/autown
+    ! Grid settings (starting point)
+    w0    = w0_eV*evtown/autown
     
     ! Read correlation function (without broadening and gibbs dumping)
     open(I_CORR,file=corrfile,iostat=ioflag)
@@ -258,7 +302,7 @@ program reconvolute_TD
             ! COMPUTE
             broad = broad * aexp/(aexp + Im*tt/autofs)
         else
-            call alert_msg('fatal','Unkown broadening (2) function type: '//trim(adjustl(broadfun2)))
+            call alert_msg('fatal','Unkown broadening (3) function type: '//trim(adjustl(broadfun2)))
         endif
         ! Compute gibbs part
         if (do_gibbs) then
@@ -267,32 +311,53 @@ program reconvolute_TD
             damp = 1.d0
         endif
         !
+        ! Change begining of the grid
+        if (optrans == "EMI") then
+            !-1
+            exp_w0t = exp(-Im*tt/autofs*w0)
+        else
+            !+1
+            exp_w0t = exp(+Im*tt/autofs*w0)
+        endif
+        !
         ! Final corr (from -T to T)
         b  = dreal(broad)
         bi = aimag(broad)
+        d  = dreal(exp_w0t)
+        di = aimag(exp_w0t)
         if (tt == 0.d0) then
             t(N) = tt
-            corr(N) = (c + ci*Im) * (b + bi*Im) * damp
+            corr(N) = (c + ci*Im) * damp 
         else if (t0 == 0.d0) then
             ! As t0>0, but substracting 1 for t>0 
             t(i+N-1)    = tt        
-            corr(i+N-1) = (c + ci*Im) * (b + bi*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
+            corr(i+N-1) = (c + ci*Im) * (b + bi*Im) * (d + di*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
             t(N-i+1)    =-tt
-            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
+            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * (d - di*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
         else
             t(i+N)      = tt        
-            corr(i+N)   = (c + ci*Im) * (b + bi*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
+            corr(i+N)   = (c + ci*Im) * (b + bi*Im) * (d + di*Im) * damp !* exp(-Im*Eshift/autoev*tt/autofs)
             t(N-i+1)    =-tt
-            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
+            corr(N-i+1) = (c - ci*Im) * (b - bi*Im) * (d - di*Im) * damp !* exp(Im*Eshift/autoev*tt/autofs)
         endif
     enddo
     close(S_CORR)
-
-    print*, t(1)
+    
+    ! Change begining of the grid
+    ! Note: t0=t(NN)
+    if (optrans == "EMI") then
+        !-1 (but opposite sign)
+        exp_w0t0 = exp(+Im*t(NN)/autofs*w0)
+    else
+        !+1 (but opposite sign)
+        exp_w0t0 = exp(-Im*t(NN)/autofs*w0)
+    endif
+    ! Deactivate this option (to be checked)
+    exp_w0t0 = 1.d0
     
     ! Call DFT
     write(6,'(X,A,I0,A,/)') "Calling DFT with ", NN, " points"
-    call ft_calc(6,NN,t(1:NN),corr(1:NN), &
+    call ft_calc(6,NN,t(1:NN),corr(1:NN)*exp_w0t0, &
                  spect(1:NN),optrans)
                  
     !
@@ -312,39 +377,8 @@ program reconvolute_TD
     do i=1,NN
         !Take into account the 1/2pi factor from the FT(delta)
         spect(i) = spect(i)/2./pi
-        w(I)     = dfloat(i-1)*df*fstoev 
+        w(I)     = w0_eV + dfloat(i-1)*df*fstoev 
     enddo
-    
-    ! Get Eshift if needed
-    if (Eshift==-9999.d0) then
-        ! Try opening posible output files
-        open(I_LOG,file=fccoutfile,status='old',iostat=ioflag)
-        if (ioflag==0) then
-            do
-                read(I_LOG,'(A)',iostat=ioflag) line
-                if (ioflag/=0) exit
-                if (index(line,'Eshift=')/=0) exit
-            enddo
-            if (ioflag==0) then
-                read(line,*) cnull,Eshift
-            endif
-            write(0,'(/,X,A,F12.5,A/)') "Read from file ("//&
-                                        trim(adjustl(fccoutfile))//&
-                                        "): Eshift=", Eshift, ' eV'
-        endif
-        ! If this does not work, set Eshift to zero
-        if (ioflag/=0) then
-            call alert_msg('warning','Eshift not set and could not be read from file,'//&
-                                     trim(adjustl(fccoutfile))//&
-                                     'setting to zero')
-            Eshift = 0.d0
-        endif
-        ! If anything worked, use Eshift = 0
-        if (ioflag/=0) then
-            Eshift=0.d0
-            write(0,'(/,X,A,F12.5,A/)') "Cannot read from file. Setting Eshift=", Eshift, ' eV'
-        endif
-    endif
         
     ! Write spectrum to files
     if (property=='IC') then
@@ -464,11 +498,11 @@ program reconvolute_TD
     contains
     
     subroutine parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
-                           do_gibbs,property,Eshift,de_eV,fccoutfile)
+                           do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
     
         character(len=*),intent(inout) :: corrfile,broadfun,broadfun2,broadfun3,property,fccoutfile
         logical,intent(inout)          :: do_gibbs
-        real(8),intent(inout)          :: hwhm_eV, hwhm2_eV, hwhm3_eV, Eshift, de_eV
+        real(8),intent(inout)          :: hwhm_eV, hwhm2_eV, hwhm3_eV, Eshift, de_eV, w0_eV
 
         ! Local
         logical :: argument_retrieved,  &
@@ -529,6 +563,11 @@ program reconvolute_TD
                     read(arg,*) Eshift
                     argument_retrieved=.true.
                     
+                case ("-E0") 
+                    call getarg(i+1, arg)
+                    read(arg,*) w0_eV
+                    argument_retrieved=.true.
+                    
                 case ("-Ead") 
                     call getarg(i+1, arg)
                     read(arg,*) de_eV
@@ -576,7 +615,8 @@ program reconvolute_TD
         write(0,'(A,L1)')  ' -[no]damp Add or not damping function  ',do_gibbs
         write(0,'(A)'  )   ' -prop     Property computed            '//trim(adjustl(property))
         write(0,'(A)'  )   '           (OPA|EMI|ECD|MCP|CPL)'
-        write(0,'(A,F8.3)')' -Eshift   Energy shift (eV)         '   ,Eshift   
+        write(0,'(A,F8.3)')' -Eshift   Energy shift (eV)         '   ,Eshift  
+        write(0,'(A,F8.3)')' -E0       Grid orig before shift(eV)'   ,w0_eV  
         if (de_eV<-9990.d0) then
         write(0,'(A)'  )   ' -Ead      Adiabatic energy (eV)        (default)'
         else

@@ -103,14 +103,14 @@ module fft
             integer,intent(in)                         :: isgn
             !Local
             integer                                    :: N 
-            double complex,dimension(size(x)+1)        :: g
+            double complex,dimension(size(x))          :: g
             integer     :: k,m
             double complex,parameter :: Im=(0.d0,1.d0)
             real(8),parameter :: pi= 4.d0*datan(1.d0)
         
             N = size(x)
         
-            do k=0,N
+            do k=0,N-1
                 g(k+1) = 0.d0
                 do m=0,N-1
                     g(k+1) = g(k+1) + x(m+1) * &
