@@ -1,3 +1,10 @@
+!***********************************************************************
+! This file is inherited from FClasses3,                               *
+! a code to compute vibronic spectra (and nonradiative rates) based    *
+! on the harmonic approximation                                        *
+!                                                                      *
+!***********************************************************************
+
 module matrix
 
     !==============================================================
@@ -77,24 +84,26 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
+        real(8),dimension(:,:),allocatable :: AuxArray
+        real(8),dimension(1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
-        integer,dimension(1:N) :: ipiv
+        real(8),dimension(:),allocatable :: work
+        integer,dimension(:),allocatable :: ipiv
         integer :: info, lwork
         ! Other
         integer :: alloc_status
         logical :: cycle_next=.false.
         ! Counters
         integer :: i
+        
+        allocate(AuxArray(N,N),ipiv(N))
 
         ! Copy input matrix
         AuxArray(1:N,1:N) = A(1:N,1:N)
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, AuxArray, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             write(0,*) "ERROR: Memory cannot be allocated (DETERMINANT ROUTINE)"
@@ -131,6 +140,8 @@ module matrix
             endif
         enddo
         
+        deallocate(AuxArray,ipiv)
+        
         return
 
     end function determinant_realsym
@@ -148,14 +159,16 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
+        real(8),dimension(:,:),allocatable :: AuxArray
+        real(8),dimension(1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
-        integer,dimension(1:N) :: ipiv
+        real(8),dimension(:),allocatable :: work
+        integer,dimension(:),allocatable :: ipiv
         integer :: info, lwork
         ! Counters
         integer :: i
+        
+        allocate(AuxArray(N,N),ipiv(N))
 
         ! Copy input matrix
         AuxArray(1:N,1:N) = A(1:N,1:N)
@@ -175,6 +188,8 @@ module matrix
             if (ipiv(i) /= i) det=-det
         enddo
         
+        deallocate(AuxArray,ipiv)
+        
         return
 
     end function determinant_realgen
@@ -192,22 +207,24 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8) :: AuxScalar
+        real(8),dimension(1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
-        integer,dimension(1:N) :: ipiv
+        real(8),dimension(:),allocatable :: work
+        integer,dimension(:),allocatable :: ipiv
         integer :: info, lwork
         ! Other
         integer :: alloc_status
         ! Counters
         integer :: i,j
 
+        allocate(ipiv(N))
+        
         ! Copy input matrix
         Ainv(1:N,1:N) = A(1:N,1:N)
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, Ainv, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             print*, "ERROR: Memory cannot be allocated (LAPACK)"
@@ -233,6 +250,8 @@ module matrix
             Ainv(i,j) = Ainv(j,i)
         enddo
         enddo
+        
+        deallocate(ipiv)
 
         return
 
@@ -251,14 +270,16 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8) :: AuxScalar
+        real(8),dimension(1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
-        integer,dimension(1:N) :: ipiv
+        real(8),dimension(:),allocatable :: work
+        integer,dimension(:),allocatable :: ipiv
         integer :: info, lwork
         ! Other
         integer :: alloc_status
 
+        allocate(ipiv(N))
+        
         ! Copy input matrix
         Ainv(1:N,1:N) = A(1:N,1:N)
 
@@ -273,7 +294,7 @@ module matrix
         endif
         ! Initialize LAPACK (calculating optimal size first)
         call dgetri(N, Ainv, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             print*, "ERROR: Memory cannot be allocated (LAPACK)"
@@ -284,6 +305,8 @@ module matrix
             write(0,*) "ERROR IN dgetri (INVERSION ROUTINE)"
             stop
         endif
+        
+        deallocate(ipiv)
 
         return
 
@@ -319,12 +342,13 @@ module matrix
         !Local
         real(8), parameter :: PREC=1.d-11
         integer :: IER
-        real(8),dimension(N,N) :: Aux
+        real(8),dimension(:,:),allocatable :: Aux
 
         !Auxiliar
         character(len=50) :: dummy_char
         integer :: i,j,k
 
+        allocate(Aux(N,N))
 
         select case (trim(adjustl(alg)))
             !The one from the master (M1 year). This is left for testing ONLY
@@ -346,6 +370,8 @@ module matrix
               print*, "Unsupported diagonalization algorith:"//alg
 
         end select   
+        
+        deallocate(Aux)
 
         return      
 
@@ -410,13 +436,14 @@ module matrix
         integer,intent(in) :: Nr, Nc
         real(8),dimension(:,:),intent(inout) :: T
         !Local
-        real(8),dimension(1:Nr,1:Nr) :: AA
-        real(8),dimension(1:Nr,1:Nr) :: BB
-        real(8),dimension(1:Nr)      :: V
+        real(8),dimension(:,:),allocatable :: AA
+        real(8),dimension(:,:),allocatable :: BB
+        real(8),dimension(:),allocatable      :: V
         !
         integer :: i, j, k, ii, jj, kk
         real(8),dimension(1:Nr,1:Nr) :: p
 
+        allocate(AA(Nr,Nr),BB(Nr,Nr),V(Nr))
 
         ! Compute the metric matrix of T
         do i=1,Nc 
@@ -452,6 +479,8 @@ module matrix
         T(ii,jj)=BB(ii,jj)
         enddo
         enddo
+        
+        deallocate(AA,BB,V)
 
         return
 
@@ -483,7 +512,7 @@ module matrix
         real(8),dimension(:),intent(out)::d
         real(8),intent(in)::RHO
         !Local
-        real(8),dimension(1:N,1:N)::F !this is an auxiliar now
+        real(8),dimension(:,:),allocatable :: F !this is an auxiliar now
         real(8) :: A, COST, TE, TEN, omega, sint, U, V1, V2, V3, Z, TEM
         integer :: iter
         integer :: i, ii, ij, j, jj
@@ -496,6 +525,7 @@ module matrix
     
         
         ! Copy matrix to local auxiliar
+        allocate(F(N,N))
         F(1:N,1:N)=FF(1:N,1:N)
         
         !C...INICIALIZACION DE LA MATRIZ DE VECTORES PROPIOS
@@ -612,6 +642,8 @@ module matrix
     
         d(1:N) = (/ (F(i,i), i=1,N ) /)
         
+        deallocate(F)
+        
         return
     
     end subroutine JACOBI
@@ -653,11 +685,11 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
+        real(8),dimension(:,:),allocatable :: AuxArray
+        real(8),dimension(1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
-        integer,dimension(1:N) :: ipiv
+        real(8),dimension(:),allocatable :: work
+        integer,dimension(:),allocatable :: ipiv
         integer :: info, lwork
         ! Other
         integer :: alloc_status
@@ -665,12 +697,14 @@ module matrix
         ! Counters
         integer :: i
 
+        allocate(AuxArray(N,N),ipiv(N))
+        
         ! Copy input matrix
         AuxArray(1:N,1:N) = A(1:N,1:N)
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, AuxArray, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             write(0,*) "ERROR: Memory cannot be allocated (DETERMINANT ROUTINE)"
@@ -695,18 +729,20 @@ module matrix
             if (ipiv(i) < 0 .and. ipiv(i) == ipiv(i+1)) then
                 ! Compute the 2x2 block
                 cycle_next=.true.
-                AuxScalar = AuxArray(i,i)*AuxArray(i+1,i+1) - AuxArray(i+1,i)**2
-                Log_det  = Log_det + Log(abs((AuxScalar)))
-                sign_det = sign_det*sign(1.d0,AuxScalar)
+                AuxScalar(1) = AuxArray(i,i)*AuxArray(i+1,i+1) - AuxArray(i+1,i)**2
+                Log_det  = Log_det + Log(abs((AuxScalar(1))))
+                sign_det = sign_det*sign(1.d0,AuxScalar(1))
              else if (ipiv(i) < 0 .and. ipiv(i) == ipiv(i-1)) then
                 ! Second part of a 2x2 block
                 cycle
              else
-                AuxScalar = AuxArray(i,i)
-                Log_det  = Log_det + Log(abs((AuxScalar)))
-                sign_det = sign_det*sign(1.d0,AuxScalar)
+                AuxScalar(1) = AuxArray(i,i)
+                Log_det  = Log_det + Log(abs((AuxScalar(1))))
+                sign_det = sign_det*sign(1.d0,AuxScalar(1))
             endif
         enddo
+        
+        deallocate(AuxArray,ipiv)
         
         return
 
@@ -911,6 +947,108 @@ module matrix
         return
 
     end function matrix_product
+    
+    
+    function matrix_product_c(NA,NB,NK,A,B,tA,tB) result(P)
+
+        ! A Wrapper to zgemm to multiply 
+        ! matrices
+        ! P(NA,NB) = A(NA,K) * B(K,NB)
+        ! P(NA,NB) = A^t(K,NA) * B(K,NB)
+        ! and modificaitions alike
+
+        integer,intent(in)                   :: NA,NB,NK
+        double complex,dimension(:,:),intent(in)    :: A,B
+        logical,intent(in),optional          :: tA,tB
+        double complex,dimension(NA,NB)      :: P
+        !Local
+        character :: opA,opB
+        integer :: LDA, LDB
+        double complex,dimension(:,:),allocatable   :: Aaux,Baux
+        logical :: tA_local, tB_local
+
+        !Needs BLAS
+        external zgemm
+        
+        tA_local = .false.
+        if (present(tA)) then
+            tA_local = tA
+        endif
+        tB_local = .false.
+        if (present(tB)) then
+            tB_local = tB
+        endif
+
+        !First dimension as specified in the calling program
+        ! equal to NA and NB if opA,opB = 'N'
+        LDA = size(A,1)
+        LDB = size(B,1)
+        opA = 'N'
+        opB = 'N'
+
+        !Allcate auxiliars (to avoid runtime warning with gfortran:
+        ! Fortran runtime warning: An array temporary was created
+        allocate(Aaux(size(A,1),size(A,2)))
+        allocate(Baux(size(B,1),size(B,2)))
+        Aaux=A
+        Baux=B
+        
+        if (tA_local) opA='T'
+        if (tB_local) opB='T'
+
+        call zgemm(opA,opB,NA,NB,NK,1.d0,Aaux,LDA,Baux,LDB,0.d0,P,NA)  
+        
+        return
+
+    end function matrix_product_c
+    
+    function matrix_product_csymm(NA,NB,NK,A,B,ba) result(P)
+
+        ! A Wrapper to zsymm to multiply 
+        ! matrices
+        ! P(NA,NB) = A(NA,K) * B(K,NB)
+        ! P(NA,NB) = A^t(K,NA) * B(K,NB)
+        ! and modificaitions alike
+        ! Expects Upper triangular part of A
+
+        integer,intent(in)                   :: NA,NB,NK
+        double complex,dimension(:,:),intent(in)    :: A,B
+        logical,intent(in),optional          :: ba
+        double complex,dimension(NA,NB)      :: P
+        !Local
+        character :: side
+        integer :: LDA, LDB
+        double complex,dimension(:,:),allocatable   :: Aaux,Baux
+        logical :: ba_local
+
+        !Needs BLAS
+        external zsymm
+        
+        ba_local = .false.
+        if (present(ba)) then
+            ba_local = ba
+        endif
+
+        !First dimension as specified in the calling program
+        ! equal to NA and NB if opA,opB = 'N'
+        LDA = size(A,1)
+        LDB = size(B,1)
+
+        !Allcate auxiliars (to avoid runtime warning with gfortran:
+        ! Fortran runtime warning: An array temporary was created
+        allocate(Aaux(size(A,1),size(A,2)))
+        allocate(Baux(size(B,1),size(B,2)))
+        Aaux=A
+        Baux=B
+        
+        side = 'L'
+        if (ba_local) side='R'
+
+        call zsymm(side,'U',NA,NB,NK,1.d0,Aaux,LDA,Baux,LDB,0.d0,P,NA)  
+        
+        return
+
+    end function matrix_product_csymm
 
     function matrix_basisrot(M,N,X,A,counter) result(P)
 
@@ -927,8 +1065,10 @@ module matrix
         logical,intent(in),optional          :: counter
         real(8),dimension(M,M)               :: P
         !Local
-        real(8),dimension(M,N)               :: Aux
+        real(8),dimension(:,:),allocatable   :: Aux
         logical :: counter_local
+        
+        allocate(Aux(M,N))
         
         counter_local = .false.
         if (present(counter)) then
@@ -942,6 +1082,8 @@ module matrix
             Aux = matrix_product(M,N,N,X,A)
             P   = matrix_product(M,M,N,Aux,X,tB=.true.)
         endif
+        
+        deallocate(Aux)
 
         return
 
@@ -966,9 +1108,11 @@ module matrix
         logical,intent(in),optional          :: counter
         real(8),dimension(M,M)               :: P
         !Local
-        real(8),dimension(M,N)               :: Aux
+        real(8),dimension(:,:),allocatable   :: Aux
         integer :: j
         logical :: counter_local
+        
+        allocate(Aux(M,N))
         
         counter_local = .false.
         if (present(counter)) then
@@ -988,6 +1132,7 @@ module matrix
             P   = matrix_product(M,M,N,Aux,X,tB=.true.)
         endif
 
+        deallocate(Aux)
 
         return
 

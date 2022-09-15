@@ -615,13 +615,22 @@ program reconvolute_TD
         write(0,'(A,L1)')  ' -[no]damp Add or not damping function  ',do_gibbs
         write(0,'(A)'  )   ' -prop     Property computed            '//trim(adjustl(property))
         write(0,'(A)'  )   '           (OPA|EMI|ECD|MCP|CPL)'
+        if (w0_eV<-9990.d0) then
+        write(0,'(A,F8.3)')' -Eshift   Energy shift (eV)            (default)'
+        else
         write(0,'(A,F8.3)')' -Eshift   Energy shift (eV)         '   ,Eshift  
+        endif
+        if (w0_eV<-9990.d0) then
+        write(0,'(A,F8.3)')' -E0       Grid orig before shift(eV)   (default)'
+        else
         write(0,'(A,F8.3)')' -E0       Grid orig before shift(eV)'   ,w0_eV  
+        endif
         if (de_eV<-9990.d0) then
         write(0,'(A)'  )   ' -Ead      Adiabatic energy (eV)        (default)'
         else
         write(0,'(A,F8.3)')' -Ead      Adiabatic energy (eV)     '   ,de_eV
         endif
+        write(0,'(A)'  )   '           (to compute kIC)'
         write(0,'(A)'  )   ' -fccout   Output of FCclasses job      '//trim(adjustl(fccoutfile))
         write(0,'(A)'  )   ' -h        Print help  '
         write(0,*) ''
