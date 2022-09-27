@@ -1,8 +1,8 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-SUBDIRS = src/generators tests/ python/ 
+SUBDIRS = generators/ postprocessing/ tests/ python/ 
 
-EXTRA_DIST = LICENSE INSTRUCTIONS AUTHORS src/modules run_test.sh python/fort* doc tests/* 
+EXTRA_DIST = LICENSE INSTRUCTIONS AUTHORS modules run_test.sh python/fort* doc tests/* 
 
 .PHONY: test version.f90
 test:

@@ -153,8 +153,7 @@ ETAGS = etags
 CTAGS = ctags
 CSCOPE = cscope
 DIST_SUBDIRS = $(SUBDIRS)
-am__DIST_COMMON = $(srcdir)/Makefile.in AUTHORS TODO install-sh \
-	missing
+am__DIST_COMMON = $(srcdir)/Makefile.in AUTHORS install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -210,8 +209,10 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EXEEXT = @EXEEXT@
+F77 = @F77@
 FC = @FC@
 FCFLAGS = @FCFLAGS@
+FFLAGS = @FFLAGS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -240,6 +241,7 @@ abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
+ac_ct_F77 = @ac_ct_F77@
 ac_ct_FC = @ac_ct_FC@
 am__leading_dot = @am__leading_dot@
 am__tar = @am__tar@
@@ -278,8 +280,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
-SUBDIRS = src/generators tests/ python/ 
-EXTRA_DIST = LICENSE INSTRUCTIONS AUTHORS src/modules run_test.sh python/fort* doc tests/* 
+SUBDIRS = generators/ postprocessing/ tests/ python/ 
+EXTRA_DIST = LICENSE INSTRUCTIONS AUTHORS modules run_test.sh python/fort* doc tests/* 
 all: all-recursive
 
 .SUFFIXES:
