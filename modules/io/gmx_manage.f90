@@ -231,6 +231,57 @@ module gmx_manage
 
     end subroutine write_g96_geom
     
+    
+    subroutine read_gmx_grad(unt,Nat,Grad,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Read Hessian from ascii file generated from an .mtx file (with gmxdump)
+        ! 
+        ! 
+        !Arguments
+        ! unt   (inp) scalar   unit for the file
+        ! Nat   (inp) scalar   Number of atoms
+        ! Hlt   (out) vector   Lower triangular part of Hessian matrix (AU)
+        ! error_flag (out) scalar  error_flag :
+        !                                 0 : Success
+        !                                 1: not square matrix
+        !  
+        !==============================================================
+
+        integer,intent(in) :: unt
+        integer,intent(in) :: Nat
+        real(8), dimension(:), intent(out) :: Grad
+        integer,intent(out) :: error_flag
+
+        !Local stuff
+        !=============
+        character :: cnull
+        !Counter
+        integer :: N
+        integer :: i, j
+        
+        read(unt,*) N
+        if (N /= Nat) then
+            write(0,*) "Incorrect Gradient dimension (gmx)"
+            error_flag = 2
+            stop
+        endif
+
+        !Read gradient
+        do i=1,3*Nat,3
+            read(unt,*) Grad(i:i+2)
+        enddo
+
+        ! UNIT CONVERSION                                     ! GROMACS     --> Atomic Units  
+        Grad(1:3*Nat)=Grad(1:3*Nat)/CALtoJ/HtoKCALM*BOHRtoNM  ! KJ/mol * nm --> Hartree * bohr
+
+        return
+
+    end subroutine read_gmx_grad
+    
 
     subroutine read_gmx_hess(unt,Nat,Hlt,error_flag)
 

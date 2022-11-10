@@ -337,6 +337,8 @@ module fcc_io
              call read_qchem_grad(unt,Nat,Grad,error_flag)
             case("fcc")
              call read_fcc_grad(unt,Nat,Grad,error_flag)
+            case("gmx")
+             call read_gmx_grad(unt,Nat,Grad,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('grad')

@@ -217,7 +217,7 @@ program gen_fcc_state
         fth = fts
     endif
     if (adjustl(ftg) == 'guess') then
-        call split_line_back(gradfile,'.',cnull,fth)
+        call split_line_back(gradfile,'.',cnull,ftg)
     else if (adjustl(ftg) == 'fth') then
         ftg = fth
     endif
@@ -259,7 +259,7 @@ program gen_fcc_state
 
     !Read Gradient 
     !Only for supported filetypes
-    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem') then
+    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem' .or. ftg=='gmx') then
         is_gradient=.true.
         !Open gradient file
         open(I_GRD,file=gradfile,iostat=ios)
