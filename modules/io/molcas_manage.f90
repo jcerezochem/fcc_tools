@@ -375,6 +375,280 @@ module molcas_manage
         return
 
     end subroutine read_molcas_grad
+    
+    
+    subroutine read_molcas_natoms(unt,Nat,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Reads coordinates and atom names from MOLCAS. The coordinates
+        ! are retuned as a 3Nat vector
+
+        !Description
+        ! Get geometry and atom names from MOLCAS. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        ! 
+        !Note
+        ! Need to understand better the MOLCAS output
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+        integer,intent(out) :: error_flag
+
+        !Local variables
+        !=============
+        character(len=240) :: line=""
+        character :: cnull
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii
+        
+        ! Search section
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+                if ( adjustl(line) == "**** Cartesian Coordinates / Bohr, Angstrom ****" ) then
+                    read(unt,'(A)') line ! title underline
+                    read(unt,'(A)') line ! blank
+                    read(unt,'(A)') line ! header
+                    exit
+                endif
+
+        enddo
+        
+        i=0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            !The geometry ends with a blank line
+            if (adjustl(line) == "") exit
+            i=i+1
+        enddo
+        Nat=i
+
+        rewind(unt)
+        return
+
+    end subroutine read_molcas_natoms
+    
+    
+    subroutine read_molcas_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Reads coordinates and atom names from MOLCAS. The coordinates
+        ! are retuned as a 3Nat vector
+
+        !Description
+        ! Get geometry and atom names from MOLCAS. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vertor    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        ! 
+        !Note
+        ! Need to understand better the MOLCAS output
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+        character(len=*), dimension(:), intent(out) :: AtName
+        real(kind=8), dimension(:), intent(out) :: X,Y,Z
+        integer,intent(out) :: error_flag
+
+        !Local variables
+        !=============
+        character(len=240) :: line=""
+        character :: cnull
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii, AtNum
+        
+        
+        ! Search section
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+                if ( adjustl(line) == "**** Cartesian Coordinates / Bohr, Angstrom ****" ) then
+                    read(unt,'(A)') line ! title underline
+                    read(unt,'(A)') line ! blank
+                    read(unt,'(A)') line ! header
+                    exit
+                endif
+
+        enddo
+        
+        i=0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            !The geometry ends with a blank line
+            if (adjustl(line) == "") exit
+            i=i+1
+            read(line,*) cnull, AtName(i), X(i), Y(i), Z(i)
+        enddo
+        Nat=i
+        !Transform to AA
+        X(1:Nat) = X(1:Nat)*BOHRtoANGS
+        Y(1:Nat) = Y(1:Nat)*BOHRtoANGS
+        Z(1:Nat) = Z(1:Nat)*BOHRtoANGS
+
+        rewind(unt)
+        return
+
+    end subroutine read_molcas_geom
+    
+    
+    subroutine read_molcas_nm(unt,Nvib,Nat,Freq,L,error_flag)
+
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Read Hessian from MOLCAS output. Returs the triangular part of the
+        ! Hessian matrix in AU
+        ! 
+        !Arguments
+        ! unt   (inp) scalar   unit for the file
+        ! Nat   (inp) scalar   Number of atoms
+        ! Freq  (out) vector   Frequencies (cm-1)
+        ! L     (out) matrix   Normal modes Cartesian (not-normalized)
+        ! error_flag (out) scalar  error_flag :
+        !                                 0 : Success
+        !                                -i : Read error on line i
+        !                                 2 : Wrong number of elements for Grad
+        ! symm  (inp,opt) scalar symmetry flag
+        !
+        !==============================================================
+
+        integer,intent(in) :: unt
+        integer,intent(in) :: Nat
+        integer,intent(out):: Nvib
+        real(kind=8), dimension(:), intent(out) :: Freq
+        real(kind=8), dimension(:,:), intent(out) :: L
+        integer,intent(out) :: error_flag
+
+        !Local stuff
+        !=============
+        character(len=240) :: line="", subline
+        character(len=2)   :: cnull
+        integer :: N, NN
+        character(len=10000) :: cfreq
+        character(len=10000),dimension(:),allocatable :: cL
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii
+        
+        
+        !Use N to store 3*Nat
+        N = 3*Nat
+        
+        allocate(cL(N))
+
+        ! Search section
+        cfreq = ""
+        cL = ""
+        ii = 0
+        error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( INDEX(line,"Frequency:") /= 0 ) then    
+                
+                    ! Read frequencies
+                    !We form a superstring with all Frequencies (as characters): cfreq
+                    call split_line(line,':',line,subline)
+                    cfreq = trim(adjustl(cfreq))//" "//trim(adjustl(subline))
+                    
+                    ! Skipe lines
+                    read(unt,'(A)') line ! blank line
+                    read(unt,'(A)') line ! intensity
+                    read(unt,'(A)') line ! redmass
+                    read(unt,'(A)') line ! blank line
+
+                    ! Read normal modes
+                    do i=1,N
+                        read(unt,'(A18,A)') cnull, line
+                        cL(i) = trim(adjustl(cL(i)))//" "//trim(adjustl(line))
+                    enddo
+                    
+                endif
+                !3) End of frequencies
+                if ( INDEX(line,"++ Thermochemistry") /= 0 ) then
+                    exit
+                endif
+        enddo
+        
+        ! Extract Freqs and Nvib
+        call str_replace(cfreq,'i','-')
+        call string2rvector(cfreq,Freq,Nvib,sep=" ")
+        ! Extracrt normal modes
+        do i=1,N
+            read(cL(i),*) L(i,1:Nvib)
+        enddo
+
+        return
+
+    end subroutine read_molcas_nm
+    
 
 end module molcas_manage
 

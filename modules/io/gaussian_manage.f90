@@ -1364,6 +1364,130 @@ module gaussian_manage
         return
 
     end subroutine read_gausslog_dipders
+    
+    
+    subroutine read_glog_nm(unt,Nvib,Nat,Freq,L,err_label)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        !Description
+        ! Read normal mode information from Gaussian log file. It reads 
+        ! frequencies and normal mode description through the cartesian
+        ! 
+        ! NOTES
+        !  Gets the LAST frequency section in the file (if more than one
+        !  job is present)
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer, intent(in) :: Nat
+        integer, intent(out) :: Nvib
+        double precision,dimension(:),intent(out)   :: freq
+        double precision,dimension(:,:),intent(out) :: L
+        integer,intent(out),optional :: err_label
+
+        !Lookup auxiliar variables
+        character(len=240) :: line, subline, cnull
+        character(len=2) :: modes, modes_prev
+        character(len=4) splitter
+        character(len=10000) :: cfreq, cRedMass
+        character(len=10000),dimension(1:1000) :: cL
+        integer :: nlines, N
+        integer :: error_local
+
+        !Counters and dummies (TODO: dummies module)
+        integer :: i,j, IOstatus, k
+
+        ! Initialize strings that will harvest the information
+        cfreq = ""
+        cL = ""
+        modes=""
+        modes_prev=""
+        error_local = -1
+        do
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            if ( IOstatus /= 0) exit
+
+            if ( INDEX(line,"Frequencies") /= 0 ) then
+                error_local = 0
+                !We use the separator to differeciate HP modes and LP modes
+                if ( INDEX(line,'---') /= 0 ) then
+                    !High precision modes
+                    splitter="---"
+                    nlines=3*Nat
+                    modes="HP"
+                else
+                    !Low precision modes
+                    splitter="--"
+                    nlines=Nat
+                    modes="LP"
+                endif
+
+                ! When HP modes are available:
+                ! LP modes come after HP, but they are not interesting. So its time to leave
+                if ( modes == "LP" .and. modes_prev == "HP" ) then
+                    modes = "HP"
+                    nlines=3*Nat
+                    exit
+                endif
+                modes_prev = modes
+
+                !We form a superstring with all Frequencies (as characters): cfreq
+                call split_line(line,trim(adjustl(splitter)),line,subline)
+                cfreq = trim(adjustl(cfreq))//" "//trim(adjustl(subline))
+
+                !Now read RedMass (that is below Frequencies). Use the same splitter as for Frequencies
+                read(unt,'(X,A)',IOSTAT=IOstatus) line ! skipped (can be recalculated later on)
+
+                !Look for the Lcart matrix (i.e., we continue reading till we find it)
+                do 
+                    read(unt,'(X,A)',IOSTAT=IOstatus) line
+                    if ( IOstatus /= 0) call alert_msg("fatal","Could not get normal modes from glog")
+                    if ( INDEX(line,"Atom") /= 0 ) exit
+                enddo
+                do i=1,nlines
+                    if (modes == "HP") then
+                        read(unt,'(A23,A)') cnull, line
+                    elseif (modes == "LP") then
+                        read(unt,'(A13,A)') cnull, line
+                    endif
+                    cL(i) = trim(adjustl(cL(i)))//" "//trim(adjustl(line))
+                enddo
+
+            endif
+        enddo
+
+        if (error_local == -1 ) then
+            if (present(err_label)) err_label = error_local
+            return
+        endif
+
+        !We now read the superstrings cfreq. Also provide Nvib
+        call string2rvector(cfreq,Freq,Nvib,sep=" ")
+        
+        do i=1,nlines
+            if ( modes == "LP" ) then
+                ! In LP modes coordinates for a given atom are grouped therefore
+                ! it's read using the fast index (row) running i-2 --> i
+                j = i*3
+                read(cL(i),*) L(j-2:j,1:Nvib)
+            elseif ( modes == "HP" ) then
+                ! HP modes are read line by line through the 3Nat coordinates
+                read(cL(i),*) L(i,1:Nvib)
+            endif
+        enddo
+
+        if ( modes == "LP" ) then
+            call alert_msg("warning","Low precision modes read from glog")
+            error_local = 1
+        endif
+        
+        if (present(err_label)) err_label = error_local
+
+        return
+
+    end subroutine read_glog_nm
 
 
 end module gaussian_manage

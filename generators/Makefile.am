@@ -9,6 +9,7 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/line_preprocess.f90\
                         ../modules/maths/MatrixMod_red.f90\
                         ../modules/fcc_basics.f90\
+                        ../modules/vibrational_analysis.f90\
                         ../modules/io/gamess_manage.f90\
                         ../modules/io/gaussian_manage.f90\
                         ../modules/io/cfour_manage.f90\
@@ -22,7 +23,6 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/io/qchem_manage.f90\
                         ../modules/io/fcc_manage.f90\
                         ../modules/io/fcc_io.f90\
-                        ../modules/vibrational_analysis.f90\
                         gen_fcc_state.f90
 
 gen_fcc_state_LDFLAGS = @LIBS@
@@ -46,6 +46,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/io/orca_manage.f90\
                           ../modules/io/qchem_manage.f90\
                           ../modules/io/fcc_manage.f90\
+                          ../modules/vibrational_analysis.f90\
                           ../modules/io/fcc_io.f90\
                           gen_fcc_dipfile.f90
 

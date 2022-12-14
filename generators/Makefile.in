@@ -117,6 +117,7 @@ am_gen_fcc_dipfile_OBJECTS = version.$(OBJEXT) \
 	../modules/io/orca_manage.$(OBJEXT) \
 	../modules/io/qchem_manage.$(OBJEXT) \
 	../modules/io/fcc_manage.$(OBJEXT) \
+	../modules/vibrational_analysis.$(OBJEXT) \
 	../modules/io/fcc_io.$(OBJEXT) gen_fcc_dipfile.$(OBJEXT)
 gen_fcc_dipfile_OBJECTS = $(am_gen_fcc_dipfile_OBJECTS)
 gen_fcc_dipfile_LDADD = $(LDADD)
@@ -128,6 +129,7 @@ am_gen_fcc_state_OBJECTS = version.$(OBJEXT) \
 	../modules/line_preprocess.$(OBJEXT) \
 	../modules/maths/MatrixMod_red.$(OBJEXT) \
 	../modules/fcc_basics.$(OBJEXT) \
+	../modules/vibrational_analysis.$(OBJEXT) \
 	../modules/io/gamess_manage.$(OBJEXT) \
 	../modules/io/gaussian_manage.$(OBJEXT) \
 	../modules/io/cfour_manage.$(OBJEXT) \
@@ -140,9 +142,7 @@ am_gen_fcc_state_OBJECTS = version.$(OBJEXT) \
 	../modules/io/orca_manage.$(OBJEXT) \
 	../modules/io/qchem_manage.$(OBJEXT) \
 	../modules/io/fcc_manage.$(OBJEXT) \
-	../modules/io/fcc_io.$(OBJEXT) \
-	../modules/vibrational_analysis.$(OBJEXT) \
-	gen_fcc_state.$(OBJEXT)
+	../modules/io/fcc_io.$(OBJEXT) gen_fcc_state.$(OBJEXT)
 gen_fcc_state_OBJECTS = $(am_gen_fcc_state_OBJECTS)
 gen_fcc_state_LDADD = $(LDADD)
 gen_fcc_state_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
@@ -291,6 +291,7 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/line_preprocess.f90\
                         ../modules/maths/MatrixMod_red.f90\
                         ../modules/fcc_basics.f90\
+                        ../modules/vibrational_analysis.f90\
                         ../modules/io/gamess_manage.f90\
                         ../modules/io/gaussian_manage.f90\
                         ../modules/io/cfour_manage.f90\
@@ -304,7 +305,6 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/io/qchem_manage.f90\
                         ../modules/io/fcc_manage.f90\
                         ../modules/io/fcc_io.f90\
-                        ../modules/vibrational_analysis.f90\
                         gen_fcc_state.f90
 
 gen_fcc_state_LDFLAGS = @LIBS@
@@ -327,6 +327,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/io/orca_manage.f90\
                           ../modules/io/qchem_manage.f90\
                           ../modules/io/fcc_manage.f90\
+                          ../modules/vibrational_analysis.f90\
                           ../modules/io/fcc_io.f90\
                           gen_fcc_dipfile.f90
 
@@ -464,14 +465,14 @@ clean-binPROGRAMS:
 	../modules/io/$(DEPDIR)/$(am__dirstamp)
 ../modules/io/fcc_manage.$(OBJEXT): ../modules/io/$(am__dirstamp) \
 	../modules/io/$(DEPDIR)/$(am__dirstamp)
+../modules/vibrational_analysis.$(OBJEXT): ../modules/$(am__dirstamp) \
+	../modules/$(DEPDIR)/$(am__dirstamp)
 ../modules/io/fcc_io.$(OBJEXT): ../modules/io/$(am__dirstamp) \
 	../modules/io/$(DEPDIR)/$(am__dirstamp)
 
 gen_fcc_dipfile$(EXEEXT): $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_DEPENDENCIES) $(EXTRA_gen_fcc_dipfile_DEPENDENCIES) 
 	@rm -f gen_fcc_dipfile$(EXEEXT)
 	$(AM_V_FCLD)$(gen_fcc_dipfile_LINK) $(gen_fcc_dipfile_OBJECTS) $(gen_fcc_dipfile_LDADD) $(LIBS)
-../modules/vibrational_analysis.$(OBJEXT): ../modules/$(am__dirstamp) \
-	../modules/$(DEPDIR)/$(am__dirstamp)
 
 gen_fcc_state$(EXEEXT): $(gen_fcc_state_OBJECTS) $(gen_fcc_state_DEPENDENCIES) $(EXTRA_gen_fcc_state_DEPENDENCIES) 
 	@rm -f gen_fcc_state$(EXEEXT)

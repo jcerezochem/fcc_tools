@@ -56,18 +56,20 @@ program gen_fcc_state
     integer :: i,ii, j,jj, k, iat,jat
 
     !I/O
-    character(len=100) :: strfile='input.log', &
+    character(len=100) :: strfile='default', &
                           hessfile='default',&
                           gradfile='default',&
                           enerfile='default',&
                           massfile='none',&
                           outfile='default',   &
                           outmass='default',   &
-                          newoutfile='default'
+                          newoutfile='default', &
+                          nmfile='compute'
     character(len=10)  :: fts='guess', &
                           fth='guess', &
                           fte='guess', &
-                          ftg='guess'
+                          ftg='guess', &
+                          ftnm='guess'
     character(len=100) :: msg
     integer :: ios
     integer :: I_INP = 11, &
@@ -75,6 +77,7 @@ program gen_fcc_state
                I_GRD = 14, &
                I_ENE = 15, &
                I_MAS = 13, &
+               I_NM  = 14, &
                O_STA = 20, &
                O_FCI = 21, &
                O_HES = 22, &
@@ -82,7 +85,7 @@ program gen_fcc_state
                O_NEW = 24
 
     ! Read options
-    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
+    call parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,nmfile,ftnm,outfile,newoutfile,outmass,&
                      model_pes,force_real,filter,write_fcc2,write_modes)
     call set_word_upper_case(model_pes)
 
@@ -116,28 +119,33 @@ program gen_fcc_state
         allocate(ifilter(Nfilt))
         call selection2intlist(filter,ifilter,Nfilt)
     endif
-
+    
+    if (nmfile /= 'compute' .and. Nfilt /= Nat) then
+        call alert_msg('fatal','-filt cannot be used when normal modes are read, not computed')
+    endif
+    
+    
     !Allocate input data
     allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
-    allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
-    allocate (Grad(1:3*Nat))
     !Allocate output data
     allocate(Freq(1:3*Nfilt))
     allocate(L(1:3*Nfilt,1:3*Nfilt))
     allocate(RedMass(3*Nfilt))
-    
-    ! Open new fcc3 file (will overwrite previous one)
-    open(O_NEW,file=newoutfile) !,iostat=ios)
-    ! Add a initial INFO section
-    write(O_NEW,'(A)') 'INFO'
-    write(O_NEW,'(A)') 'State file generated from file: '//trim(adjustl(strfile))//' (format: '//trim(adjustl(fts))//')'
-    if (gradfile/=strfile) &
-      write(O_NEW,'(A)') ' with gradient from: '//trim(adjustl(gradfile))//' (format: '//trim(adjustl(ftg))//')'
-    if (hessfile/=strfile) &
-      write(O_NEW,'(A)') ' with Hessian from:  '//trim(adjustl(hessfile))//' (format: '//trim(adjustl(fth))//')'
-    if (massfile/='none') &
-      write(O_NEW,'(A)') ' with masses from:      '//trim(adjustl(massfile))
-    write(O_NEW,*) ""
+
+    if (nmfile == 'compute') then
+        ! Open new fcc3 file (will overwrite previous one)
+        open(O_NEW,file=newoutfile) !,iostat=ios)
+        ! Add a initial INFO section
+        write(O_NEW,'(A)') 'INFO'
+        write(O_NEW,'(A)') 'State file generated from file: '//trim(adjustl(strfile))//' (format: '//trim(adjustl(fts))//')'
+        if (gradfile/=strfile) &
+        write(O_NEW,'(A)') ' with gradient from: '//trim(adjustl(gradfile))//' (format: '//trim(adjustl(ftg))//')'
+        if (hessfile/=strfile) &
+        write(O_NEW,'(A)') ' with Hessian from:  '//trim(adjustl(hessfile))//' (format: '//trim(adjustl(fth))//')'
+        if (massfile/='none') &
+        write(O_NEW,'(A)') ' with masses from:      '//trim(adjustl(massfile))
+        write(O_NEW,*) ""
+    endif
     
     !Read structure
     print*, "Reading structure...", fts
@@ -146,32 +154,35 @@ program gen_fcc_state
         print*, "Error reading the geometry", error
         stop
     endif
+    print'(X,A,/)', "OK"
     
-    ! Print to fcc3 file
-    print*, "  and writting geom to fcc3 file..."
-    write(O_NEW,'(A)') 'GEOM      UNITS=ANGS'
- !,geomunits
-    if (Nfilt<int(1.e7)) then
-        write(O_NEW,'(I6)') Nfilt
-    else
-        write(O_NEW,'(I0)') Nfilt
-    endif
-    write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format (with filter: '//trim(adjustl(filter))//')'
-    do ii=1,Nfilt
-        i=ifilter(ii)
-        ! Replaced
-        ! call atominfo_from_atmass(Mass(i),j,atname)
-        j = atnum_from_atmass(Mass(i))
-        if (j == 0) then
-            atname = 'X'
-            write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
-            call alert_msg('note',msg)
+    if (nmfile == 'compute') then
+        ! Print to fcc3 file
+        print*, "  and writting geom to fcc3 file..."
+        write(O_NEW,'(A)') 'GEOM      UNITS=ANGS'
+    !,geomunits
+        if (Nfilt<int(1.e7)) then
+            write(O_NEW,'(I6)') Nfilt
         else
-            atname = atname_from_atnum(j)
-        endif 
-        write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
-    enddo
-    write(O_NEW,*) ""
+            write(O_NEW,'(I0)') Nfilt
+        endif
+        write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format (with filter: '//trim(adjustl(filter))//')'
+        do ii=1,Nfilt
+            i=ifilter(ii)
+            ! Replaced
+            ! call atominfo_from_atmass(Mass(i),j,atname)
+            j = atnum_from_atmass(Mass(i))
+            if (j == 0) then
+                atname = 'X'
+                write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
+                call alert_msg('note',msg)
+            else
+                atname = atname_from_atnum(j)
+            endif 
+            write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
+        enddo
+        write(O_NEW,*) ""
+    endif
 
     if (adjustl(massfile) /= "none") then
         open(I_MAS,file=massfile)
@@ -222,171 +233,177 @@ program gen_fcc_state
         ftg = fth
     endif
     
-    !Read Energy
-    !Only for supported filetypes
-    if (ftg=='fchk') then
-        is_energy=.true.
-        !Open gradient file
-        open(I_ENE,file=enerfile,iostat=ios)
-        if (ios /= 0) then
-            if (adjustl(model_pes) == "VH") then
-                print*, "Error opening "//trim(adjustl(gradfile))
-                stop
-            else
-                print'(/,X,A,/)', "NOTE: Energy file does not exist: skiping energy"
-                is_energy=.false.
+    if (nmfile == 'compute') then
+        !Read Energy
+        !Only for supported filetypes
+        if (ftg=='fchk') then
+            is_energy=.true.
+            !Open gradient file
+            open(I_ENE,file=enerfile,iostat=ios)
+            if (ios /= 0) then
+                if (adjustl(model_pes) == "VH") then
+                    print*, "Error opening "//trim(adjustl(gradfile))
+                    stop
+                else
+                    print'(/,X,A,/)', "NOTE: Energy file does not exist: skiping energy"
+                    is_energy=.false.
+                endif
             endif
+        else
+            is_energy=.false.
         endif
-    else
-        is_energy=.false.
-    endif
-    if (is_energy) then
-        print*, "Reading Energy...", fte
-        call generic_energy_reader(I_ENE,fte,E,error)
-        if (error /= 0) then
-            print'(X,A,/)', "Error: Energy not present in the file."
-            stop
+        if (is_energy) then
+            print*, "Reading Energy...", fte
+            call generic_energy_reader(I_ENE,fte,E,error)
+            if (error /= 0) then
+                print'(X,A,/)', "Error: Energy not present in the file."
+                stop
+            endif
+            close(I_ENE)
+        
+            ! Print to fcc3 file
+            print*, "  and writting energy to fcc3 file..."
+            write(O_NEW,'(A)') 'ENER      UNITS=AU' !,enerunits
+            write(O_NEW,'(ES16.8)') E
+            write(O_NEW,*) ""
+            print'(X,A,/)', "OK"
         endif
-        close(I_ENE)
-    
-        ! Print to fcc3 file
-        print*, "  and writting energy to fcc3 file..."
-        write(O_NEW,'(A)') 'ENER      UNITS=AU' !,enerunits
-        write(O_NEW,'(ES16.8)') E
-        write(O_NEW,*) ""
-        print'(X,A,/)', "OK"
-    endif
 
-    !Read Gradient 
-    !Only for supported filetypes
-    if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem' .or. ftg=='gmx') then
-        is_gradient=.true.
-        !Open gradient file
-        open(I_GRD,file=gradfile,iostat=ios)
-        if (ios /= 0) then
-            if (adjustl(model_pes) == "VH") then
-                print*, "Error opening "//trim(adjustl(gradfile))
-                stop
-            else
-                print'(/,X,A,/)', "NOTE: Gradient file does not exist: skiping gradient"
-                is_gradient=.false.
+        !Read Gradient
+        !Only for supported filetypes
+        if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem' .or. ftg=='gmx') then
+            is_gradient=.true.
+            allocate (Grad(1:3*Nat))
+            !Open gradient file
+            open(I_GRD,file=gradfile,iostat=ios)
+            if (ios /= 0) then
+                if (adjustl(model_pes) == "VH") then
+                    print*, "Error opening "//trim(adjustl(gradfile))
+                    stop
+                else
+                    print'(/,X,A,/)', "NOTE: Gradient file does not exist: skiping gradient"
+                    is_gradient=.false.
+                endif
             endif
-        endif
-    else
-        is_gradient=.false.
-    endif
-    if (is_gradient) then
-        print*, "Reading Gradient...", ftg
-        call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
-        if (error /= 0) then
-            print'(X,A,/)', "NOTE: Gradient not present: skiping gradient"
+        else
             is_gradient=.false.
         endif
-        close(I_GRD)
-    endif
-    
-    if (is_gradient) then
-    
-        ! Print to fcc3 file
-        print*, "  and writting grad to fcc3 file..."
-        write(O_NEW,'(A)') 'GRAD      UNITS=AU' !,gradunits
-        allocate(Vec(3*Nfilt))
-        do ii=1,3*Nfilt,3
-            iat = (ii-1)/3+1
-            i   = ifilter(iat)
-            Vec(ii)   = Grad(3*i-2)
-            Vec(ii+1) = Grad(3*i-1)
-            Vec(ii+2) = Grad(3*i)
-        enddo
-        deallocate(Grad)
-        allocate(Grad(3*Nfilt))
-        Grad=Vec
-        deallocate(Vec)
-        write(O_NEW,'(5ES16.8)') Grad(1:3*Nfilt)
-        write(O_NEW,*) ""
-        print'(X,A,/)', "OK"
-    endif
+        if (is_gradient) then
+            print*, "Reading Gradient...", ftg
+            call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
+            if (error /= 0) then
+                print'(X,A,/)', "NOTE: Gradient not present: skiping gradient"
+                is_gradient=.false.
+            endif
+            close(I_GRD)
+        endif
+        
+        if (is_gradient) then
+        
+            ! Print to fcc3 file
+            print*, "  and writting grad to fcc3 file..."
+            write(O_NEW,'(A)') 'GRAD      UNITS=AU' !,gradunits
+            allocate(Vec(3*Nfilt))
+            do ii=1,3*Nfilt,3
+                iat = (ii-1)/3+1
+                i   = ifilter(iat)
+                Vec(ii)   = Grad(3*i-2)
+                Vec(ii+1) = Grad(3*i-1)
+                Vec(ii+2) = Grad(3*i)
+            enddo
+            deallocate(Grad)
+            allocate(Grad(3*Nfilt))
+            Grad=Vec
+            deallocate(Vec)
+            write(O_NEW,'(5ES16.8)') Grad(1:3*Nfilt)
+            write(O_NEW,*) ""
+            print'(X,A,/)', "OK"
+        endif
 
-    !Open hessian file
-    open(I_HES,file=hessfile) !,iostat=ios)
-    !Read Hessian
-    print*, "Reading Hessian...", fth
-    call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
-    if (error /= 0) then
-        print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
-        is_hessian = .false.
+        !Open hessian file
+        open(I_HES,file=hessfile) !,iostat=ios)
+        !Read Hessian
+        allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+        print*, "Reading Hessian...", fth
+        call generic_Hessian_reader(I_HES,fth,Nat,Hlt,error)
+        if (error /= 0) then
+            print'(X,A,/)', "Hessian is not present in the file. Only valid for AS"
+            is_hessian = .false.
+        else
+
+            ! Apply filter
+            allocate(Aux(3*Nat,3*Nat))
+            k=0
+            do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                Aux(i,j) = Hlt(k)
+            enddo
+            enddo
+            allocate(Aux2(3*Nfilt,3*Nfilt))
+            do ii=1,3*Nfilt,3
+            do jj=1,ii,3
+                iat = (ii-1)/3+1
+                i   = ifilter(iat)
+                jat = (jj-1)/3+1
+                j   = ifilter(jat)
+                ! Fill elements
+                Aux2(ii+0,jj+0) = Aux(3*i-2,3*j-2)
+                Aux2(ii+1,jj+0) = Aux(3*i-1,3*j-2)
+                Aux2(ii+2,jj+0) = Aux(3*i-0,3*j-2)
+                
+                Aux2(ii+0,jj+1) = Aux(3*i-2,3*j-1)
+                Aux2(ii+1,jj+1) = Aux(3*i-1,3*j-1)
+                Aux2(ii+2,jj+1) = Aux(3*i-0,3*j-1)
+                
+                Aux2(ii+0,jj+2) = Aux(3*i-2,3*j-0)
+                Aux2(ii+1,jj+2) = Aux(3*i-1,3*j-0)
+                Aux2(ii+2,jj+2) = Aux(3*i-0,3*j-0)
+                
+                ! Sym
+                Aux2(jj+0,ii+0) = Aux2(ii+0,jj+0)
+                Aux2(jj+1,ii+0) = Aux2(ii+1,jj+0)
+                Aux2(jj+2,ii+0) = Aux2(ii+2,jj+0)
+                
+                Aux2(jj+0,ii+1) = Aux2(ii+0,jj+1)
+                Aux2(jj+1,ii+1) = Aux2(ii+1,jj+1)
+                Aux2(jj+2,ii+1) = Aux2(ii+2,jj+1)
+                
+                Aux2(jj+0,ii+2) = Aux2(ii+0,jj+2)
+                Aux2(jj+1,ii+2) = Aux2(ii+1,jj+2)
+                Aux2(jj+2,ii+2) = Aux2(ii+2,jj+2)
+            enddo
+            enddo
+            allocate(Vec(3*Nfilt*(3*Nfilt+1)/2))
+            k=0
+            do i=1,3*Nfilt
+            do j=1,i
+                k=k+1
+                Vec(k) = Aux2(i,j)
+            enddo
+            enddo
+            deallocate(Aux,Aux2)
+            deallocate(Hlt)
+            allocate(Hlt(3*Nfilt*(3*Nfilt+1)/2))
+            Hlt=Vec
+            deallocate(Vec)
+            
+            
+            ! Print to fcc3 file
+            print*, "  and writting lower triangular hess to fcc3 file..."
+            write(O_NEW,'(A)') 'HESS      UNITS=AU' !,hessunits
+            write(O_NEW,'(5ES16.8)') Hlt(1:3*Nfilt*(3*Nfilt+1)/2)
+            write(O_NEW,*) ""
+            print'(X,A,/)', "OK"
+        endif
+
+        Nat = Nfilt
+
+        !Close hessian file
+        close(I_HES)
     else
-
-        ! Apply filter
-        allocate(Aux(3*Nat,3*Nat))
-        k=0
-        do i=1,3*Nat
-        do j=1,i
-            k=k+1
-            Aux(i,j) = Hlt(k)
-        enddo
-        enddo
-        allocate(Aux2(3*Nfilt,3*Nfilt))
-        do ii=1,3*Nfilt,3
-        do jj=1,ii,3
-            iat = (ii-1)/3+1
-            i   = ifilter(iat)
-            jat = (jj-1)/3+1
-            j   = ifilter(jat)
-            ! Fill elements
-            Aux2(ii+0,jj+0) = Aux(3*i-2,3*j-2)
-            Aux2(ii+1,jj+0) = Aux(3*i-1,3*j-2)
-            Aux2(ii+2,jj+0) = Aux(3*i-0,3*j-2)
-            
-            Aux2(ii+0,jj+1) = Aux(3*i-2,3*j-1)
-            Aux2(ii+1,jj+1) = Aux(3*i-1,3*j-1)
-            Aux2(ii+2,jj+1) = Aux(3*i-0,3*j-1)
-            
-            Aux2(ii+0,jj+2) = Aux(3*i-2,3*j-0)
-            Aux2(ii+1,jj+2) = Aux(3*i-1,3*j-0)
-            Aux2(ii+2,jj+2) = Aux(3*i-0,3*j-0)
-            
-            ! Sym
-            Aux2(jj+0,ii+0) = Aux2(ii+0,jj+0)
-            Aux2(jj+1,ii+0) = Aux2(ii+1,jj+0)
-            Aux2(jj+2,ii+0) = Aux2(ii+2,jj+0)
-            
-            Aux2(jj+0,ii+1) = Aux2(ii+0,jj+1)
-            Aux2(jj+1,ii+1) = Aux2(ii+1,jj+1)
-            Aux2(jj+2,ii+1) = Aux2(ii+2,jj+1)
-            
-            Aux2(jj+0,ii+2) = Aux2(ii+0,jj+2)
-            Aux2(jj+1,ii+2) = Aux2(ii+1,jj+2)
-            Aux2(jj+2,ii+2) = Aux2(ii+2,jj+2)
-        enddo
-        enddo
-        allocate(Vec(3*Nfilt*(3*Nfilt+1)/2))
-        k=0
-        do i=1,3*Nfilt
-        do j=1,i
-            k=k+1
-            Vec(k) = Aux2(i,j)
-        enddo
-        enddo
-        deallocate(Aux,Aux2)
-        deallocate(Hlt)
-        allocate(Hlt(3*Nfilt*(3*Nfilt+1)/2))
-        Hlt=Vec
-        deallocate(Vec)
-        
-        
-        ! Print to fcc3 file
-        print*, "  and writting lower triangular hess to fcc3 file..."
-        write(O_NEW,'(A)') 'HESS      UNITS=AU' !,hessunits
-        write(O_NEW,'(5ES16.8)') Hlt(1:3*Nfilt*(3*Nfilt+1)/2)
-        write(O_NEW,*) ""
-        print'(X,A,/)', "OK"
+        is_hessian = .false.
     endif
-    
-    Nat = Nfilt
-
-    !Close hessian file
-    close(I_HES)
 
     if (is_hessian .and. (write_fcc2 .or. write_modes)) then
         !Perform vibrational analysis
@@ -413,6 +430,29 @@ program gen_fcc_state
         else
             print'(X,A,/)', "OK"
         endif
+    else if (nmfile /= 'compute') then
+        print*, "Reading normal modes...", ftnm
+        write_fcc2 = .true.
+        open(I_NM,file=nmfile,iostat=ios,action='read',status='old')
+        if (ios /= 0) then
+            print*, "Error opening "//trim(adjustl(nmfile))
+            stop
+        endif
+        
+        !Guess the file type if not given
+        if (adjustl(ftnm) == 'guess') then
+            call split_line_back(nmfile,'.',cnull,ftnm)
+        endif
+        
+        ! Read nm
+        call generic_nm_reader(I_NM,ftnm,Nat,Nvib,Freq,L,error)
+        if (error < 0) then
+            print*, "Error reading normal modes"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+        close(I_NM)
     endif
 
     if (write_fcc2) then
@@ -428,7 +468,7 @@ program gen_fcc_state
             do j=1,Nat
                 write(O_STA,'(E17.8)',iostat=ios) X(j),Y(j),Z(j)
             enddo
-            if (is_hessian) then
+            if (is_hessian .or. nmfile /= 'compute') then
                 do j=1,3*Nat
                 do i=1,Nvib
                     write(O_STA,'(E17.8)',iostat=ios) L(j,i)
@@ -505,18 +545,21 @@ program gen_fcc_state
     print*, "** Successful end **"
 
     !Deallocate
-    deallocate(X,Y,Z,Mass,Hlt,Freq,L)
-    if (adjustl(model_pes) == "VH") deallocate(Grad)
+    deallocate(X,Y,Z,Mass,Freq,L)
+    if (nmfile == 'compute') then
+        deallocate(Hlt)
+        if (adjustl(model_pes) == "VH") deallocate(Grad)
+    endif
 
     stop
 
     contains
 
-    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,outfile,newoutfile,outmass,&
+    subroutine parse_input(strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,nmfile,ftnm,outfile,newoutfile,outmass,&
                            model_pes,force_real,filter,write_fcc2,write_modes)
 
         character(len=*),intent(inout) :: strfile,fts,hessfile,fth,gradfile,ftg,enerfile,fte,massfile,&
-                                          outfile,outmass,model_pes,newoutfile,filter
+                                          outfile,outmass,model_pes,newoutfile,filter,nmfile,ftnm
         logical,intent(inout)          :: force_real,write_fcc2,write_modes
 
         ! Local
@@ -551,6 +594,13 @@ program gen_fcc_state
                     call getarg(i+1, fth)
                     argument_retrieved=.true.
 
+                case ("-inm") 
+                    call getarg(i+1, nmfile)
+                    argument_retrieved=.true.
+                case ("-ftnm") 
+                    call getarg(i+1, ftnm)
+                    argument_retrieved=.true.
+                    
                 case ("-ig") 
                     call getarg(i+1, gradfile)
                     argument_retrieved=.true.
@@ -615,6 +665,14 @@ program gen_fcc_state
 
         ! Post-processing
         !----------------------------
+        if (adjustl(strfile) == 'default') then
+            if (nmfile == 'compute') then
+                strfile = 'output.log'
+            else
+                strfile = nmfile
+                fts = ftnm
+            endif
+        endif
         if (adjustl(hessfile) == 'default') then
             ! The try to read the hessian from strfile
             hessfile = strfile
@@ -679,6 +737,9 @@ program gen_fcc_state
         write(0,'(A)'  ) 'coordinates and the Hessian from them.'
         write(0,'(A)'  ) 'Additionally, an input template is also generated'
         write(0,'(A)'  ) ''
+        write(0,'(A)'  ) 'Alternatively, normal modes can be read from the QM output. In this'
+        write(0,'(A)'  ) 'case, Hessian and Grad are ignored'
+        write(0,'(A)'  ) ''
         write(0,'(A)'  ) 'The input structure (-i) is read from any of the supported QM output'
         write(0,'(A)'  ) 'files or through the g96 (GROMOS) structure file. The file type is'
         write(0,'(A)'  ) 'guessed based on the extension, but if this fails, it can be specified'
@@ -709,6 +770,8 @@ program gen_fcc_state
         write(0,'(A)'  ) ' -ftg   filetype(grad)    '//trim(adjustl(ftg))
         write(0,'(A)'  ) ' -ie    ener_input_file   '//trim(adjustl(enerfile))
         write(0,'(A)'  ) ' -fte   filetype(ener)    '//trim(adjustl(fte))
+        write(0,'(A)'  ) ' -inm   structure_file    '//trim(adjustl(nmfile))
+        write(0,'(A)'  ) ' -ftnm  filetype(nm)      '//trim(adjustl(ftnm))
         write(0,'(A)'  ) ' -im    mass_file         '//trim(adjustl(massfile))
         write(0,'(A)'  ) ' -o     output_file(fcc3) '//trim(adjustl(newoutfile))
         write(0,'(A)'  ) ' -ofcc2 output_file(fcc2) '//trim(adjustl(outfile))

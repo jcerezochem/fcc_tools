@@ -706,6 +706,26 @@ module line_preprocess
         return
 
     end subroutine selection2floatlist
+    
+    
+    subroutine str_replace(line,pattern0,pattern1)
+
+        !Repace one char by other (only works for one char for the moment)
+
+        character(len=*),intent(inout):: line
+        character(len=*),intent(in)   :: pattern0,pattern1
+
+        !local
+        integer :: n, i,j
+
+        n = len(line)
+        do i=1,n
+            if (line(i:i) == pattern0 ) line(i:i) = pattern1
+        enddo
+
+        return
+
+    end subroutine str_replace
 
 
 end module line_preprocess

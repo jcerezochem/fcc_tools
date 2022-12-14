@@ -74,8 +74,10 @@ module fcc_io
              call read_cfour_natoms(unt,Nat,error_flag)
             case("psi4")
              call read_psi4_natoms(unt,Nat,error_flag)
-            case("molcas")
+            case("molcasU")
              call read_molcasUnSym_natoms(unt,Nat,error_flag)
+            case("molcas")
+             call read_molcas_natoms(unt,Nat,error_flag)
             case("molden")
              call read_molden_natoms(unt,Nat,error_flag)
             case("molpro")
@@ -187,6 +189,9 @@ module fcc_io
              call read_molden_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("molcas")
+             call read_molcas_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
+            case("molcasU")
              call read_molcasUnSym_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("molpro")
@@ -401,7 +406,7 @@ module fcc_io
              call read_FCM_hess(unt,Nat,Hlt,error_flag)
             case("psi4")
              call read_psi4_hess(unt,Nat,Hlt,error_flag)
-            case("molcas")
+            case("molcasU")
              call read_molcasUnSym_hess(unt,Nat,Hlt,error_flag)
             case("molpro")
              call read_molpro_hess(unt,Nat,Hlt,error_flag)
@@ -427,7 +432,67 @@ module fcc_io
 
     end subroutine generic_Hessian_reader
 
+    
+    subroutine generic_nm_reader(unt,filetype,Nat,Nvib,Freq,L,error_flag)
 
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic geometry reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (inp)  int /scalar   Number of atoms
+        ! Nvib    (out)  int/scalar    Number of vib
+        ! Freq    (out)  real/matix    Frequencies
+        ! L       (out)  real/vector   Normal modes
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+        
+        use vibrational_analysis
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(in)              :: Nat
+        integer,intent(out)             :: Nvib
+        real(8),dimension(:),intent(out)  :: Freq
+        real(8),dimension(:,:),intent(out):: L
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !Other local
+        character(len=2),dimension(Nat)  :: AtName
+        integer                          :: i,j
+
+        error_flag = 0
+        select case (adjustl(filetype))
+            case("log")
+             call read_glog_nm(unt,Nvib,Nat,Freq,L,error_flag)
+            case("molcas")
+             call read_molcas_nm(unt,Nvib,Nat,Freq,L,error_flag)
+             allocate(A(1:Nvib))
+             call Lcart_to_LcartNrm(Nat,Nvib,L,L,A,error_flag)
+             deallocate(A)
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('freq')
+             error_flag = 99
+         end select
+
+         return
+
+    end subroutine generic_nm_reader
+
+    
     subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,dx,Dip,DipD,error_flag)
 
         !==============================================================
@@ -578,7 +643,8 @@ module fcc_io
             write(0,*)     "  fchk     : g09 fchk"
             write(0,*)     "  gms      : GAMESS out"
             write(0,*)     "  psi4     : Psi4 out"
-            write(0,*)     "  molcas   : MOLCAS (UnSym)"
+            write(0,*)     "  molcas   : MOLCAS"
+            write(0,*)     "  molcasU  : MOLCAS (UnSym)"
             write(0,*)     "  molpro   : MOLPRO out"
             write(0,*)     "  turbomol : TURBOMOL out"
             write(0,*)     "  gmx      : gromacs (g96 and dumped mtx)"
