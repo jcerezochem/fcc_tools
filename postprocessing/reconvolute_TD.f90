@@ -21,16 +21,14 @@ program reconvolute_TD
     character(len=3) :: optrans
     character(len=8) :: hwhm_char
     !Counters
-    integer :: i
+    integer :: i, ibrd
     
     ! Input defaults
     character(len=3) :: broadfun='GAU'
-    character(len=3) :: broadfun2='NON'
-    character(len=3) :: broadfun3='NON'
+    character(len=3),dimension(:),allocatable ::  broadfun_list
     character(len=3) :: property='OPA'
-    real(8) :: hwhm_eV=0.01d0,  &
-               hwhm2_eV=0.01d0, &
-               hwhm3_eV=0.01d0
+    real(8) :: hwhm_eV=0.01d0
+    real(8),dimension(:),allocatable :: hwhm_eV_list
     real(8) :: Eshift=-9999.d0
     real(8) :: de_eV = -9999.d0 ! for IC rate
     logical :: do_gibbs=.true.
@@ -57,10 +55,48 @@ program reconvolute_TD
     ! Initialize
     w0_eV = -9999.d0
     
-    
     ! Read command_line_options
-    call parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
+    call parse_input(corrfile,hwhm_eV_list,broadfun_list,&
                      do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
+                     
+    ! Initialize lists
+    if (.not.allocated(hwhm_eV_list)) then
+        allocate(hwhm_eV_list(1))
+        hwhm_eV_list(1) = hwhm_eV
+    endif
+    if (.not.allocated(broadfun_list)) then
+        allocate(broadfun_list(1))
+        broadfun_list(1)= broadfun
+    endif
+    
+    ! Set options upper case
+    call set_word_upper_case(property)
+    do i=1,size(broadfun_list)
+        call set_word_upper_case(broadfun_list(i))
+    enddo
+    
+    ! Manage VOIgt
+    do i=1,size(broadfun_list)
+        broadfun = broadfun_list(i)
+        if (broadfun == 'VOI' .and. size(broadfun_list)>1) then
+            call alert_msg('fatal','VOIgt profiles do not admit additional broadenings')
+        endif
+    enddo
+    
+    broadfun = broadfun_list(1)
+    if (broadfun == 'VOI') then
+        deallocate(broadfun_list)
+        allocate(broadfun_list(2))
+        broadfun_list = (/'GAU','LOR'/)
+    endif
+    
+    
+    if (size(hwhm_eV_list) /= size(broadfun_list)) then
+        print*, size(hwhm_eV_list), size(broadfun_list)
+        call alert_msg('fatal','Inconsistent number of broadening functions and hwhm')
+    endif
+    
+    !TODO: manage VOIgt
                      
     ! Get Eshift if needed
     if (Eshift==-9999.d0) then
@@ -100,20 +136,6 @@ program reconvolute_TD
     w0_eV = w0_eV - Eshift
     
     
-    
-    ! Set options upper case
-    call set_word_upper_case(property)
-    call set_word_upper_case(broadfun)
-    call set_word_upper_case(broadfun2)
-    call set_word_upper_case(broadfun3)
-    
-    ! Set behavour for VOI:
-    if (broadfun == 'VOI') then
-        broadfun  = 'GAU'
-        broadfun2 = 'LOR'
-        broadfun3 = 'NON'
-    endif
-    
     ! Tune settings
     ! Property settings
     if (property=="OPA") then
@@ -147,12 +169,6 @@ program reconvolute_TD
         call alert_msg('fatal','Property not supported: '//trim(adjustl(property)))
     endif
     
-    ! Broadening settings
-    dgau  = hwhm_eV *evtown/autown
-    dgau2 = hwhm2_eV*evtown/autown
-    dgau3 = hwhm3_eV*evtown/autown
-    ! Grid settings (starting point)
-    w0    = w0_eV*evtown/autown
     
     ! Read correlation function (without broadening and gibbs dumping)
     open(I_CORR,file=corrfile,iostat=ioflag)
@@ -184,126 +200,62 @@ program reconvolute_TD
     ! Allocate
     allocate(t(NN),corr(NN),spect(NN))
     
+    ! Grid settings (starting point)
+    w0    = w0_eV*evtown/autown
+    
     ! Then read data and add new broadening and gibbs function
     do i=1,N
         ! Read correlation (without broadening/gibbs)
         read(S_CORR,*,iostat=ioflag) tt, c, ci
-        ! Compute new broadening
-        if (broadfun.eq.'GAU') then
-            ! Fourier tranfomr:
-            ! 1/(sigma*sqrt(2pi)) * e^(-w²/2sigma²) --> 1/sqrt(2pi) * e^(-t²*(sigma²/2))
-            ! HWHM to sigma
-            aexp = dgau/dsqrt(2.d0*dlog(2.d0))
-            ! Exponent of time-domain Gaussian (-t²*aexp): aexp=sigma²/2
-            aexp = aexp**2/2.d0
-            ! Time exponent in the broadening function (Guassian)
-            nbroad = 2
-            ! COMPUTE
-            broad = dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun.eq.'LOR') then
-            ! Fourier tranfomr:
-            ! 1/pi * hwhm/(w²+hwhm²) --> 1/sqrt(2pi) * e^(-t*hwhm)
-            ! Exponent of time-domain decaying exp (-t*aexp): aexp=hwhm
-            aexp=dgau
-            ! Time exponent in the broadening function (Exponential decay)
-            nbroad=1
-            ! COMPUTE
-            broad = dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun.eq.'REX') then
-            ! Fourier tranform:
-            ! a*e^(-aw), with w>0 --> 1/sqrt(2pi) * a/(a-it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau
-            ! COMPUTE
-            broad = aexp/(aexp - Im*tt/autofs)
-        elseif (broadfun.eq.'LEX') then
-            ! Fourier tranform:
-            ! a*e^(aw), with w<0 --> 1/sqrt(2pi) * a/(a+it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau
-            ! COMPUTE
-            broad = aexp/(aexp + Im*tt/autofs)
-        else
-            call alert_msg('fatal','Unkown broadening (1) function type: '//trim(adjustl(broadfun)))
-        endif
-        if (broadfun2.eq.'NON') then
-            ! Do nothing
-        elseif (broadfun2.eq.'GAU') then
-            ! Fourier tranfomr:
-            ! 1/(sigma*sqrt(2pi)) * e^(-w²/2sigma²) --> 1/sqrt(2pi) * e^(-t²*(sigma²/2))
-            ! HWHM to sigma
-            aexp = dgau2/dsqrt(2.d0*dlog(2.d0))
-            ! Exponent of time-domain Gaussian (-t²*aexp): aexp=sigma²/2
-            aexp = aexp**2/2.d0
-            ! Time exponent in the broadening function (Guassian)
-            nbroad = 2
-            ! COMPUTE
-            broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun2.eq.'LOR') then
-            ! Fourier tranfomr:
-            ! 1/pi * hwhm/(w²+hwhm²) --> 1/sqrt(2pi) * e^(-t*hwhm)
-            ! Exponent of time-domain decaying exp (-t*aexp): aexp=hwhm
-            aexp=dgau2
-            ! Time exponent in the broadening function (Exponential decay)
-            nbroad=1
-            ! COMPUTE
-            broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun2.eq.'REX') then
-            ! Fourier tranform:
-            ! a*e^(-aw), with w>0 --> 1/sqrt(2pi) * a/(a-it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau2
-            ! COMPUTE
-            broad = broad * aexp/(aexp - Im*tt/autofs)
-        elseif (broadfun2.eq.'LEX') then
-            ! Fourier tranform:
-            ! a*e^(aw), with w<0 --> 1/sqrt(2pi) * a/(a+it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau2
-            ! COMPUTE
-            broad = broad * aexp/(aexp + Im*tt/autofs)
-        else
-            call alert_msg('fatal','Unkown broadening (2) function type: '//trim(adjustl(broadfun2)))
-        endif
-        if (broadfun3.eq.'NON') then
-            ! Do nothing
-        elseif (broadfun3.eq.'GAU') then
-            ! Fourier tranfomr:
-            ! 1/(sigma*sqrt(2pi)) * e^(-w²/2sigma²) --> 1/sqrt(2pi) * e^(-t²*(sigma²/2))
-            ! HWHM to sigma
-            aexp = dgau3/dsqrt(2.d0*dlog(2.d0))
-            ! Exponent of time-domain Gaussian (-t²*aexp): aexp=sigma²/2
-            aexp = aexp**2/2.d0
-            ! Time exponent in the broadening function (Guassian)
-            nbroad = 2
-            ! COMPUTE
-            broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun3.eq.'LOR') then
-            ! Fourier tranfomr:
-            ! 1/pi * hwhm/(w²+hwhm²) --> 1/sqrt(2pi) * e^(-t*hwhm)
-            ! Exponent of time-domain decaying exp (-t*aexp): aexp=hwhm
-            aexp=dgau3
-            ! Time exponent in the broadening function (Exponential decay)
-            nbroad=1
-            ! COMPUTE
-            broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
-        elseif (broadfun3.eq.'REX') then
-            ! Fourier tranform:
-            ! a*e^(-aw), with w>0 --> 1/sqrt(2pi) * a/(a-it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau3
-            ! COMPUTE
-            broad = broad * aexp/(aexp - Im*tt/autofs)
-        elseif (broadfun3.eq.'LEX') then
-            ! Fourier tranform:
-            ! a*e^(aw), with w<0 --> 1/sqrt(2pi) * a/(a+it)
-            ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
-            aexp=dlog(2.d0)/2.d0/dgau3
-            ! COMPUTE
-            broad = broad * aexp/(aexp + Im*tt/autofs)
-        else
-            call alert_msg('fatal','Unkown broadening (3) function type: '//trim(adjustl(broadfun2)))
-        endif
+        
+        broad = 1.d0
+        do ibrd = 1,size(broadfun_list)
+        
+            ! Broadening settings
+            dgau     = hwhm_eV_list(ibrd) *evtown/autown
+            broadfun = broadfun_list(ibrd)
+            
+            ! Compute new broadening
+            if (broadfun.eq.'GAU') then
+                ! Fourier tranfomr:
+                ! 1/(sigma*sqrt(2pi)) * e^(-w²/2sigma²) --> 1/sqrt(2pi) * e^(-t²*(sigma²/2))
+                ! HWHM to sigma
+                aexp = dgau/dsqrt(2.d0*dlog(2.d0))
+                ! Exponent of time-domain Gaussian (-t²*aexp): aexp=sigma²/2
+                aexp = aexp**2/2.d0
+                ! Time exponent in the broadening function (Guassian)
+                nbroad = 2
+                ! COMPUTE
+                broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
+            elseif (broadfun.eq.'LOR') then
+                ! Fourier tranfomr:
+                ! 1/pi * hwhm/(w²+hwhm²) --> 1/sqrt(2pi) * e^(-t*hwhm)
+                ! Exponent of time-domain decaying exp (-t*aexp): aexp=hwhm
+                aexp=dgau
+                ! Time exponent in the broadening function (Exponential decay)
+                nbroad=1
+                ! COMPUTE
+                broad = broad * dexp(-aexp*(tt/autofs)**nbroad)
+            elseif (broadfun.eq.'REX') then
+                ! Fourier tranform:
+                ! a*e^(-aw), with w>0 --> 1/sqrt(2pi) * a/(a-it)
+                ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
+                aexp=dlog(2.d0)/2.d0/dgau
+                ! COMPUTE
+                broad = broad * aexp/(aexp - Im*tt/autofs)
+            elseif (broadfun.eq.'LEX') then
+                ! Fourier tranform:
+                ! a*e^(aw), with w<0 --> 1/sqrt(2pi) * a/(a+it)
+                ! Exponent of freq-domain decaying exp: aexp=ln2/fwhm
+                aexp=dlog(2.d0)/2.d0/dgau
+                ! COMPUTE
+                broad = broad * aexp/(aexp + Im*tt/autofs)
+            else
+                call alert_msg('fatal','Unkown broadening (1) function type: '//trim(adjustl(broadfun)))
+            endif
+        
+        enddo !list of broadenings
+        
         ! Compute gibbs part
         if (do_gibbs) then
             damp = (cos(pi/2.d0*tt/tfin)**2)
@@ -361,8 +313,8 @@ program reconvolute_TD
                  spect(1:NN),optrans)
                  
     !
-    ! Get the full correlation function 
-    write(hwhm_char,'(F8.3)') hwhm_eV
+    ! Get the full correlation function
+    write(hwhm_char,'(F8.3)') hwhm_eV_list(1)
     fullcorrfile="timecorr_hwhm"//trim(adjustl(hwhm_char))//".dat"
     open(O_CORR,file=fullcorrfile,status="replace")
     do i=1,NN
@@ -497,18 +449,24 @@ program reconvolute_TD
     
     contains
     
-    subroutine parse_input(corrfile,hwhm_eV,hwhm2_eV,hwhm3_eV,broadfun,broadfun2,broadfun3,&
+    subroutine parse_input(corrfile,hwhm_eV_list,broadfun_list,&
                            do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
     
-        character(len=*),intent(inout) :: corrfile,broadfun,broadfun2,broadfun3,property,fccoutfile
+        character(len=*),intent(inout) :: corrfile,property,fccoutfile
+        character(len=*),dimension(:),allocatable,intent(inout) ::  broadfun_list
         logical,intent(inout)          :: do_gibbs
-        real(8),intent(inout)          :: hwhm_eV, hwhm2_eV, hwhm3_eV, Eshift, de_eV, w0_eV
+        real(8),intent(inout)          :: Eshift, de_eV, w0_eV
+        real(8),dimension(:),allocatable,intent(inout) :: hwhm_eV_list
 
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
-        character(len=200) :: arg
+        character(len=200) :: arg, broadfun_string, hwhm_eV_string
+        integer :: n_elem
+        
+        broadfun_string="GAU"
+        hwhm_eV_string ="0.01"
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -523,19 +481,12 @@ program reconvolute_TD
                     argument_retrieved=.true.
                     
                 case ("-hwhm") 
-                    call getarg(i+1, arg)
-                    read(arg,*) hwhm_eV
+                    call getarg(i+1, hwhm_eV_string)
                     argument_retrieved=.true.
-                    
-                case ("-hwhm2") 
-                    call getarg(i+1, arg)
-                    read(arg,*) hwhm2_eV
-                    argument_retrieved=.true.
-                    
-                case ("-hwhm3") 
-                    call getarg(i+1, arg)
-                    read(arg,*) hwhm3_eV
-                    argument_retrieved=.true.
+                    ! Get vector
+                    call string2vector_getsize(hwhm_eV_string,n_elem,',')
+                    allocate(hwhm_eV_list(n_elem))
+                    call string2rvector(hwhm_eV_string,hwhm_eV_list,n_elem,',')
                     
                 case ("-damp") 
                     do_gibbs=.true.
@@ -543,16 +494,12 @@ program reconvolute_TD
                     do_gibbs=.false.
                     
                 case ("-brd") 
-                    call getarg(i+1, broadfun)
+                    call getarg(i+1, broadfun_string)
                     argument_retrieved=.true.
-                    
-                case ("-brd2") 
-                    call getarg(i+1, broadfun2)
-                    argument_retrieved=.true.
-                    
-                case ("-brd3") 
-                    call getarg(i+1, broadfun3)
-                    argument_retrieved=.true.
+                    ! Get vector
+                    call string2vector_getsize(broadfun_string,n_elem,',')
+                    allocate(broadfun_list(n_elem))
+                    call string2cvector(broadfun_string,broadfun_list,n_elem,',')
                     
                 case ("-prop") 
                     call getarg(i+1, property)
@@ -603,15 +550,9 @@ program reconvolute_TD
         write(0,'(/,A)')   'OPTIONS'
         write(0,'(A)'  )   'Flag       Description                  Current Value'
         write(0,'(A)'  )   ' -f        Correlation function file    '//trim(adjustl(corrfile))
-        write(0,'(A)'  )   ' -brd      First broad func             '//trim(adjustl(broadfun))
+        write(0,'(A)'  )   ' -brd      List of broad func           '//trim(adjustl(broadfun_string))
         write(0,'(A)'  )   '           (GAU|LOR|LEXP|REXP)'
-        write(0,'(A)'  )   ' -brd2     Second broad func            '//trim(adjustl(broadfun2))
-        write(0,'(A)'  )   '           (NONE|GAU|LOR|LEXP|REXP)'
-        write(0,'(A)'  )   ' -brd3     Third broad func             '//trim(adjustl(broadfun3))
-        write(0,'(A)'  )   '           (NONE|GAU|LOR|LEXP|REXP)'
-        write(0,'(A,F8.3)')' -hwhm     HWHM (in eV)              '   ,hwhm_eV
-        write(0,'(A,F8.3)')' -hwhm2    HWHM (in eV)              '   ,hwhm2_eV
-        write(0,'(A,F8.3)')' -hwhm3    HWHM (in eV)              '   ,hwhm3_eV
+        write(0,'(A)'  )   ' -hwhm     List of HWHM (in eV)         '//trim(adjustl(hwhm_eV_string))
         write(0,'(A,L1)')  ' -[no]damp Add or not damping function  ',do_gibbs
         write(0,'(A)'  )   ' -prop     Property computed            '//trim(adjustl(property))
         write(0,'(A)'  )   '           (OPA|EMI|ECD|MCP|CPL)'
