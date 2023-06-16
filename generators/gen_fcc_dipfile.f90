@@ -57,13 +57,15 @@ program gen_fcc_dipfile
                           out_eldip='default', &
                           out_magdip='default',&
                           out_nac='default'
+    character(len=1)   :: gauge='l'
     character(len=10)  :: ft='guess'
     integer :: ios
     integer :: I_INP=10,&
                O_DIP =20
 
     ! Read options
-    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter)
+    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter,gauge)
+    call set_word_lower_case(gauge)
 
     !Open input file
     open(I_INP,file=inpfile,status="old",iostat=ios)
@@ -93,11 +95,13 @@ program gen_fcc_dipfile
 
     !Get eldip
     print*, "Reading transition electric dipole moment..."
+    if (gauge == 'l') print*, '(lenght gauge)'
+    if (gauge == 'v') print*, '(velocity gauge)'
     if (derivatives) then
         !Allocate output array
         allocate(DipD(1:3*3*Nat))
     endif
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,gauge,error)
     if (error /= 0) then
         print*, "Error getting eldip. Error code:", error
         stop
@@ -141,7 +145,7 @@ program gen_fcc_dipfile
 
     !Get magdip
     print*, "Reading transition magnetic dipole moment..."
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,gauge,error)
     if (error /= 0) then
         print*, "Error getting magdip. Error code:", error
         stop
@@ -224,9 +228,10 @@ program gen_fcc_dipfile
 
     contains
 
-    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter)
+    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,&
+                           filter,gauge)
 
-        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter
+        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter,gauge
         logical,intent(inout)          :: derivatives,do_nac
         integer,intent(inout)          :: Si, Sf
 
@@ -235,7 +240,7 @@ program gen_fcc_dipfile
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
-        character(len=20)  :: prfx=""
+        character(len=20)  :: prfx="", gauge_long
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -286,6 +291,11 @@ program gen_fcc_dipfile
                     
                 case ("-filt")
                     call getarg(i+1, filter)
+                    argument_retrieved=.true.
+                    
+                case ("-gauge")
+                    call getarg(i+1, gauge_long)
+                    gauge = gauge_long
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -341,6 +351,12 @@ program gen_fcc_dipfile
             out_nac = & !trim(adjustl(prfx))//&
                       "nac_"//trim(adjustl(out_nac))//'_'//trim(adjustl(arg))
         endif
+        
+        if (gauge /= 'l' .and. gauge /= 'L' .and. &
+            gauge /= 'v' .and. gauge /= 'V') then
+            print*, "Unknown gauge: "//gauge_long
+            need_help = .true.
+        endif
 
 
        !Print options (to stderr)
@@ -366,6 +382,8 @@ program gen_fcc_dipfile
         write(0,'(A,I0)')' -Sf      final state         ',Sf
         write(0,'(A)')   '          (-1=default)        '
         write(0,'(A)'  ) ' -oe      out_eldip           '//trim(adjustl(out_eldip))
+        write(0,'(A)'  ) ' -gauge   gauge for eldip     '//trim(adjustl(gauge_long))
+        write(0,'(A)'  ) '          (lenght|velocity)   '
         write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
         write(0,'(A)'  ) ' -on      out_nac             '//trim(adjustl(out_nac))
         write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))

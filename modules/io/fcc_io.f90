@@ -493,7 +493,8 @@ module fcc_io
     end subroutine generic_nm_reader
 
     
-    subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,dx,Dip,DipD,error_flag)
+    subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,dx,Dip,DipD,&
+                                  gauge,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -519,6 +520,7 @@ module fcc_io
         real(8),intent(inout)           :: dx !Only for numerical diffs
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
+        character(len=*),intent(in)     :: gauge
         integer,intent(out),optional    :: error_flag
         !Local
         integer :: S
@@ -541,22 +543,23 @@ module fcc_io
                  !Need to rewind to read the first dip
                  rewind(unt)
                  !Now read dip
-                 call read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_local)
+                 call read_gausslog_dip(unt,Si,Sf,dip_type,Dip,gauge,error_local)
                  if (derivatives) then
                      print*, " Computing derivatives.."
-                     call read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_local)
+                     call read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,gauge,error_local)
                      if (error_local /= 0) derivatives=.false.
                      !Done this, we can safely reset error_flag to 0
                      error_local = 0
                  endif
              endif
             case("fchk")
-             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_local)
+             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,gauge,error_local)
             case("gms")
              call alert_msg("fatal","Filetype not supported")
             case("cfour")
              call alert_msg("fatal","Filetype not yet supported")
             case("psi4")
+             if (gauge /= 'l') call alert_msg('fatal','Vel gauge not yet supported for Psi4')
              call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_local)
              if (derivatives) then
                  print*, " Computing derivatives.."
