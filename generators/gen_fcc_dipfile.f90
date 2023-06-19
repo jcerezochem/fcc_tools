@@ -27,7 +27,7 @@ program gen_fcc_dipfile
     character(len=20)  :: jobtype,method,basis
     real(8)                :: dx = -1.d0 
     real(8),dimension(1:3) :: Dip
-    real(8),dimension(:),allocatable :: DipD
+    real(8),dimension(:),allocatable :: DipD, Grad
     real(8),dimension(:),allocatable :: nac
     logical :: derivatives=.true.
     logical :: do_nac=.false.
@@ -56,15 +56,19 @@ program gen_fcc_dipfile
     character(len=100) :: inpfile='input.log', &
                           out_eldip='default', &
                           out_magdip='default',&
-                          out_nac='default'
+                          out_nac='default',   &
+                          gradfile='none'
     character(len=1)   :: gauge='l'
-    character(len=10)  :: ft='guess'
+    character(len=10)  :: ft='guess', &
+                          ftg='guess'
     integer :: ios
-    integer :: I_INP=10,&
-               O_DIP =20
+    integer :: I_INP = 10,&
+               I_GRD = 11,&
+               O_DIP = 20
 
     ! Read options
-    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter,gauge)
+    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter,gauge,&
+                     gradfile,ftg)
     call set_word_lower_case(gauge)
 
     !Open input file
@@ -92,6 +96,27 @@ program gen_fcc_dipfile
         allocate(ifilter(Nfilt))
         call selection2intlist(filter,ifilter,Nfilt)
     endif
+    
+    ! Get grad file in derivatives=.true. and gradfile/=none
+    if (gauge == 'v') then
+        allocate(Grad(3*Nat))
+        if (derivatives .and. trim(gradfile) /= 'none' ) then
+            if (adjustl(ftg) == 'guess') then
+                call split_line_back(gradfile,'.',cnull,ftg)
+            endif
+            print*, "Reading S0 gradient from: "//trim(adjustl(gradfile))
+            open(I_GRD,file=gradfile,status="old",iostat=ios)
+            if (ios /= 0) then
+                print*, "Error opening "//trim(adjustl(gradfile))
+                stop
+            endif
+            call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
+        else
+            Grad = 0.d0
+        endif
+    else
+        allocate(Grad(1))
+    endif
 
     !Get eldip
     print*, "Reading transition electric dipole moment..."
@@ -101,7 +126,7 @@ program gen_fcc_dipfile
         !Allocate output array
         allocate(DipD(1:3*3*Nat))
     endif
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,gauge,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,gauge,Grad,error)
     if (error /= 0) then
         print*, "Error getting eldip. Error code:", error
         stop
@@ -145,7 +170,7 @@ program gen_fcc_dipfile
 
     !Get magdip
     print*, "Reading transition magnetic dipole moment..."
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,gauge,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,gauge,Grad,error)
     if (error /= 0) then
         print*, "Error getting magdip. Error code:", error
         stop
@@ -229,9 +254,10 @@ program gen_fcc_dipfile
     contains
 
     subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,&
-                           filter,gauge)
+                           filter,gauge,gradfile,ftg)
 
-        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter,gauge
+        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter,gauge,&
+                                          gradfile,ftg
         logical,intent(inout)          :: derivatives,do_nac
         integer,intent(inout)          :: Si, Sf
 
@@ -296,6 +322,14 @@ program gen_fcc_dipfile
                 case ("-gauge")
                     call getarg(i+1, gauge_long)
                     gauge = gauge_long
+                    argument_retrieved=.true.
+                    
+                case ("-gradS0")
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                    
+                case ("-ftg")
+                    call getarg(i+1, ftg)
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -384,6 +418,9 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) ' -oe      out_eldip           '//trim(adjustl(out_eldip))
         write(0,'(A)'  ) ' -gauge   gauge for eldip     '//trim(adjustl(gauge_long))
         write(0,'(A)'  ) '          (lenght|velocity)   '
+        write(0,'(A)'  ) ' -gradS0  gradient file at S0 '//trim(adjustl(gradfile))
+        write(0,'(A)')   '          (default Grad=0)'
+        write(0,'(A)'  ) ' -ft      filetype            '//trim(adjustl(ftg))
         write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
         write(0,'(A)'  ) ' -on      out_nac             '//trim(adjustl(out_nac))
         write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))

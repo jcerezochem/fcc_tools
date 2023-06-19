@@ -494,7 +494,7 @@ module fcc_io
 
     
     subroutine generic_dip_reader(unt,filetype,Si,Sf,derivatives,dip_type,dx,Dip,DipD,&
-                                  gauge,error_flag)
+                                  gauge,GradS0,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -521,6 +521,7 @@ module fcc_io
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
         character(len=*),intent(in)     :: gauge
+        real(8),dimension(:),intent(in) :: GradS0
         integer,intent(out),optional    :: error_flag
         !Local
         integer :: S
@@ -530,6 +531,7 @@ module fcc_io
         error_local = 0
         select case (adjustl(filetype))
             case("log")
+             if (gauge /= 'l') call alert_msg('fatal','Vel gauge not yet supported for gau log. Use FCHK')
              !Get target state
              call read_gausslog_targestate(unt,S,error_local)
              if (present(error_flag)) error_flag=error_local
@@ -537,7 +539,7 @@ module fcc_io
              if (Sf == -1) Sf = S
              if (Si /= 0) then
                  write(dummy_char,'(I0)') Si
-                 call alert_msg("fatal","TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
+                 call alert_msg("fatal","TD-DFT calcs in G16 only provide trdip from/to GS, but requested S="//dummy_char)
                  error_local=-1
              else
                  !Need to rewind to read the first dip
@@ -553,7 +555,7 @@ module fcc_io
                  endif
              endif
             case("fchk")
-             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,gauge,error_local)
+             call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,gauge,GradS0,error_local)
             case("gms")
              call alert_msg("fatal","Filetype not supported")
             case("cfour")

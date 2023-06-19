@@ -817,7 +817,7 @@ module gaussian_manage
     end subroutine write_fchk
 
     subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,&
-                                  gauge,error_flag)
+                                  gauge,GradS0,error_flag)
 
         !=====================================================
         ! THIS CODE IS PART OF FCC_TOOLS
@@ -850,12 +850,13 @@ module gaussian_manage
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
         character(len=*),intent(in)     :: gauge
+        real(8),dimension(:),intent(in) :: GradS0
         integer,intent(out),optional    :: error_flag
 
         !Local
         real(8)                          :: Ev, Egs
         !Variables for read_fchk
-        real(8),dimension(:),allocatable :: A
+        real(8),dimension(:),allocatable :: A, Grad
         integer,dimension(:),allocatable :: IA
         character(len=1)                 :: data_type
         integer                          :: N
@@ -891,6 +892,23 @@ module gaussian_manage
         if (Sf /= Ntarget) then
             call alert_msg("note","Retrieving trdip from a state different from the target. Derivatives not available.")
             derivatives=.false.
+        endif
+        
+        ! Try to get the gradient
+        if (derivatives .and. adjustl(dip_type) == "eldip" .and. gauge == 'v') then 
+            Nat = size(DipD)/9
+            allocate(Grad(3*Nat))
+            call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_local)
+                if (error_flag /= 0) then
+                    call alert_msg("note","Gradient not available, assume Ev is contant")
+                    Grad = 0.d0
+                else
+                    print*, " Reading gradient to apply chain rule"
+                    do i=1,N
+                        Grad(i) = A(i) - GradS0(i)
+                    enddo
+                endif
+            deallocate(A)
         endif
         
         ! Get Egs if we need Ev (vel gauge)
@@ -942,7 +960,7 @@ module gaussian_manage
                 k = 16*Nes+48 + 16*(j-1)
                 jj = j*3-2
                 if (adjustl(dip_type) == "eldip" .and. gauge == 'v') then
-                    DipD(jj:jj+2) = -A(k+5:k+7)/Ev
+                    DipD(jj:jj+2) = - (A(k+5:k+7) + Dip(1:3) * Grad(j)) / Ev
                 else if (adjustl(dip_type) == "eldip") then
                     DipD(jj:jj+2) = A(k+2:k+4)
                 else if (adjustl(dip_type) == "magdip") then
@@ -962,6 +980,7 @@ module gaussian_manage
             enddo
         endif
         deallocate(A)
+        if (allocated(Grad)) deallocate(Grad)
 
         return
 
