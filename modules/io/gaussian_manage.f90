@@ -817,7 +817,7 @@ module gaussian_manage
     end subroutine write_fchk
 
     subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,&
-                                  gauge,GradS0,error_flag)
+                                  gauge,GradS0,GradS1,error_flag)
 
         !=====================================================
         ! THIS CODE IS PART OF FCC_TOOLS
@@ -850,7 +850,7 @@ module gaussian_manage
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
         character(len=*),intent(in)     :: gauge
-        real(8),dimension(:),intent(in) :: GradS0
+        real(8),dimension(:),allocatable,intent(inout) :: GradS0,GradS1
         integer,intent(out),optional    :: error_flag
 
         !Local
@@ -898,22 +898,30 @@ module gaussian_manage
         if (derivatives .and. adjustl(dip_type) == "eldip" .and. gauge == 'v') then 
             Nat = size(DipD)/9
             allocate(Grad(3*Nat))
-            call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_local)
+            if (allocated (GradS1)) then
+                print*, "Using GradS1 from external file"
+                Grad = GradS1
+                if (allocated(GradS0)) Grad = Grad - GradS0
+            else
+                call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_local)
                 if (error_flag /= 0) then
                     call alert_msg("note","Gradient not available, assume Ev is contant")
                     Grad = 0.d0
                 else
-                    print*, " Reading gradient to apply chain rule"
-                    do i=1,N
-                        Grad(i) = A(i) - GradS0(i)
-                    enddo
+                    print*, " Reading gradient from dipfile to apply chain rule"
+                    Grad = A
+                    deallocate(A)
+                    if (allocated(GradS0)) Grad = Grad - GradS0
                 endif
-            deallocate(A)
+            endif
         endif
         
         ! Get Egs if we need Ev (vel gauge)
         if (adjustl(dip_type) == "eldip" .and. gauge == 'v') then
             call read_fchk(unt,"SCF Energy",data_type,N,A,IA,error_local)
+            if (error_local /= 0) then
+                call alert_msg("fatal",'Cannot read Egs. VEL gauge cannot be used')
+            endif
             Egs = A(1)
             deallocate(A)
         endif

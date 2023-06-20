@@ -27,7 +27,7 @@ program gen_fcc_dipfile
     character(len=20)  :: jobtype,method,basis
     real(8)                :: dx = -1.d0 
     real(8),dimension(1:3) :: Dip
-    real(8),dimension(:),allocatable :: DipD, Grad
+    real(8),dimension(:),allocatable :: DipD, GradS0, GradS1
     real(8),dimension(:),allocatable :: nac
     logical :: derivatives=.true.
     logical :: do_nac=.false.
@@ -57,10 +57,12 @@ program gen_fcc_dipfile
                           out_eldip='default', &
                           out_magdip='default',&
                           out_nac='default',   &
-                          gradfile='none'
+                          gradS0file='none', &
+                          gradS1file='none'
     character(len=1)   :: gauge='l'
     character(len=10)  :: ft='guess', &
-                          ftg='guess'
+                          ftgS0='guess',&
+                          ftgS1='guess'
     integer :: ios
     integer :: I_INP = 10,&
                I_GRD = 11,&
@@ -68,7 +70,7 @@ program gen_fcc_dipfile
 
     ! Read options
     call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter,gauge,&
-                     gradfile,ftg)
+                     gradS0file,ftgS0,gradS1file,ftgS1)
     call set_word_lower_case(gauge)
 
     !Open input file
@@ -97,25 +99,36 @@ program gen_fcc_dipfile
         call selection2intlist(filter,ifilter,Nfilt)
     endif
     
-    ! Get grad file in derivatives=.true. and gradfile/=none
+    ! Get grad file in derivatives=.true. and gradS0file/=none
     if (gauge == 'v') then
-        allocate(Grad(3*Nat))
-        if (derivatives .and. trim(gradfile) /= 'none' ) then
-            if (adjustl(ftg) == 'guess') then
-                call split_line_back(gradfile,'.',cnull,ftg)
+        ! Read S0 grad
+        if (derivatives .and. trim(gradS0file) /= 'none' ) then
+            allocate(GradS0(3*Nat))
+            if (adjustl(ftgS0) == 'guess') then
+                call split_line_back(gradS0file,'.',cnull,ftgS0)
             endif
-            print*, "Reading S0 gradient from: "//trim(adjustl(gradfile))
-            open(I_GRD,file=gradfile,status="old",iostat=ios)
+            print*, "Reading S0 gradient from: "//trim(adjustl(gradS0file))
+            open(I_GRD,file=gradS0file,status="old",iostat=ios)
             if (ios /= 0) then
-                print*, "Error opening "//trim(adjustl(gradfile))
+                print*, "Error opening "//trim(adjustl(gradS0file))
                 stop
             endif
-            call generic_gradient_reader(I_GRD,ftg,Nat,Grad,error)
-        else
-            Grad = 0.d0
+            call generic_gradient_reader(I_GRD,ftgS0,Nat,GradS0,error)
         endif
-    else
-        allocate(Grad(1))
+        ! Read S1 grad
+        if (derivatives .and. trim(gradS1file) /= 'none' ) then
+            allocate(GradS1(3*Nat))
+            if (adjustl(ftgS1) == 'guess') then
+                call split_line_back(gradS1file,'.',cnull,ftgS1)
+            endif
+            print*, "Reading S1 gradient from: "//trim(adjustl(gradS1file))
+            open(I_GRD,file=gradS1file,status="old",iostat=ios)
+            if (ios /= 0) then
+                print*, "Error opening "//trim(adjustl(gradS1file))
+                stop
+            endif
+            call generic_gradient_reader(I_GRD,ftgS1,Nat,GradS1,error)
+        endif
     endif
 
     !Get eldip
@@ -126,7 +139,7 @@ program gen_fcc_dipfile
         !Allocate output array
         allocate(DipD(1:3*3*Nat))
     endif
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,gauge,Grad,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"eldip",dx,Dip,DipD,gauge,GradS0,GradS1,error)
     if (error /= 0) then
         print*, "Error getting eldip. Error code:", error
         stop
@@ -170,7 +183,7 @@ program gen_fcc_dipfile
 
     !Get magdip
     print*, "Reading transition magnetic dipole moment..."
-    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,gauge,Grad,error)
+    call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"magdip",dx,Dip,DipD,gauge,GradS0,GradS1,error)
     if (error /= 0) then
         print*, "Error getting magdip. Error code:", error
         stop
@@ -254,10 +267,10 @@ program gen_fcc_dipfile
     contains
 
     subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,&
-                           filter,gauge,gradfile,ftg)
+                           filter,gauge,gradS0file,ftgS0,gradS1file,ftgS1)
 
         character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter,gauge,&
-                                          gradfile,ftg
+                                          gradS0file,ftgS0,gradS1file,ftgS1
         logical,intent(inout)          :: derivatives,do_nac
         integer,intent(inout)          :: Si, Sf
 
@@ -266,7 +279,7 @@ program gen_fcc_dipfile
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
-        character(len=20)  :: prfx="", gauge_long
+        character(len=20)  :: prfx="", gauge_long='lenght'
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -325,11 +338,19 @@ program gen_fcc_dipfile
                     argument_retrieved=.true.
                     
                 case ("-gradS0")
-                    call getarg(i+1, gradfile)
+                    call getarg(i+1, gradS0file)
                     argument_retrieved=.true.
                     
-                case ("-ftg")
-                    call getarg(i+1, ftg)
+                case ("-gradS1")
+                    call getarg(i+1, gradS1file)
+                    argument_retrieved=.true.
+                    
+                case ("-ftgS0")
+                    call getarg(i+1, ftgS0)
+                    argument_retrieved=.true.
+                    
+                case ("-ftgS1")
+                    call getarg(i+1, ftgS1)
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -418,9 +439,12 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) ' -oe      out_eldip           '//trim(adjustl(out_eldip))
         write(0,'(A)'  ) ' -gauge   gauge for eldip     '//trim(adjustl(gauge_long))
         write(0,'(A)'  ) '          (lenght|velocity)   '
-        write(0,'(A)'  ) ' -gradS0  gradient file at S0 '//trim(adjustl(gradfile))
-        write(0,'(A)')   '          (default Grad=0)'
-        write(0,'(A)'  ) ' -ft      filetype            '//trim(adjustl(ftg))
+        write(0,'(A)'  ) ' -gradS0  gradient file at S0 '//trim(adjustl(gradS0file))
+        write(0,'(A)')   '          (default GradS0=0)'
+        write(0,'(A)'  ) ' -ftgS0   filetype            '//trim(adjustl(ftgS0))
+        write(0,'(A)'  ) ' -gradS1  gradient file at S1 '//trim(adjustl(gradS1file))
+        write(0,'(A)')   '          (default read from same_file)'
+        write(0,'(A)'  ) ' -ftgS1   filetype            '//trim(adjustl(ftgS1))
         write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
         write(0,'(A)'  ) ' -on      out_nac             '//trim(adjustl(out_nac))
         write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))
