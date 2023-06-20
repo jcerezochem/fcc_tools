@@ -22,7 +22,7 @@ program gen_fcc_dipfile
     implicit none
 
     !Relevant data
-    integer :: Nat
+    integer :: Nat, Nat_grd0, Nat_grd1
     character(len=250) :: jobname
     character(len=20)  :: jobtype,method,basis
     real(8)                :: dx = -1.d0 
@@ -43,7 +43,7 @@ program gen_fcc_dipfile
     !Auxiliars
     integer :: N
     character :: dtype, cnull
-    real(8),dimension(:),allocatable :: A
+    real(8),dimension(:),allocatable :: A, Vec
     integer,dimension(:),allocatable :: I
     integer :: error
     !Selection stuff
@@ -100,10 +100,11 @@ program gen_fcc_dipfile
     endif
     
     ! Get grad file in derivatives=.true. and gradS0file/=none
+    Nat_grd0 = Nat
+    Nat_grd1 = Nat
     if (gauge == 'v') then
         ! Read S0 grad
         if (derivatives .and. trim(gradS0file) /= 'none' ) then
-            allocate(GradS0(3*Nat))
             if (adjustl(ftgS0) == 'guess') then
                 call split_line_back(gradS0file,'.',cnull,ftgS0)
             endif
@@ -113,11 +114,13 @@ program gen_fcc_dipfile
                 print*, "Error opening "//trim(adjustl(gradS0file))
                 stop
             endif
-            call generic_gradient_reader(I_GRD,ftgS0,Nat,GradS0,error)
+            call generic_natoms_reader(I_GRD,ftgS0,Nat_grd0,error)
+            allocate(GradS0(3*Nat_grd0))
+            call generic_gradient_reader(I_GRD,ftgS0,Nat_grd0,GradS0,error)
+            close(I_GRD)
         endif
         ! Read S1 grad
         if (derivatives .and. trim(gradS1file) /= 'none' ) then
-            allocate(GradS1(3*Nat))
             if (adjustl(ftgS1) == 'guess') then
                 call split_line_back(gradS1file,'.',cnull,ftgS1)
             endif
@@ -127,7 +130,42 @@ program gen_fcc_dipfile
                 print*, "Error opening "//trim(adjustl(gradS1file))
                 stop
             endif
-            call generic_gradient_reader(I_GRD,ftgS1,Nat,GradS1,error)
+            call generic_natoms_reader(I_GRD,ftgS1,Nat_grd1,error)
+            allocate(GradS1(3*Nat_grd1))
+            call generic_gradient_reader(I_GRD,ftgS1,Nat_grd1,GradS1,error)
+            close(I_GRD)
+        endif
+    endif
+    
+    ! Apply filter if needed
+    if (Nat_grd0 /=Nat) then
+        print*, "Nat(dip)   =", Nat
+        print*, "Nat(gradS0)=", Nat_grd0
+        if (Nat < Nat_grd0) then
+            call alert_msg("warning","GradS0 file has more atoms than Dipfile. Taking first atoms from Grad")
+            allocate(Vec(3*Nat))
+            Vec = GradS0(1:3*Nat)
+            deallocate(GradS0)
+            allocate(GradS0(3*Nat))
+            GradS0=Vec
+            deallocate(Vec)
+        else
+            call alert_msg("fatal","GradS0 file has less atoms than Dipfile. Files are not compatible")
+        endif
+    endif
+    if (Nat_grd1 /=Nat) then
+        print*, "Nat(dip)   =", Nat
+        print*, "Nat(gradS1)=", Nat_grd1
+        if (Nat < Nat_grd1) then
+            call alert_msg("warning","GradS1 file has more atoms than Dipfile. Taking first atoms from Grad")
+            allocate(Vec(3*Nat))
+            Vec = GradS1(1:3*Nat)
+            deallocate(GradS1)
+            allocate(GradS1(3*Nat))
+            GradS1=Vec
+            deallocate(Vec)
+        else
+            call alert_msg("fatal","GradS1 file has less atoms than Dipfile. Files are not compatible")
         endif
     endif
 
