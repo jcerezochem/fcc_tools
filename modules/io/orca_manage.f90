@@ -147,10 +147,9 @@ module orca_manage
         real(kind=8), dimension(:), intent(out) :: Hlt
         integer,intent(out),optional            :: error_flag
 
-        integer,parameter :: cols_per_block = 6
-
         character(len=240) :: line=""
-        integer,dimension(cols_per_block) :: columns
+        integer :: cols_per_block
+        integer,dimension(:),allocatable :: columns
         integer :: IOstatus
         integer :: N
         integer :: i, j, k, ii, imax, imin, &
@@ -185,6 +184,14 @@ module orca_manage
             return
         endif
 
+        ! First get cols_per_block from header
+        ! as it may vary with the nr of decimals
+        read(unt,'(A)',iostat=IOstatus) line ! indices
+        allocate(columns(10))
+        call string2ivector(line,columns,cols_per_block,' ')
+        deallocate(columns)
+        allocate(columns(cols_per_block))
+
         nblocks = N / cols_per_block
         if (cols_per_block * nblocks /= N) nblocks = nblocks + 1
         do ib=1,nblocks
@@ -194,11 +201,13 @@ module orca_manage
             icols = 1 + (imax-imin)
             !Pass header
             ii = ii + 1
-            read(unt,'(A)',iostat=IOstatus) line ! indices
-            if (IOStatus < 0) then
-                error_flag = -ii
-                rewind(unt)
-                return
+            if (ib > 1) then
+                read(unt,'(A)',iostat=IOstatus) line ! indices
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
             endif
             read(line,*) columns(1:icols)
             if (columns(1) /= imin - 1) then
