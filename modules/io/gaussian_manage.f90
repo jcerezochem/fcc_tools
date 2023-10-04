@@ -75,7 +75,7 @@ module gaussian_manage
         integer :: IOstatus
         character(len=240) :: line
         character(len=500) :: section_str     !can hold 2 lines
-        real(8),dimension(8) :: section_part !store the part of the section read (only 6-7 items)
+        real(8),dimension(50) :: section_part !store the part of the section read (only 6-7 items)
         integer              :: npart, ntot
         
         if (isect<6) then
