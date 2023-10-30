@@ -464,6 +464,9 @@ program reconvolute_TD
         integer:: i
         character(len=200) :: arg, broadfun_string, hwhm_eV_string
         integer :: n_elem
+        
+        broadfun_string="GAU"
+        hwhm_eV_string ="0.01"
 
         argument_retrieved=.false.
         do i=1,iargc()

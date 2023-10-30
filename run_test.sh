@@ -43,10 +43,10 @@ echo ""
 
 echo "****************************"
 (( i++ ))
-echo "TEST $i: MOLCAS"
+echo "TEST $i: MOLCAS(UnSym)"
 echo "****************************"
 echo "gen_fcc_state -i s0_mq-GP_edit.UnSym -ft molcas"
-../generators/gen_fcc_state -i s0_mq-GP_edit.UnSym -ft molcas
+../generators/gen_fcc_state -i s0_mq-GP_edit.UnSym -ft molcasU
 echo ""
 
 echo "****************************"

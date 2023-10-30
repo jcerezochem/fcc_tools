@@ -20,6 +20,7 @@ module gaussian_manage
     use line_preprocess
     use alerts
     use verbosity
+    use constants
     implicit none
 
     contains
@@ -74,7 +75,7 @@ module gaussian_manage
         integer :: IOstatus
         character(len=240) :: line
         character(len=500) :: section_str     !can hold 2 lines
-        real(8),dimension(8) :: section_part !store the part of the section read (only 6-7 items)
+        real(8),dimension(50) :: section_part !store the part of the section read (only 6-7 items)
         integer              :: npart, ntot
         
         if (isect<6) then
@@ -815,7 +816,8 @@ module gaussian_manage
 
     end subroutine write_fchk
 
-    subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_flag)
+    subroutine read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,&
+                                  gauge,GradS0,GradS1,error_flag)
 
         !=====================================================
         ! THIS CODE IS PART OF FCC_TOOLS
@@ -838,8 +840,6 @@ module gaussian_manage
         !     ...
         !     dE/dzN dmux/dzN dmuy/dzN ... unkZ/dzN
         !
-        ! Notes
-        !  Only the length-gauge reponse properties are taken
         !========================================================
 
 
@@ -849,11 +849,14 @@ module gaussian_manage
         character(len=*),intent(in)     :: dip_type
         real(8),dimension(:),intent(out):: Dip 
         real(8),dimension(:),intent(out):: DipD
+        character(len=*),intent(in)     :: gauge
+        real(8),dimension(:),allocatable,intent(inout) :: GradS0,GradS1
         integer,intent(out),optional    :: error_flag
 
         !Local
+        real(8)                          :: Ev, Egs
         !Variables for read_fchk
-        real(8),dimension(:),allocatable :: A
+        real(8),dimension(:),allocatable :: A, Grad
         integer,dimension(:),allocatable :: IA
         character(len=1)                 :: data_type
         integer                          :: N
@@ -882,13 +885,45 @@ module gaussian_manage
         if (Sf == -1) Sf = Ntarget
         if (Si /= 0) then
             write(dummy_char,'(I0)') Si
-            call alert_msg("fatal","TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
+            call alert_msg("fatal","TD-DFT calcs in Gaussian only provide trdip from/to GS, but requested S="//dummy_char)
             if (present(error_flag)) error_flag=-1
             return
         endif
         if (Sf /= Ntarget) then
             call alert_msg("note","Retrieving trdip from a state different from the target. Derivatives not available.")
             derivatives=.false.
+        endif
+        
+        ! Try to get the gradient
+        if (derivatives .and. adjustl(dip_type) == "eldip" .and. gauge == 'v') then 
+            Nat = size(DipD)/9
+            allocate(Grad(3*Nat))
+            if (allocated (GradS1)) then
+                print*, "Using GradS1 from external file"
+                Grad = GradS1
+                if (allocated(GradS0)) Grad = Grad - GradS0
+            else
+                call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_local)
+                if (error_flag /= 0) then
+                    call alert_msg("note","Gradient not available, assume Ev is contant")
+                    Grad = 0.d0
+                else
+                    print*, " Reading gradient from dipfile to apply chain rule"
+                    Grad = A
+                    deallocate(A)
+                    if (allocated(GradS0)) Grad = Grad - GradS0
+                endif
+            endif
+        endif
+        
+        ! Get Egs if we need Ev (vel gauge)
+        if (adjustl(dip_type) == "eldip" .and. gauge == 'v') then
+            call read_fchk(unt,"SCF Energy",data_type,N,A,IA,error_local)
+            if (error_local /= 0) then
+                call alert_msg("fatal",'Cannot read Egs. VEL gauge cannot be used')
+            endif
+            Egs = A(1)
+            deallocate(A)
         endif
         
         ! Read ETran state values
@@ -901,8 +936,15 @@ module gaussian_manage
         
         print'(2X,A,I0,A,I0,A)', "Transition dipole: <",Si,'|m|',Sf,'>' 
         if (adjustl(dip_type) == "eldip") then
-            j=(Ntarget-1)*16 + 2
+            if (gauge == 'v') then
+                j=(Ntarget-1)*16 + 1
+                Ev = A(j) - Egs
+                j=(Ntarget-1)*16 + 5
+            else
+                j=(Ntarget-1)*16 + 2
+            endif
             Dip(1:3) = A(j:j+2)
+            if (gauge == 'v') Dip(1:3) = - Dip(1:3)/Ev 
         else if (adjustl(dip_type) == "magdip") then
             j=(Ntarget-1)*16 + 8
             Dip(1:3) = A(j:j+2)/(-2.d0)
@@ -925,7 +967,9 @@ module gaussian_manage
             do j=1,3*Nat
                 k = 16*Nes+48 + 16*(j-1)
                 jj = j*3-2
-                if (adjustl(dip_type) == "eldip") then
+                if (adjustl(dip_type) == "eldip" .and. gauge == 'v') then
+                    DipD(jj:jj+2) = - (A(k+5:k+7) + Dip(1:3) * Grad(j)) / Ev
+                else if (adjustl(dip_type) == "eldip") then
                     DipD(jj:jj+2) = A(k+2:k+4)
                 else if (adjustl(dip_type) == "magdip") then
                     !Note that MagDip should be divided by -2 (see FCclasses manual)
@@ -944,6 +988,7 @@ module gaussian_manage
             enddo
         endif
         deallocate(A)
+        if (allocated(Grad)) deallocate(Grad)
 
         return
 
@@ -1083,7 +1128,7 @@ module gaussian_manage
 
     end subroutine read_gausslog_targestate
 
-    subroutine read_gausslog_dip(unt,Si,Sf,dip_type,Dip,error_flag)
+    subroutine read_gausslog_dip(unt,Si,Sf,dip_type,Dip,gauge,error_flag)
 
         !=====================================================
         ! THIS CODE IS PART OF FCC_TOOLS
@@ -1100,9 +1145,11 @@ module gaussian_manage
         integer,intent(inout)           :: Si, Sf
         character(len=*),intent(in)     :: dip_type
         real(8),dimension(:),intent(out):: Dip 
+        character(len=*),intent(in)     :: gauge
         integer,intent(out),optional    :: error_flag
 
         !Local
+        real(8)                          :: Ev
         !Variables for reading
         character(len=240)               :: line=""
         integer                          :: N
@@ -1122,12 +1169,24 @@ module gaussian_manage
         !Manage defaults and requests
         if (Si == -1) Si = 0
         if (Sf == -1) Sf = 1
+        if (Si /= 0) then
+            write(auxchar,'(I0)') Si
+            call alert_msg("fatal","TD-DFT calcs in Gaussian only provide trdip from/to GS, but requested S="//auxchar)
+            if (present(error_flag)) error_flag=-1
+            return
+        endif
         !To locate the data in file, we need the states ordered by value
         Sup = max(Si,Sf)
         Sdw = min(Si,Sf)
         
         if (dip_type == "eldip") then
-            section="Ground to excited state transition electric dipole moments (Au):"
+            if (gauge == 'l') then
+                section="Ground to excited state transition electric dipole moments (Au):"
+            else if (gauge == 'v') then
+                section="Ground to excited state transition velocity dipole moments (Au):"
+            else
+                call alert_msg('fatal','Unkonwn gauge: '//'gauge')
+            endif
         else if (dip_type == "magdip") then
             section="Ground to excited state transition magnetic dipole moments (Au):"
         endif
@@ -1165,6 +1224,29 @@ module gaussian_manage
         enddo
         read(line,*) i, Dip(1:3)
         if (dip_type == "magdip") Dip(1:3) = Dip(1:3)/(-2.d0)
+        
+        if (dip_type == "eldip" .and. gauge == 'v') then
+            ! Continue to get the energy
+            write(section,'(A,X,I3)') 'Excited State', Sup
+            do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    if (present(error_flag)) error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!      
+                if ( INDEX(line,trim(section)) /= 0) then
+                    exit
+                endif
+            enddo
+            read(line,*) auxchar,auxchar,auxchar,auxchar,Ev,auxchar
+            Ev = Ev / autoev
+            Dip(1:3) = - Dip(1:3)/Ev
+        endif
 
         return
 
@@ -1244,7 +1326,8 @@ module gaussian_manage
 
     end subroutine get_d2num
 
-    subroutine read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,error_flag)
+    subroutine read_gausslog_dipders(unt,Si,Sf,dip_type,dx,DipD,&
+                                     gauge,error_flag)
 
         !=====================================================
         ! THIS CODE IS PART OF FCC_TOOLS
@@ -1276,6 +1359,7 @@ module gaussian_manage
         character(len=*),intent(in)     :: dip_type
         real(8),intent(inout)           :: dx
         real(8),dimension(:),intent(out):: DipD
+        character(len=*),intent(in)     :: gauge
         integer,intent(out),optional    :: error_flag
 
         !Local
@@ -1306,7 +1390,7 @@ module gaussian_manage
             !Loop over bwd and fwd steps
             ! Perform the read_gausslog_dip step quietly
             verbose=0
-            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,error_local)
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_fwd,gauge,error_local)
             verbose=current_verbose
             if (error_local /= 0) then
                 if (present(error_flag)) error_flag = error_local
@@ -1329,7 +1413,7 @@ module gaussian_manage
 
             ! Perform the read_gausslog_dip step quietly
             verbose=0
-            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,error_local)
+            call read_gausslog_dip(unt,Si,Sf,dip_type,Dip_bwd,gauge,error_local)
             verbose=current_verbose
             if (error_local /= 0) then
                 if (present(error_flag)) error_flag =  error_local
