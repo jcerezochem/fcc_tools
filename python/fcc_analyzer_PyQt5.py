@@ -1124,6 +1124,9 @@ class AppForm(QMainWindow):
         sliderval = min(sliderval,slidermax)
         sliderval = max(sliderval,slidermin)
         self.slider.setValue(sliderval)
+        # The hwhm may have changed after updating the slidebar
+        # so ensure we have the right value before update_convolute
+        self.broadbox.setText(str(hwhm))
         self.update_convolute()
         
         
