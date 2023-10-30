@@ -82,7 +82,7 @@ def helptext():
 
 class SpcConstants:
     exp = {"opa":1,"ecd":1,"emi":3,"cpl":3,'mcd':1,'tpa':2,'tpcd':2}
-    factor = {"opa":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216,'mcd':5.98442e-3,'tpa':8.35150e-4,'tpcd':8.35150e-4}
+    factor = {"opa":703.30,"ecd":20.5288,"emi":1063.055,"cpl":4252.216,'mcd':5.98442e-3,'tpa':8.35150e-4/4,'tpcd':8.35150e-4}
     # JC: 'mcd':-5.98442e-3 (should be negative), but then it seems not consistent with fcc3
     # The factors already include the conversion between eV <-> au
     # to handle some issues in the emission Lineshape (need to used
