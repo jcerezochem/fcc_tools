@@ -74,7 +74,11 @@ program reconvolute_TI
     elseif (property=='TPA') then
         optrans = "ABS"
         iexp=2
-        factor = factpa / 4.d0
+        factor = factpa / (2.d0)**iexp
+    elseif (property=='TPC') then
+        optrans = "ABS"
+        iexp=-1
+        factor = factpcd / (2.d0)**iexp
     elseif (property=='ECD') then
         optrans = "ABS"
         iexp=1
