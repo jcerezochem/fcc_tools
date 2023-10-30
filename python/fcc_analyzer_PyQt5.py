@@ -1119,7 +1119,14 @@ class AppForm(QMainWindow):
         slidermin = 1   # this is not changed
         slidermax = 100 # this is not changed
         msg = str(self.broadbox.text())
-        hwhm = float(msg)
+        if not msg.isnumeric():
+            self.statusBar().showMessage(f'Invalid HWHM (={msg}). Use a positive number. Setting it to 0.01')
+            hwhm = 0.01
+        elif float(msg) <= 0:
+            self.statusBar().showMessage(f'Invalid HWHM (={msg}). Use a positive number. Setting it to 0.01')
+            hwhm = 0.01
+        else:
+            hwhm = float(msg)
         sliderval = int((slidermax-slidermin)/(hwhmmax-hwhmmin) * (hwhm-hwhmmin) + slidermin)
         sliderval = min(sliderval,slidermax)
         sliderval = max(sliderval,slidermin)
