@@ -2251,7 +2251,7 @@ def convolute(spc_stick,npoints=1000,hwhm=0.1,broad="Gau",input_bins=False):
             recovered_baseline=True
             # If the input_bins are larger than npts, then reduce the grid to npts
             if (len(xconv) > npts):
-                skip = len(xconv)/npts + 1
+                skip = int(len(xconv)/npts + 1)
                 x = xconv[0::skip]
                 y = yconv[0::skip]
                 xconv = x
