@@ -592,6 +592,70 @@ module fcc_io
     end subroutine generic_dip_reader
     
     
+    subroutine generic_dipir_reader(unt,filetype,Si,Dip,DipD,&
+                                    error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic dipole reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (io )  int /scalar   Number of atoms
+        ! X,Y,Z   (out)  real/vectors  Coordinates
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(inout)           :: Si
+        real(8),dimension(:),intent(out):: Dip 
+        real(8),dimension(:),intent(out):: DipD
+        integer,intent(out),optional    :: error_flag
+        !Local
+        integer :: i
+        integer :: S
+        integer :: error_local
+        character(len=3) :: dummy_char
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+
+        
+        error_local = 0
+        select case (adjustl(filetype))
+            case("fchk")
+             call read_fchk(unt,'Dipole Moment',data_type,N,A,IA,error_flag)
+             if (error_flag /= 0) return
+             do i=1,N
+                 Dip(i) = A(i)
+             enddo
+             deallocate(A)
+             call read_fchk(unt,'Dipole Derivatives',data_type,N,A,IA,error_flag)
+             if (error_flag /= 0) return
+             do i=1,N
+                 DipD(i) = A(i)
+             enddo
+             deallocate(A)
+            case default
+             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call supported_filetype_list('freq')
+             error_local = 99
+         end select
+         if (present(error_flag)) error_flag=error_local
+
+         return
+
+    end subroutine generic_dipir_reader
+    
+    
     subroutine generic_nac_reader(unt,filetype,Si,Sf,nac,error_flag)
 
         !==============================================================
