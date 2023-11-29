@@ -251,6 +251,8 @@ program convolute_RR
                 case ("-wI") 
                     call getarg(i+1, arg)
                     read(arg,*) wi_req
+                    ! If -wI requested, we need 2D source
+                    source='2D'
                     argument_retrieved=.true.
                     
                 case ("-Rayleigh") 
