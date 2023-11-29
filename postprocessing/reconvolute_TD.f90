@@ -108,6 +108,7 @@ program reconvolute_TD
                 if (ioflag/=0) exit
                 if (index(line,'Eshift=')/=0) exit
             enddo
+            close(I_LOG)
             if (ioflag==0) then
                 read(line,*) cnull,Eshift
             endif
@@ -131,9 +132,35 @@ program reconvolute_TD
     
     !Update w0
     if (w0_eV==-9999.d0) then
-        w0_eV = Eshift
+        ! Try opening posible output files
+        open(I_LOG,file=fccoutfile,status='old',iostat=ioflag)
+        if (ioflag==0) then
+            do
+                read(I_LOG,'(A)',iostat=ioflag) line
+                if (ioflag/=0) exit
+                if (index(line,'From E(eV)')/=0) exit
+            enddo
+            close(I_LOG)
+            if (ioflag==0) then
+                read(line,*) cnull,cnull,cnull,w0_eV
+            endif
+            write(0,'(/,X,A,F12.5,A/)') "Read from file ("//&
+                                        trim(adjustl(fccoutfile))//&
+                                        "): Spectra origin=", w0_eV, ' eV'
+        endif
+        ! If this does not work, set Eshift to zero
+        if (ioflag/=0) then
+            call alert_msg('warning','Spectra origin not set and could not be read from file '//&
+                                     trim(adjustl(fccoutfile))//&
+                                     ', setting to zero')
+            w0_eV = 0.d0
+        endif
+        ! If anything worked, use w0_eV = 0
+        if (ioflag/=0) then
+            Eshift=0.d0
+            write(0,'(/,X,A,F12.5,A/)') "Cannot read from file. Setting w0=", w0_eV, ' eV'
+        endif
     endif
-    w0_eV = w0_eV - Eshift
     
     
     ! Tune settings
