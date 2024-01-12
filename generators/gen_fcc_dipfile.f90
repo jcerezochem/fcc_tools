@@ -104,7 +104,7 @@ program gen_fcc_dipfile
     
     if (do_ir) then
     
-        allocate(DipD(1:3*Nat))
+        allocate(DipD(1:3*3*Nat))
     
         !============================================================
         !Rewind input file
