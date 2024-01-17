@@ -35,6 +35,14 @@ echo ""
 
 echo "****************************"
 (( i++ ))
+echo "TEST $i: Q-CHEM (OUT)"
+echo "****************************"
+echo "gen_fcc_state -ft qchem -i naphthol-s1_qchem.out"
+../generators/gen_fcc_state -ft qchem -i naphthol-s1_qchem.out
+echo ""
+
+echo "****************************"
+(( i++ ))
 echo "TEST $i: PSI4"
 echo "****************************"
 echo "gen_fcc_state -i h2o_psi4.out -ft psi4"
