@@ -31,6 +31,7 @@ program gen_fcc_dipfile
     real(8),dimension(:),allocatable :: nac
     logical :: derivatives=.true.
     logical :: do_nac=.false.
+    logical :: do_ir=.false.
     !Default states are taken if =-1
     integer :: Si=-1, &
                Sf=-1
@@ -57,6 +58,7 @@ program gen_fcc_dipfile
                           out_eldip='default', &
                           out_magdip='default',&
                           out_nac='default',   &
+                          out_ir='default',   &
                           gradS0file='none', &
                           gradS1file='none'
     character(len=1)   :: gauge='l'
@@ -69,7 +71,7 @@ program gen_fcc_dipfile
                O_DIP = 20
 
     ! Read options
-    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,filter,gauge,&
+    call parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,out_ir,derivatives,do_nac,do_ir,Si,Sf,filter,gauge,&
                      gradS0file,ftgS0,gradS1file,ftgS1)
     call set_word_lower_case(gauge)
 
@@ -97,6 +99,60 @@ program gen_fcc_dipfile
         call selection2intlist_nel(filter,Nfilt)
         allocate(ifilter(Nfilt))
         call selection2intlist(filter,ifilter,Nfilt)
+    endif
+    
+    
+    if (do_ir) then
+    
+        allocate(DipD(1:3*3*Nat))
+    
+        !============================================================
+        !Rewind input file
+        rewind(I_INP)
+        !============================================================
+
+        !Get ir
+        print*, "Reading dipoles (IR)..."
+        call generic_dipir_reader(I_INP,ft,Si,Dip,DipD,error)
+        if (error /= 0) then
+            print*, "Error getting ders for IR. Error code:", error
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+        
+        !WRITE DIP(IR) FILE
+        print*, "Writting dipoles (IR) file..."
+        open(O_DIP,file=out_ir,status="replace")
+
+        !One should replace one of these by that at the other state geom
+        write(O_DIP,'(3(X,E18.9))') Dip(1:3)
+        write(O_DIP,'(3(X,E18.9))') Dip(1:3)
+
+        do ii=1,Nfilt
+            j   = (ifilter(ii)-1)*3+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            j=j+1
+            jj=j*3-2
+            write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+        enddo
+        deallocate(DipD)
+
+        close(O_DIP)
+        if (ios /= 0) then
+            print*, "Error writting dip(IR) file"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+        
+        ! Stop here if IR is requested
+        stop
+
     endif
     
     ! Get grad file in derivatives=.true. and gradS0file/=none
@@ -170,6 +226,7 @@ program gen_fcc_dipfile
     endif
 
     !Get eldip
+    rewind(I_INP)
     print*, "Reading transition electric dipole moment..."
     if (gauge == 'l') print*, '(lenght gauge)'
     if (gauge == 'v') print*, '(velocity gauge)'
@@ -304,12 +361,12 @@ program gen_fcc_dipfile
 
     contains
 
-    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,derivatives,do_nac,Si,Sf,&
-                           filter,gauge,gradS0file,ftgS0,gradS1file,ftgS1)
+    subroutine parse_input(inpfile,ft,out_eldip,out_magdip,out_nac,out_ir,derivatives,do_nac,do_ir,&
+                           Si,Sf,filter,gauge,gradS0file,ftgS0,gradS1file,ftgS1)
 
-        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,filter,gauge,&
+        character(len=*),intent(inout) :: inpfile,ft,out_eldip,out_magdip,out_nac,out_ir,filter,gauge,&
                                           gradS0file,ftgS0,gradS1file,ftgS1
-        logical,intent(inout)          :: derivatives,do_nac
+        logical,intent(inout)          :: derivatives,do_nac,do_ir
         integer,intent(inout)          :: Si, Sf
 
         ! Local
@@ -345,6 +402,10 @@ program gen_fcc_dipfile
                 case ("-on") 
                     call getarg(i+1, out_nac)
                     argument_retrieved=.true.
+                    
+                case ("-oir") 
+                    call getarg(i+1, out_ir)
+                    argument_retrieved=.true.
 
                 case ("-der")
                     derivatives=.true.
@@ -355,6 +416,11 @@ program gen_fcc_dipfile
                     do_nac=.true.
                 case ("-nomac")
                     do_nac=.false.
+                    
+                case ("-ir")
+                    do_ir=.true.
+                case ("-noir")
+                    do_ir=.false.
 
                 case ("-Si") 
                     call getarg(i+1, arg)
@@ -444,6 +510,20 @@ program gen_fcc_dipfile
             out_nac = & !trim(adjustl(prfx))//&
                       "nac_"//trim(adjustl(out_nac))//'_'//trim(adjustl(arg))
         endif
+        if (adjustl(out_ir) == 'default') then
+            ! Get relative path
+            if (index(inpfile,"./") /= 0) then
+                call split_line_back(inpfile,"./",prfx,out_ir)
+                prfx=trim(adjustl(prfx))//"./"
+            else
+                out_ir = inpfile
+                prfx=""
+            endif
+            call split_line_back(out_ir,".",out_ir,arg)
+            if (adjustl(ft) /= 'guess') arg=ft
+            out_ir = & !trim(adjustl(prfx))//&
+                      "ir_"//trim(adjustl(out_ir))//'_'//trim(adjustl(arg))
+        endif
         
         if (gauge /= 'l' .and. gauge /= 'L' .and. &
             gauge /= 'v' .and. gauge /= 'V') then
@@ -485,9 +565,11 @@ program gen_fcc_dipfile
         write(0,'(A)'  ) ' -ftgS1   filetype            '//trim(adjustl(ftgS1))
         write(0,'(A)'  ) ' -om      out_magdip          '//trim(adjustl(out_magdip))
         write(0,'(A)'  ) ' -on      out_nac             '//trim(adjustl(out_nac))
+        write(0,'(A)'  ) ' -oir     out_ir              '//trim(adjustl(out_ir))
         write(0,'(A)'  ) ' -filt    Filter atoms (ders) '//trim(adjustl(filter))
         write(0,'(A,L1)'  ) ' -[no]der get derivatives  ',derivatives
         write(0,'(A,L1)'  ) ' -[no]nac get NAC          ',do_nac
+        write(0,'(A,L1)'  ) ' -[no]ir  get dipoles (IR) ',do_ir
         write(0,'(A)'  ) ' -h       print help  '
         call supported_filetype_list('trdip')
 

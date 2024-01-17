@@ -160,9 +160,9 @@ program excitation_RR
         write(0,'(A)'  ) 'excitation_RR [-f (RRdatafile) -wS (wS) -h]'
 
         write(0,'(/,A)')   'OPTIONS'
-        write(0,'(A)'  )   'Flag       Description                  Current Value'
-        write(0,'(A)'  )   ' -f        Correlation function file    '//trim(adjustl(RRdatafile))
-        write(0,'(A,F8.3)')' -wS       Scattered frequency     '   ,ws_req
+        write(0,'(A)'  )   'Flag       Description               Current Value'
+        write(0,'(A)'  )   ' -f        2D RR spectrum file      '//trim(adjustl(RRdatafile))
+        write(0,'(A,F8.3)')' -wS       Scattered frequency(cm-1)'   ,ws_req
         write(0,'(A)'  )   '           (The closest value from the file is used)'
         write(0,'(A)'  )   ' -h        Print help  '
         write(0,*) ''

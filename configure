@@ -3208,13 +3208,13 @@ if test "x$with_mkl" = "xyes"; then :
       # AC_CHECK_LIB (library, function, [action-if-found], [action-if-not-found], [other-libraries])
       # where we use the last (optional) argument [other-libraries] to enter the additional libs
       # needed to use mkl lapack. (Previously this was done post-processing the configure: not nice)
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for zsytrf in -lmkl_intel_lp64" >&5
-$as_echo_n "checking for zsytrf in -lmkl_intel_lp64... " >&6; }
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for zsytrf in -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64" >&5
+$as_echo_n "checking for zsytrf in -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64... " >&6; }
 if ${ac_cv_lib_mkl_intel_lp64_zsytrf+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="-lmkl_intel_lp64 -lmkl_sequential -lmkl_core $LIBS"
+LIBS="-lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64 -lmkl_sequential -lmkl_core $LIBS"
 cat > conftest.$ac_ext <<_ACEOF
       program main
       call zsytrf
@@ -3232,7 +3232,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_mkl_intel_lp64_zsytrf" >&5
 $as_echo "$ac_cv_lib_mkl_intel_lp64_zsytrf" >&6; }
 if test "x$ac_cv_lib_mkl_intel_lp64_zsytrf" = xyes; then :
-  LIBS="$LIBS -lmkl_intel_lp64 -lmkl_sequential -lmkl_core"
+  LIBS="$LIBS -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64 -lmkl_sequential -lmkl_core"
 else
   # default: add libraries to LIBS
                     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: MKL library requested but not found (LAPACK)" >&5
@@ -3248,13 +3248,13 @@ if test "x$with_mkl" = "xyes"; then :
       # AC_CHECK_LIB (library, function, [action-if-found], [action-if-not-found], [other-libraries])
       # where we use the last (optional) argument [other-libraries] to enter the additional libs
       # needed to use mkl lapack. (Previously this was done post-processing the configure: not nice)
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dgemm in -lmkl_intel_lp64" >&5
-$as_echo_n "checking for dgemm in -lmkl_intel_lp64... " >&6; }
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dgemm in -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64" >&5
+$as_echo_n "checking for dgemm in -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64... " >&6; }
 if ${ac_cv_lib_mkl_intel_lp64_dgemm+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="-lmkl_intel_lp64 -lmkl_sequential -lmkl_core $LIBS"
+LIBS="-lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64 -lmkl_sequential -lmkl_core $LIBS"
 cat > conftest.$ac_ext <<_ACEOF
       program main
       call dgemm
@@ -3272,7 +3272,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_mkl_intel_lp64_dgemm" >&5
 $as_echo "$ac_cv_lib_mkl_intel_lp64_dgemm" >&6; }
 if test "x$ac_cv_lib_mkl_intel_lp64_dgemm" = xyes; then :
-  LIBS="$LIBS -lmkl_intel_lp64 -lmkl_sequential -lmkl_core"
+  LIBS="$LIBS -lmkl_intel_lp64 -lmkl_sequential -lmkl_core_lp64 -lmkl_sequential -lmkl_core"
 else
   # default: add libraries to LIBS
                     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: MKL library requested but not found (BLAS)" >&5

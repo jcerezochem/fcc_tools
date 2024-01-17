@@ -246,11 +246,11 @@ program addconvolution_RR
         write(0,'(A)'  )   'Flag       Description                  Current Value'
         write(0,'(A)'  )   ' -f        Correlation function file    '//trim(adjustl(RRdatafile))
         write(0,'(A)'  )   ' -brd      Broad func (GAU|LOR)         '//trim(adjustl(broadfun))
-        write(0,'(A,F8.3)')' -hwhm     HWHM (in eV)              '   ,hwhm_eV
-        write(0,'(A,F8.3)')' -cut-lor  Multiple of hwhm(eV) when '   ,ncut_lor  
-        write(0,'(A)'  )   '           to cut the Lor convolution'
-        write(0,'(A,F8.3)')' -cut-gau  Multiple of hwhm(eV) when '   ,ncut_gau
-        write(0,'(A)'  )   '           to cut the Gau convolution'
+        write(0,'(A,F8.3)')' -hwhm     HWHM (in cm-1)            '   ,hwhm_eV
+        write(0,'(A,F8.3)')' -cut-lor  Multiple of hwhm when to  '   ,ncut_lor  
+        write(0,'(A)'  )   '           cut the Lor convolution'
+        write(0,'(A,F8.3)')' -cut-gau  Multiple of hwhm when to  '   ,ncut_gau
+        write(0,'(A)'  )   '           cut the Gau convolution'
         write(0,'(A)'  )   ' -h        Print help  '
         write(0,*) ''
 

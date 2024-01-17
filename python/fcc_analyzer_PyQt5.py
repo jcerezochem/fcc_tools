@@ -1126,7 +1126,8 @@ class AppForm(QMainWindow):
         slidermin = 1   # this is not changed
         slidermax = 100 # this is not changed
         msg = str(self.broadbox.text())
-        if not msg.isnumeric():
+        isnumber = msg.count('.') == 1 and msg.replace('.','0').isnumeric()
+        if not isnumber:
             self.statusBar().showMessage(f'Invalid HWHM (={msg}). Use a positive number. Setting it to 0.01')
             hwhm = 0.01
         elif float(msg) <= 0:
