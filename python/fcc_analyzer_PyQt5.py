@@ -520,8 +520,8 @@ class AppForm(QMainWindow):
         """
         Compute First and Second moments for the convoluted spectrum
         """
-        x = self.spectrum_sim[0].get_xdata()
-        y = self.spectrum_sim[0].get_ydata()
+        x = self.spectrum_sim[0].get_xdata().copy()
+        y = self.spectrum_sim[0].get_ydata().copy()
         
         # Zero
         m0 = np.trapz(y, x)
@@ -547,8 +547,8 @@ class AppForm(QMainWindow):
         """ % (m1, m2, sgm)
         
         if self.spectrum_ref:
-            x = self.spectrum_ref[0].get_xdata()
-            y = self.spectrum_ref[0].get_ydata()
+            x = self.spectrum_ref[0].get_xdata().copy()
+            y = self.spectrum_ref[0].get_ydata().copy()
             
             # Zero
             m0 = np.trapz(y, x)
