@@ -190,10 +190,14 @@ class AppForm(QMainWindow):
         self.update_hwhm_from_slider(UpdateConvolute=False)
         # Data type
         self.data_type ="Intensity"
+        # Spectrum to apply changes to
+        self.changespc = "Simulated"
+        self.changespc_index = 0
         # Line markers
         self.selected  = None
         # Label dictionary
         self.labs = dict()
+        self.labs_origin = dict()
         # Other values that need initialization
         self.active_label = None
         self.active_tr = None
@@ -293,7 +297,8 @@ class AppForm(QMainWindow):
             sys.exit("No convoluted spectrum could be loaded")
         
         # This is the load driver
-        self.load_sticks(cml_args.get("-stick"))
+        self.stick_type = cml_args.get("-stick")
+        self.load_sticks()
         self.set_axis_labels()
         if os.path.isfile(path+'fort.22') or os.path.isfile(path+'Bin_Spectrum.dat'):
             self.load_convoluted()
@@ -365,8 +370,8 @@ class AppForm(QMainWindow):
                     y *= (x/27.2116)**n * factor
             
             # Update Table
-            self.refspc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
-            cell = self.refspc_table.item(1,1)
+            self.spc_table.setItem(1,1, QTableWidgetItem(path.split('/')[-1]))
+            cell = self.spc_table.item(1,1)
             # PyQt4
             #cell.setTextColor(Qt.black)
             # PyQt5
@@ -376,14 +381,15 @@ class AppForm(QMainWindow):
             self.load_experiment_spc(x,y)
             
             # Initialize shift an scale
-            self.ref_shift = 0.0
-            self.ref_scale = 1.0
-            self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
-            self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
+            self.spc_shift = 0.0
+            self.spc_scale = 1.0
+            self.spc_table.setItem(2,1, QTableWidgetItem(str(self.spc_shift)))
+            self.spc_table.setItem(3,1, QTableWidgetItem(str(self.spc_scale)))
             
             # Enable manipulations
             self.shiftref_action.setEnabled(True)
             self.scaleref_action.setEnabled(True)
+            self.select_changespc.setEnabled(True)
 
 
     #==========================================================
@@ -618,8 +624,8 @@ class AppForm(QMainWindow):
             x0_ref = x[y.argmax()]
         
         # Update global data (this triggers the shift)
-        ref_shift_new = self.ref_shift + x0_sim-x0_ref
-        self.refspc_table.setItem(2,1, QTableWidgetItem(str(ref_shift_new)))
+        spc_shift_new = self.spc_shift + x0_sim-x0_ref
+        self.spc_table.setItem(2,1, QTableWidgetItem(str(spc_shift_new)))
         
         
     def scale_to_simulated(self):
@@ -637,31 +643,102 @@ class AppForm(QMainWindow):
         y0_ref = max(abs(y.max()),abs(y.min()))
         
         # Update global data (this triggers the shift)
-        ref_scale_new = self.ref_scale * y0_sim/y0_ref
-        self.refspc_table.setItem(3,1, QTableWidgetItem(str(ref_scale_new)))
-        
+        spc_scale_new = self.spc_scale * y0_sim/y0_ref
+        self.spc_table.setItem(3,1, QTableWidgetItem(str(spc_scale_new)))
+
+    def shift_to_reference(self):
+        """
+        Shift the simulated expectrum to match the first moment or Emax of the reference one
+        The type of match is set through a pop-up question
+        """
+        match_options = ("First Moment","Peak Maximum")
+        match, ok = QInputDialog.getItem(self, "Shift assistant",
+                    "Reference for shifting", match_options, 0, False)
+        if not ok:
+            return
+        if match == "First Moment":
+            x = self.spectrum_sim[0].get_xdata()
+            y = self.spectrum_sim[0].get_ydata()
+            # Load simulated data
+            # Zero
+            m0 = np.trapz(y, x)
+            # First
+            x0_sim = np.trapz(y*x/m0, x)
+
+            # Load reference data
+            if self.spectrum_ref:
+                x = self.spectrum_ref[0].get_xdata()
+                y = self.spectrum_ref[0].get_ydata()
+            else:
+                return
+            # Zero
+            m0 = np.trapz(y, x)
+            # First
+            x0_ref = np.trapz(y*x/m0, x)
+        elif match == "Peak Maximum":
+            x = self.spectrum_sim[0].get_xdata()
+            y = self.spectrum_sim[0].get_ydata()
+            x0_sim = x[y.argmax()]
+
+            # Load reference data
+            if self.spectrum_ref:
+                x = self.spectrum_ref[0].get_xdata()
+                y = self.spectrum_ref[0].get_ydata()
+            else:
+                return
+            x0_ref = x[y.argmax()]
+
+        # Update global data (this triggers the shift)
+        spc_shift_new = self.spc_shift + x0_ref-x0_sim
+        self.spc_table.setItem(2,1, QTableWidgetItem(str(spc_shift_new)))
+
+
+    def scale_to_simulated(self):
+        """
+        Scale the reference expectrum to match the maximum of the simulated one
+        """
+        y = self.spectrum_sim[0].get_ydata()
+        y0_sim = max(abs(y.max()),abs(y.min()))
+
+        # Load reference data
+        if self.spectrum_ref:
+            y = self.spectrum_ref[0].get_ydata()
+        else:
+            return
+        y0_ref = max(abs(y.max()),abs(y.min()))
+
+        # Update global data (this triggers the shift)
+        spc_scale_new = self.spc_scale * y0_ref/y0_sim
+        self.spc_table.setItem(3,1, QTableWidgetItem(str(spc_scale_new)))
+
         
     #==========================================================
     # LOAD DATA AND ELEMENTS
-    #==========================================================
-    def load_sticks(self,stick_type):
+    ##==========================================================
+    def load_sticks(self):
         """ 
-        Load stick spectra for all classes (C0,C1...,CHot)
+        Load (or reload) stick spectra for all classes (C0,C1...,CHot)
         - The spectra objects are stored in a list: self.stickspc
         """
-        # clear the axes and redraw the plot anew
+        # clear the axes and redraw the plot
         # 
-        self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
-        self.axes.set_xlabel('Energy (eV)',fontsize=16)
-        self.axes.set_ylabel('Stick Intensity',fontsize=16)
-        self.axes.tick_params(direction='out',top=False, right=False)
-        
+        if hasattr(self,'stickspc'):
+            # First remove the previous spectra
+            for vline in self.stickspc:
+                if vline:
+                    vline.remove()
+            redraw = True
+        else:
+            self.axes.set_title('TI stick spectrum from $\mathcal{FC}classes$',fontsize=18)
+            self.axes.set_xlabel('Energy (eV)',fontsize=16)
+            self.axes.set_ylabel('Stick Intensity',fontsize=16)
+            self.axes.tick_params(direction='out',top=False, right=False)
+            redraw = False
         
         #Plotting sticks and store objects
         # Set labels and colors
         label_list = ['0-0']+[ 'C'+str(i) for i in range(1,8) ]+['Hot']
         color_list = ['k', 'b', 'r', 'g', 'c', 'm', 'brown', 'pink', 'orange' ]
-
 
         #Inialize variables
         self.stickspc = []
@@ -669,7 +746,7 @@ class AppForm(QMainWindow):
         xmax = -999
         for iclass in range(9):
             x = np.array([ self.fcclass_list[iclass][i].DE        for i in range(len(self.fcclass_list[iclass])) ])
-            if stick_type == "fc":
+            if self.stick_type == "fc":
                 # Get intensity as FC^2
                 for i in range(len(self.fcclass_list[iclass])):
                     self.fcclass_list[iclass][i].intensity = self.fcclass_list[iclass][i].fcfactor**2
@@ -685,16 +762,20 @@ class AppForm(QMainWindow):
                 # Getting the type from the objects when loaded for future use
                 self.LineCollectionType = type(self.stickspc[-1])
                 
-        self.axes2.set_xlim([xmin-0.15,xmax+0.15])
+        if not redraw:
+            self.axes2.set_xlim([xmin-0.15,xmax+0.15])
         
         self.canvas.draw()
         
         
     def load_legend(self):
         """
-        Plot legend, which is pickable so as to turn plots on/off
+        Plot (or replot) legend, which is pickable so as to turn plots on/off
         """
         
+        if hasattr(self,'legend'):
+            self.legend.remove()
+
         #Legends management
         # First get lines from both axes
         lns  = list([x for x in self.stickspc if x])+self.spectrum_sim
@@ -1007,6 +1088,7 @@ class AppForm(QMainWindow):
         self.active_label.remove()
         #And substract the corresponding entry from the dict
         self.labs.pop(self.active_label)
+        self.labs_origin.pop(self.active_label)
         #We deactivate the lab. Otherwise, if we reclikc on the same point, it raises an error
         self.active_label.set_visible(False)
         self.canvas.draw()
@@ -1098,9 +1180,33 @@ class AppForm(QMainWindow):
             # from labelref.get_name()
             self.labs[labelref] = agrlabel
             self.canvas.draw()
+            self.labs_origin[labelref] = (xd,yd)
         else:
             labelref.remove()
     
+
+    def shift_labels(self,shift):
+
+        labs_local = self.labs.copy()
+        for label in labs_local:
+            xl, yl = label.get_position()
+            xd, yd = self.labs_origin[label]
+            # Apply shift
+            xl += shift
+            xd += shift
+            agrlabel = self.labs[label]
+            mpllabel = label.get_text()
+            # We need to remove the label (and dict entries)
+            label.remove()
+            self.labs.pop(label)
+            self.labs_origin.pop(label)
+            # And now we add it again (and new dict entries)
+            label = self.axes.annotate(mpllabel, xy=(xd, yd), xytext=(xl, yl),picker=1,
+                                       arrowprops=dict(arrowstyle="-",
+                                       color='grey'))
+            self.labs[label] = agrlabel
+            self.labs_origin[label] = (xd,yd)
+
     
     # RESPONSES TO SIGNALS
     def update_fixlegend(self):
@@ -1185,9 +1291,30 @@ class AppForm(QMainWindow):
     def update_broad_function(self):
         self.broadening = self.select_broad.currentText()
         self.update_convolute()
+
+
+    def update_changespc(self):
+        if self.select_changespc.currentIndex() == self.changespc_index:
+            return
+        old_index = self.changespc_index
+        # Re-Initialize shift an scale
+        msg = "This action resets Shift and Scale. Continue?"
+        reply = QMessageBox.question(self, 'Reset Shift',
+                msg, QMessageBox.Yes, QMessageBox.No)
+        if reply == QMessageBox.No:
+            self.select_changespc.setCurrentIndex(old_index)
+            return
+        self.changespc = self.select_changespc.currentText()
+        self.spc_shift = 0.0
+        self.spc_scale = 1.0
+        self.spc_table.setItem(2,1, QTableWidgetItem(str(self.spc_shift)))
+        self.spc_table.setItem(3,1, QTableWidgetItem(str(self.spc_scale)))
+
+        self.changespc_index = self.select_changespc.currentIndex()
         
-        
+
     def update_data_type(self):
+
         current_data_type = self.data_type
         self.data_type = self.select_data_type.currentText()
         
@@ -1244,14 +1371,16 @@ class AppForm(QMainWindow):
             reply = QMessageBox.question(self, 'Clear Spectrum', 
                          clear_msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.No:
-                return            
+                return
+            # Disable change_spc
+            self.select_changespc.setEnabled(False)
             self.spectrum_ref[0].remove()
             self.spectrum_ref = None
             self.canvas.draw()
             celllabel = ["No","-","-"]
             for i,j in [(1,1),(2,1),(3,1)]:
-                self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
-                cell = self.refspc_table.item(i,j)
+                self.spc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+                cell = self.spc_table.item(i,j)
                 # PyQt4 (function deprecated in PyQt5)
                 #cell.setTextColor(Qt.black)
                 # PyQt5
@@ -1268,8 +1397,8 @@ class AppForm(QMainWindow):
                          msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.No:
                 return      
-            self.ref_shift = 0.0
-            self.refspc_table.setItem(2,1, QTableWidgetItem(str(self.ref_shift)))
+            self.spc_shift = 0.0
+            self.spc_table.setItem(2,1, QTableWidgetItem(str(self.spc_shift)))
             
         elif (i,j) == (3,2):
             # Tare the scale
@@ -1278,22 +1407,22 @@ class AppForm(QMainWindow):
                          msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.No:
                 return      
-            self.ref_scale = 1.0
-            self.refspc_table.setItem(3,1, QTableWidgetItem(str(self.ref_scale)))
+            self.spc_scale = 1.0
+            self.spc_table.setItem(3,1, QTableWidgetItem(str(self.spc_scale)))
             
             
     def change_refspc(self,i,j):
         fixaxes = self.fixaxes_cb.isChecked()
         if not self.spectrum_ref:
             return
-        cell = self.refspc_table.item(i,j)
+        cell = self.spc_table.item(i,j)
         if (i,j) == (2,1):
             # Shift
             #========
             new_shift = float(cell.text())
             # Get the relative shift from the current global shift
-            shift = new_shift - self.ref_shift
-            self.ref_shift = new_shift
+            shift = new_shift - self.spc_shift
+            self.spc_shift = new_shift
             x = self.spectrum_ref[0].get_xdata()
             y = self.spectrum_ref[0].get_ydata()
             x,y = self.shift_spectrum(x,y,shift)
@@ -1304,15 +1433,74 @@ class AppForm(QMainWindow):
             #========
             new_scale = float(cell.text())
             # Get the relative scale from the current global scaling
-            scale = new_scale/self.ref_scale
-            self.ref_scale = new_scale
+            scale = new_scale/self.spc_scale
+            self.spc_scale = new_scale
             y = self.spectrum_ref[0].get_ydata() * scale
             self.spectrum_ref[0].set_ydata(y)
             
         if not fixaxes:
             self.rescale_yaxis()
         self.canvas.draw()
-        
+
+    def change_spc(self,i,j):
+        if not self.select_changespc.isEnabled():
+            return
+
+        fixaxes = self.fixaxes_cb.isChecked()
+        cell = self.spc_table.item(i,j)
+
+        # Remove marks is any (otherwise need to be moved, but does not worth it)
+        self.del_stick_marker()
+
+        if self.changespc == 'Simulated':
+            spectrum = self.spectrum_sim[0]
+        else:
+            spectrum = self.spectrum_ref[0]
+
+        if (i,j) == (2,1):
+            # Shift
+            #========
+            new_shift = float(cell.text())
+            # Get the relative shift from the current global shift
+            shift = new_shift - self.spc_shift
+            self.spc_shift = new_shift
+            x = spectrum.get_xdata()
+            y = spectrum.get_ydata()
+            x,y = self.shift_spectrum(x,y,shift)
+            spectrum.set_xdata(x)
+            spectrum.set_ydata(y)
+
+            if self.changespc == 'Simulated':
+                # Shift sticks
+                n = SpcConstants.exp[self.spc_type]
+                for iclass in range(9):
+                    for i in range(len(self.fcclass_list[iclass])):
+                        DE_ini = self.fcclass_list[iclass][i].DE
+                        self.fcclass_list[iclass][i].DE += shift
+                        DE_fin = self.fcclass_list[iclass][i].DE
+                        self.fcclass_list[iclass][i].efin += shift
+                        if self.stick_type != "fc":
+                            self.fcclass_list[iclass][i].intensity *= (DE_fin/DE_ini)**n
+                self.load_sticks()
+                self.load_legend()
+                self.shift_labels(shift)
+                # Bins
+                self.xbin += shift
+
+        elif (i,j) == (3,1):
+            # Scale
+            #========
+            new_scale = float(cell.text())
+            # Get the relative scale from the current global scaling
+            scale = new_scale/self.spc_scale
+            self.spc_scale = new_scale
+            y = spectrum.get_ydata() * scale
+            spectrum.set_ydata(y)
+
+        if not fixaxes:
+            self.rescale_yaxis()
+        self.canvas.draw()
+
         
     def search_transitions(self):
         """
@@ -1597,6 +1785,12 @@ Examples
         self.select_data_type = QComboBox()
         self.select_data_type.addItems(["Intensity","Lineshape"])
         self.select_data_type.currentIndexChanged.connect(self.update_data_type)
+
+        self.select_changespc = QComboBox()
+        self.select_changespc.addItems(["Simulated","Reference"])
+        self.select_changespc.currentIndexChanged.connect(self.update_changespc)
+        # Start with selector disabled
+        self.select_changespc.setEnabled(False)
         
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMaximumWidth(200)
@@ -1636,6 +1830,7 @@ Examples
         broad_label = QLabel('Broadening')
         datatype_label = QLabel('Data Type')
         search_label = QLabel('Select transition/progression')
+        changespc_label = QLabel('Change spectum...')
         # Splitters
         vline = QFrame()
         vline.setFrameStyle(QFrame.VLine)
@@ -1660,22 +1855,22 @@ Examples
         # Table for the reference spectrum
         # Ids ordered by column
         cellids = [[(1,0),(2,0),(3,0)] ,[(1,1),(2,1),(3,1)],[(1,2),(2,2),(3,2)]]
-        self.refspc_table = QTableWidget(self.main_frame)
-        self.refspc_table.setRowCount(4)
-        self.refspc_table.setColumnCount(3)
-        self.refspc_table.setMinimumWidth(238)
-        self.refspc_table.setMaximumWidth(238)
-        self.refspc_table.setMinimumHeight(126)
-        self.refspc_table.setMaximumHeight(126)
+        self.spc_table = QTableWidget(self.main_frame)
+        self.spc_table.setRowCount(4)
+        self.spc_table.setColumnCount(3)
+        self.spc_table.setMinimumWidth(238)
+        self.spc_table.setMaximumWidth(238)
+        self.spc_table.setMinimumHeight(126)
+        self.spc_table.setMaximumHeight(126)
         # Set data
         ## Title row
-        self.refspc_table.setSpan(0,0,1,3)
-        self.refspc_table.setItem(0,0, QTableWidgetItem("Reference Spectrum"))
+        self.spc_table.setSpan(0,0,1,3)
+        self.spc_table.setItem(0,0, QTableWidgetItem("Overlaid Spectra"))
         font = QFont()
         font.setBold(False)
         #font.setWeight(75)
         font.setPointSize(12)
-        title = self.refspc_table.item(0,0)
+        title = self.spc_table.item(0,0)
         # PyQt4
         #title.setBackgroundColor(Qt.lightGray)
         # PyQt5
@@ -1688,13 +1883,13 @@ Examples
         title.setTextAlignment(Qt.AlignCenter)
         title.setFlags(title.flags() ^ QtCore.Qt.ItemIsEnabled ^ QtCore.Qt.ItemIsEditable)
         ## Fist column
-        celllabel = ["Loaded?","Shift(eV)","Y-scale"]
+        celllabel = ["Referece","Shift(eV)","Y-scale"]
         font = QFont()
         font.setBold(True)
         font.setWeight(75)
         for i,j in cellids[0]:
-            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
-            cell = self.refspc_table.item(i,j)
+            self.spc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.spc_table.item(i,j)
             # PyQt4
             #cell.setBackgroundColor(Qt.gray)
             # PyQt5
@@ -1710,8 +1905,8 @@ Examples
         ## Second column
         celllabel = ["No","-","-"]
         for i,j in cellids[1]:
-            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
-            cell = self.refspc_table.item(i,j)
+            self.spc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.spc_table.item(i,j)
             # PyQt4
             #cell.setTextColor(Qt.black)
             # PyQt5
@@ -1721,18 +1916,18 @@ Examples
         ## Last column
         celllabel = ["X","T","T"]
         for i,j in cellids[2]:
-            self.refspc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
-            cell = self.refspc_table.item(i,j)
+            self.spc_table.setItem(i,j, QTableWidgetItem(celllabel[i-1]))
+            cell = self.spc_table.item(i,j)
             # Set non editable. See: http://stackoverflow.com/questions/2574115/how-to-make-a-column-in-qtablewidget-read-only
             cell.setFlags(cell.flags() ^ QtCore.Qt.ItemIsEditable ^ QtCore.Qt.ItemIsSelectable)
         ## Tune the X button
-        xbutton = self.refspc_table.item(1,2)
+        xbutton = self.spc_table.item(1,2)
         # PyQt4
         #xbutton.setBackgroundColor(Qt.red)
         # PyQt5
         xbutton.setBackground(Qt.red)
         ## Tune the Tare buttons
-        tbutton = self.refspc_table.item(2,2)
+        tbutton = self.spc_table.item(2,2)
         # PyQt4
         #tbutton.setBackgroundColor(Qt.blue)
         # PyQt5
@@ -1741,7 +1936,7 @@ Examples
         #tbutton.setTextColor(Qt.white)
         # PyQt5
         tbutton.setForeground(Qt.white)
-        tbutton = self.refspc_table.item(3,2)
+        tbutton = self.spc_table.item(3,2)
         # PyQt4
         #tbutton.setBackgroundColor(Qt.blue)
         # PyQt5
@@ -1756,17 +1951,17 @@ Examples
         # irow and icol are hold (someway) by the event and the fed to cellPressed:
         # cellPressed(irow,icol)
         # The connect call below passes the arguments of cellPressed to my function:
-        self.refspc_table.cellPressed.connect(self.table_buttons_action)
-        self.refspc_table.cellChanged.connect(self.change_refspc)
+        self.spc_table.cellPressed.connect(self.table_buttons_action)
+        self.spc_table.cellChanged.connect(self.change_spc)
         # If we try with code below, I see no way to make it pass the args
-        #self.connect(self.refspc_table, SIGNAL('cellPressed(int,int)'), lambda: self.table_buttons_action())
+        #self.connect(self.spc_table, SIGNAL('cellPressed(int,int)'), lambda: self.table_buttons_action())
         # Table format
-        self.refspc_table.horizontalHeader().hide()
-        self.refspc_table.verticalHeader().hide()
-        self.refspc_table.setColumnWidth(0,80)
-        self.refspc_table.setColumnWidth(1,137)
-        self.refspc_table.setColumnWidth(2,15)
-        self.refspc_table.setShowGrid(False)
+        self.spc_table.horizontalHeader().hide()
+        self.spc_table.verticalHeader().hide()
+        self.spc_table.setColumnWidth(0,80)
+        self.spc_table.setColumnWidth(1,137)
+        self.spc_table.setColumnWidth(2,15)
+        self.spc_table.setShowGrid(False)
         
         #
         # Layout with box sizers
@@ -1825,6 +2020,18 @@ Examples
         hbox2.setAlignment(self.fixlegend_cb, Qt.AlignLeft)
         hbox2.addWidget(self.mpl_toolbar)
         hbox2.setAlignment(self.mpl_toolbar, Qt.AlignLeft)
+
+        # Hbox to select which spectrum to change
+        hbox_changespc = QHBoxLayout()
+        hbox_changespc.addWidget(changespc_label)
+        hbox_changespc.setAlignment(changespc_label, Qt.AlignLeft)
+        hbox_changespc.addWidget(self.select_changespc)
+        hbox_changespc.setAlignment(self.select_changespc, Qt.AlignLeft)
+
+        # Overlaid spectra
+        vbox_spc = QVBoxLayout()
+        vbox_spc.addWidget(self.spc_table)
+        vbox_spc.addLayout(hbox_changespc)
         
         # Search widget
         search_widget = QVBoxLayout()
@@ -1849,7 +2056,7 @@ Examples
         grid.addWidget(self.canvas,      0,0 ,2,1)
         grid.addWidget(self.analysis_box,0,1, 1,1)
         grid.addLayout(search_widget,    1,1, 1,1)
-        grid.addWidget(self.refspc_table,2,1, 2,1)
+        grid.addLayout(vbox_spc,   2,1, 2,1)
         grid.addLayout(hbox2,            2,0 ,1,1)
         grid.addLayout(hbox,             3,0 ,1,1)
         grid.setAlignment(hbox,   Qt.AlignLeft)

@@ -275,6 +275,47 @@ program gen_fcc_dipfile
     !Rewind input file
     rewind(I_INP)
     !============================================================
+    
+    ! Get <i|p|f>
+    if (gauge == 'v') then
+        print*, "Reading transition linear moment (p)..."
+        call generic_dip_reader(I_INP,ft,Si,Sf,derivatives,"p",dx,Dip,DipD,gauge,GradS0,GradS1,error)
+    
+        !WRITE P FILE
+        print*, "Writting transition linear moment (p) file..."
+        out_eldip = 'P_'//adjustl(out_eldip)
+        open(O_DIP,file=out_eldip,status="replace")
+
+        !One should replace one of these by that at the other state geom
+        write(O_DIP,'(3(X,E18.9))') Dip(1:3)
+        write(O_DIP,'(3(X,E18.9))') Dip(1:3)
+
+        if (derivatives) then
+            do ii=1,Nfilt
+                j   = (ifilter(ii)-1)*3+1
+                jj=j*3-2
+                write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+                j=j+1
+                jj=j*3-2
+                write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+                j=j+1
+                jj=j*3-2
+                write(O_DIP,'(3(X,E18.9))',iostat=ios) DipD(jj:jj+2)
+            enddo
+        endif
+        close(O_DIP)
+        if (ios /= 0) then
+            print*, "Error writting eldip file"
+            stop
+        else
+            print'(X,A,/)', "OK"
+        endif
+    endif
+    
+    !============================================================
+    !Rewind input file
+    rewind(I_INP)
+    !============================================================
 
     !Get magdip
     print*, "Reading transition magnetic dipole moment..."
