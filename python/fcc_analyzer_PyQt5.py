@@ -579,138 +579,78 @@ class AppForm(QMainWindow):
         """ % (m1, m2, sgm)
         
         self.analysis_box.setText(result)
-        
-        
-    def shift_to_simulated(self):
+
+    def shift_to_match(self):
         """
         Shift the reference expectrum to match the first moment or Emax of the simulated one
         The type of match is set through a pop-up question
         """
-        match_options = ("First Moment","Peak Maximum")
-        match, ok = QInputDialog.getItem(self, "Shift assistant", 
-                    "Reference for shifting", match_options, 0, False)
-        if not ok:
-            return
-        if match == "First Moment":
-            x = self.spectrum_sim[0].get_xdata()
-            y = self.spectrum_sim[0].get_ydata()
-            # Load simulated data
-            # Zero
-            m0 = np.trapz(y, x)
-            # First
-            x0_sim = np.trapz(y*x/m0, x)
-            
-            # Load reference data
-            if self.spectrum_ref:
-                x = self.spectrum_ref[0].get_xdata()
-                y = self.spectrum_ref[0].get_ydata()
-            else:
-                return
-            # Zero
-            m0 = np.trapz(y, x)
-            # First
-            x0_ref = np.trapz(y*x/m0, x)
-        elif match == "Peak Maximum":
-            x = self.spectrum_sim[0].get_xdata()
-            y = self.spectrum_sim[0].get_ydata()
-            x0_sim = x[y.argmax()]
-            
-            # Load reference data
-            if self.spectrum_ref:
-                x = self.spectrum_ref[0].get_xdata()
-                y = self.spectrum_ref[0].get_ydata()
-            else:
-                return
-            x0_ref = x[y.argmax()]
-        
-        # Update global data (this triggers the shift)
-        spc_shift_new = self.spc_shift + x0_sim-x0_ref
-        self.spc_table.setItem(2,1, QTableWidgetItem(str(spc_shift_new)))
-        
-        
-    def scale_to_simulated(self):
-        """
-        Scale the reference expectrum to match the maximum of the simulated one
-        """
-        y = self.spectrum_sim[0].get_ydata()
-        y0_sim = max(abs(y.max()),abs(y.min()))
-        
-        # Load reference data
-        if self.spectrum_ref:
-            y = self.spectrum_ref[0].get_ydata()
+        if self.changespc == 'Simulated':
+            spectrum = self.spectrum_sim[0]
+            spectrum_ref = self.spectrum_ref[0]
         else:
-            return
-        y0_ref = max(abs(y.max()),abs(y.min()))
-        
-        # Update global data (this triggers the shift)
-        spc_scale_new = self.spc_scale * y0_sim/y0_ref
-        self.spc_table.setItem(3,1, QTableWidgetItem(str(spc_scale_new)))
+            spectrum = self.spectrum_ref[0]
+            spectrum_ref = self.spectrum_sim[0]
 
-    def shift_to_reference(self):
-        """
-        Shift the simulated expectrum to match the first moment or Emax of the reference one
-        The type of match is set through a pop-up question
-        """
         match_options = ("First Moment","Peak Maximum")
         match, ok = QInputDialog.getItem(self, "Shift assistant",
                     "Reference for shifting", match_options, 0, False)
         if not ok:
             return
         if match == "First Moment":
-            x = self.spectrum_sim[0].get_xdata()
-            y = self.spectrum_sim[0].get_ydata()
+            x = spectrum.get_xdata()
+            y = spectrum.get_ydata()
             # Load simulated data
             # Zero
             m0 = np.trapz(y, x)
             # First
-            x0_sim = np.trapz(y*x/m0, x)
+            x0 = np.trapz(y*x/m0, x)
 
             # Load reference data
-            if self.spectrum_ref:
-                x = self.spectrum_ref[0].get_xdata()
-                y = self.spectrum_ref[0].get_ydata()
-            else:
-                return
+            x = spectrum_ref.get_xdata()
+            y = spectrum_ref.get_ydata()
             # Zero
             m0 = np.trapz(y, x)
             # First
             x0_ref = np.trapz(y*x/m0, x)
+
         elif match == "Peak Maximum":
-            x = self.spectrum_sim[0].get_xdata()
-            y = self.spectrum_sim[0].get_ydata()
-            x0_sim = x[y.argmax()]
+            x = spectrum.get_xdata()
+            y = spectrum.get_ydata()
+            x0 = x[y.argmax()]
 
             # Load reference data
-            if self.spectrum_ref:
-                x = self.spectrum_ref[0].get_xdata()
-                y = self.spectrum_ref[0].get_ydata()
-            else:
-                return
+            x = spectrum_ref.get_xdata()
+            y = spectrum_ref.get_ydata()
             x0_ref = x[y.argmax()]
 
         # Update global data (this triggers the shift)
-        spc_shift_new = self.spc_shift + x0_ref-x0_sim
+        spc_shift_new = self.spc_shift + x0_ref-x0
         self.spc_table.setItem(2,1, QTableWidgetItem(str(spc_shift_new)))
 
 
-    def scale_to_simulated(self):
+    def scale_to_match(self):
         """
         Scale the reference expectrum to match the maximum of the simulated one
         """
-        y = self.spectrum_sim[0].get_ydata()
-        y0_sim = max(abs(y.max()),abs(y.min()))
+        if self.changespc == 'Simulated':
+            spectrum = self.spectrum_sim[0]
+            spectrum_ref = self.spectrum_ref[0]
+        else:
+            spectrum = self.spectrum_ref[0]
+            spectrum_ref = self.spectrum_sim[0]
+
+        y = spectrum.get_ydata()
+        y0 = max(abs(y.max()),abs(y.min()))
 
         # Load reference data
-        if self.spectrum_ref:
-            y = self.spectrum_ref[0].get_ydata()
-        else:
-            return
+        y = spectrum_ref.get_ydata()
         y0_ref = max(abs(y.max()),abs(y.min()))
 
         # Update global data (this triggers the shift)
-        spc_scale_new = self.spc_scale * y0_ref/y0_sim
+        spc_scale_new = self.spc_scale * y0_ref/y0
         self.spc_table.setItem(3,1, QTableWidgetItem(str(spc_scale_new)))
-
+        
         
     #==========================================================
     # LOAD DATA AND ELEMENTS
@@ -1311,7 +1251,7 @@ class AppForm(QMainWindow):
         self.spc_table.setItem(3,1, QTableWidgetItem(str(self.spc_scale)))
 
         self.changespc_index = self.select_changespc.currentIndex()
-        
+
 
     def update_data_type(self):
 
@@ -1372,7 +1312,7 @@ class AppForm(QMainWindow):
                          clear_msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.No:
                 return
-            # Disable change_spc
+            # Disable transform_spc
             self.select_changespc.setEnabled(False)
             self.spectrum_ref[0].remove()
             self.spectrum_ref = None
@@ -1410,39 +1350,14 @@ class AppForm(QMainWindow):
             self.spc_scale = 1.0
             self.spc_table.setItem(3,1, QTableWidgetItem(str(self.spc_scale)))
             
-            
-    def change_refspc(self,i,j):
-        fixaxes = self.fixaxes_cb.isChecked()
-        if not self.spectrum_ref:
-            return
-        cell = self.spc_table.item(i,j)
-        if (i,j) == (2,1):
-            # Shift
-            #========
-            new_shift = float(cell.text())
-            # Get the relative shift from the current global shift
-            shift = new_shift - self.spc_shift
-            self.spc_shift = new_shift
-            x = self.spectrum_ref[0].get_xdata()
-            y = self.spectrum_ref[0].get_ydata()
-            x,y = self.shift_spectrum(x,y,shift)
-            self.spectrum_ref[0].set_xdata(x)
-            self.spectrum_ref[0].set_ydata(y)
-        elif (i,j) == (3,1):
-            # Scale
-            #========
-            new_scale = float(cell.text())
-            # Get the relative scale from the current global scaling
-            scale = new_scale/self.spc_scale
-            self.spc_scale = new_scale
-            y = self.spectrum_ref[0].get_ydata() * scale
-            self.spectrum_ref[0].set_ydata(y)
-            
-        if not fixaxes:
-            self.rescale_yaxis()
-        self.canvas.draw()
 
-    def change_spc(self,i,j):
+    def transform_spc(self,i,j):
+        """
+        General function to transform the spectra, upon updating the
+        corresponding table entry:
+         - Shift, entry: (2,1)
+         - Scale, entry: (3,1)
+        """
         if not self.select_changespc.isEnabled():
             return
 
@@ -1496,6 +1411,8 @@ class AppForm(QMainWindow):
             self.spc_scale = new_scale
             y = spectrum.get_ydata() * scale
             spectrum.set_ydata(y)
+            # Bins
+            self.ybin *= scale
 
         if not fixaxes:
             self.rescale_yaxis()
@@ -1952,7 +1869,7 @@ Examples
         # cellPressed(irow,icol)
         # The connect call below passes the arguments of cellPressed to my function:
         self.spc_table.cellPressed.connect(self.table_buttons_action)
-        self.spc_table.cellChanged.connect(self.change_spc)
+        self.spc_table.cellChanged.connect(self.transform_spc)
         # If we try with code below, I see no way to make it pass the args
         #self.connect(self.spc_table, SIGNAL('cellPressed(int,int)'), lambda: self.table_buttons_action())
         # Table format
@@ -2095,12 +2012,12 @@ Examples
         
         # /Manipulate
         self.manip_menu = self.menuBar().addMenu("&Manipulate")
-        self.shiftref_action = self.create_action("&Shift to simulated", 
-            slot=self.shift_to_simulated, 
-            tip='Shift reference spectrum to match the simulated one')
-        self.scaleref_action = self.create_action("&Scale to simulated", 
-            slot=self.scale_to_simulated, 
-            tip='Scale reference spectrum to match the simulated one')
+        self.shiftref_action = self.create_action("&Shift to match",
+            slot=self.shift_to_match,
+            tip='Shift selected spectrum to match the other one')
+        self.scaleref_action = self.create_action("&Scale to match",
+            slot=self.scale_to_match,
+            tip='Scale selected spectrum to match the other one')
         self.add_actions(self.manip_menu, (self.shiftref_action,self.scaleref_action))
         # Initially, the reference spectrum is not available
         self.shiftref_action.setEnabled(False)
