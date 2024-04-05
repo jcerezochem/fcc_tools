@@ -378,6 +378,281 @@ module orca_manage
 
     end subroutine read_orca4_hess
 
+    !--------------------------------------
+    ! Using .engrad files
+    !--------------------------------------
+
+    subroutine read_orcaengrad_natoms(unt,Nat,error_flag)
+        !Description
+        ! Reads number of atoms from ORCA engrad file
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file
+        ! Nat     (out) int /scalar    Number of atoms
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        !                          -1000000-i : Error in header
+        !==============================================================
+        integer,intent(in)           :: unt
+        integer,intent(out)          :: Nat
+        integer,intent(out),optional :: error_flag
+
+        character(len=240) :: line=""
+        integer :: IOstatus
+        integer :: ii
+
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if (adjustl(line) == "# Number of atoms") then
+                ii = ii + 1
+                read(unt,*,iostat=IOstatus) line ! line with # only
+                read(unt,*,iostat=IOstatus) Nat
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                exit
+            endif
+        enddo
+
+        error_flag = 0
+        rewind(unt)
+        return
+    end subroutine read_orcaengrad_natoms
+
+    subroutine read_orcaengrad_ener(unt,E,error_flag)
+        !Description
+        ! Reads number of atoms from ORCA engrad file
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file
+        ! E       (out) real/scalar    Current energy
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        !                          -1000000-i : Error in header
+        !==============================================================
+        integer,intent(in)           :: unt
+        real(8),intent(out)          :: E
+        integer,intent(out),optional :: error_flag
+
+        character(len=240) :: line=""
+        integer :: IOstatus
+        integer :: ii
+
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if (adjustl(line) == "# The current total energy in Eh") then
+                ii = ii + 1
+                read(unt,*,iostat=IOstatus) line ! line with # only
+                read(unt,*,iostat=IOstatus) E
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                exit
+            endif
+        enddo
+
+        error_flag = 0
+        rewind(unt)
+        return
+    end subroutine read_orcaengrad_ener
+
+    subroutine read_orcaengrad_grad(unt,Nat,Grad,error_flag)
+        !Description
+        ! Reads gradient of atoms from ORCA engrad file
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file
+        ! Nat     (inp) int/scalar     Number of atoms
+        ! Grad    (out) real/vector    Gradient
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        !                          -1000000-i : Error in header
+        !==============================================================
+        integer,intent(in)               :: unt
+        integer,intent(in)               :: Nat
+        real(8),dimension(:),intent(out) :: Grad
+        integer,intent(out),optional     :: error_flag
+
+        character(len=240) :: line=""
+        integer :: IOstatus
+        integer :: i, ii
+
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if (adjustl(line) == "# The current gradient in Eh/bohr") then
+                ii = ii + 1
+                read(unt,*,iostat=IOstatus) line ! line with # only
+                exit
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                exit
+            endif
+        enddo
+
+        do i=1,3*Nat
+            read(unt,*) Grad(i)
+        enddo
+
+        error_flag = 0
+        rewind(unt)
+        return
+    end subroutine read_orcaengrad_grad
+
+    subroutine read_orcaengrad_geom(unt,Nat,AtName,X,Y,Z,Mass,error_flag)
+        !Description
+        ! Reads geometry from ORCA engrad file
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vector    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        ! Mass    (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                   2 : Unkonwn format
+        !==============================================================
+        integer,intent(in)                        :: unt
+        integer,intent(inout)                     :: Nat
+        real(kind=8),dimension(:),intent(out)     :: X,Y,Z,Mass
+        character(len=*),dimension(:),intent(out) :: AtName
+        integer,intent(out),optional              :: error_flag
+
+        character(len=240) :: line=""
+        integer :: IOstatus
+        integer :: i, ii
+
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if (adjustl(line) == "# The atomic numbers and current coordinates in Bohr") then
+                ii = ii + 1
+                read(unt,*,iostat=IOstatus) line ! line with # only
+                exit
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                exit
+            endif
+        enddo
+
+        do i=1,Nat
+            read(unt,*) ii, X(i), Y(i), Z(i)
+            X(i) = X(i) * BOHRtoANGS
+            Y(i) = Y(i) * BOHRtoANGS
+            Z(i) = Z(i) * BOHRtoANGS
+            AtName(i) = atname_from_atnum(ii)
+        enddo
+
+        error_flag = 0
+        rewind(unt)
+        return
+    end subroutine read_orcaengrad_geom
+
+    !--------------------------------------
+    ! Using .hess files
+    !--------------------------------------
+    ! NOTE: mosts parsers are already implemented as read_orca_XX
+
+    subroutine read_orcahess_irdip(unt,DipD,error_flag)
+        !Description
+        ! Get geometry and atom names from section 4. The number of atoms
+        ! is also taken (since they are needed), using read_gausslog_natoms
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file
+        ! DipD    (out) real/vector    Dipole derivatives (3x3Nat)
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                   2 : Unkonwn format
+        !==============================================================
+        integer,intent(in)                      :: unt
+        real(kind=8),dimension(:),intent(out)   :: DipD
+        integer,intent(out),optional            :: error_flag
+
+        character(len=240) :: line=""
+        integer :: IOstatus
+        integer :: i, ii, j, N
+
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if (adjustl(line) == "$dipole_derivatives") then
+                ii = ii + 1
+                read(unt,*,iostat=IOstatus) N
+                if (IOStatus < 0) then
+                    error_flag = -ii
+                    rewind(unt)
+                    return
+                endif
+                exit
+            endif
+        enddo
+
+        do i=1,N
+            ii = ii + 1
+            read(unt,'(A)',iostat=IOstatus) line
+            if (IOStatus < 0) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            j = 3*(i-1)
+            read(line,*,iostat=IOstatus) DipD(j+1), DipD(j+2), DipD(j+3)
+            if (IOStatus < 0) then
+                error_flag = -ii - 1000000
+                rewind(unt)
+                return
+            endif
+        enddo
+
+        error_flag = 0
+        rewind(unt)
+        return
+
+    end subroutine read_orcahess_irdip
 
 end module orca_manage
 

@@ -266,7 +266,7 @@ module constants
         Zat = 0
         n = size(atmass_from_atnum)
         do i=1,n
-            if (abs(mass-atmass_from_atnum(i)) < 1.d-2) then
+            if (abs(mass-atmass_from_atnum(i)) < 1.d-1) then
                 Zat  = i
                 exit
             endif

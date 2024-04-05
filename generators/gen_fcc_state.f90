@@ -219,7 +219,7 @@ program gen_fcc_state
     !Guess the file type if not given4
     if (adjustl(fte) == 'guess') then
         call split_line_back(enerfile,'.',cnull,fte)
-    else if (adjustl(fth) == 'fts') then
+    else if (adjustl(fte) == 'fts') then
         fte = fts
     endif
     if (adjustl(fth) == 'guess') then
@@ -229,14 +229,14 @@ program gen_fcc_state
     endif
     if (adjustl(ftg) == 'guess') then
         call split_line_back(gradfile,'.',cnull,ftg)
-    else if (adjustl(ftg) == 'fth') then
-        ftg = fth
+    else if (adjustl(ftg) == 'fts') then
+        ftg = fts
     endif
     
     if (nmfile == 'compute') then
         !Read Energy
         !Only for supported filetypes
-        if (ftg=='fchk') then
+        if (fte=='fchk' .or. fte=='engrad') then
             is_energy=.true.
             !Open gradient file
             open(I_ENE,file=enerfile,iostat=ios)
@@ -271,7 +271,8 @@ program gen_fcc_state
 
         !Read Gradient
         !Only for supported filetypes
-        if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. ftg=='qchem' .or. ftg=='gmx') then
+        if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. &
+            ftg=='qchem' .or. ftg=='gmx' .or. ftg=='engrad') then
             is_gradient=.true.
             allocate (Grad(1:3*Nat))
             !Open gradient file
@@ -679,9 +680,9 @@ program gen_fcc_state
             fth = "fts"
         endif
         if (adjustl(gradfile) == 'default') then
-            ! The try to read the gradient from hessfile
-            gradfile = hessfile
-            ftg = "fth"
+            ! The try to read the gradient from strfile
+            gradfile = strfile
+            ftg = "fts"
         endif
         if (adjustl(enerfile) == 'default') then
             ! The try to read the energy from strfile
