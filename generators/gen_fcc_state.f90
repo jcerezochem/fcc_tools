@@ -272,7 +272,7 @@ program gen_fcc_state
         !Read Gradient
         !Only for supported filetypes
         if (ftg=='log' .or. ftg=='fchk' .or. ftg=='molcas' .or. ftg=='cfour' .or. &
-            ftg=='qchem' .or. ftg=='gmx' .or. ftg=='engrad') then
+            ftg=='qchem' .or. ftg=='gmx' .or. ftg=='engrad') then ! .or. ftg=='cp2k') then
             is_gradient=.true.
             allocate (Grad(1:3*Nat))
             !Open gradient file

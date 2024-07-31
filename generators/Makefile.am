@@ -22,6 +22,7 @@ gen_fcc_state_SOURCES = version.f90\
                         ../modules/io/orca_manage.f90\
                         ../modules/io/qchem_manage.f90\
                         ../modules/io/fcc_manage.f90\
+                        ../modules/io/cp2k_manage.f90\
                         ../modules/io/fcc_io.f90\
                         gen_fcc_state.f90
 
@@ -46,6 +47,7 @@ gen_fcc_dipfile_SOURCES = version.f90\
                           ../modules/io/orca_manage.f90\
                           ../modules/io/qchem_manage.f90\
                           ../modules/io/fcc_manage.f90\
+                          ../modules/io/cp2k_manage.f90\
                           ../modules/vibrational_analysis.f90\
                           ../modules/io/fcc_io.f90\
                           gen_fcc_dipfile.f90

@@ -27,6 +27,7 @@ module fcc_io
     use orca_manage
     use qchem_manage
     use fcc_manage
+    use cp2k_manage
     implicit none
 
     contains
@@ -98,6 +99,8 @@ module fcc_io
              call read_qchem_natoms(unt,Nat,error_flag)
             case("fcc")
              call read_fcc_natoms(unt,Nat,error_flag)
+            case("cp2k")
+             call read_cp2k_natoms(unt,Nat,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')
@@ -223,6 +226,9 @@ module fcc_io
              call assign_masses(Nat,AtName,Mass,error_flag)
             case("fcc")
              call read_fcc_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+             call assign_masses(Nat,AtName,Mass,error_flag)
+            case("cp2k")
+             call read_cp2k_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
@@ -355,6 +361,8 @@ module fcc_io
              call read_qchem_grad(unt,Nat,Grad,error_flag)
             case("fcc")
              call read_fcc_grad(unt,Nat,Grad,error_flag)
+!             case("cp2k")
+!              call read_cp2k_grad(unt,Nat,Grad,error_flag)
             case("gmx")
              call read_gmx_grad(unt,Nat,Grad,error_flag)
             case default
@@ -437,6 +445,8 @@ module fcc_io
              call read_qchem_hess(unt,Nat,Hlt,error_flag)
             case("fcc")
              call read_fcc_hess(unt,Nat,Hlt,error_flag)
+            case("cp2k")
+             call read_cp2k_hess(unt,Nat,Hlt,error_flag)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
              call supported_filetype_list('freq')

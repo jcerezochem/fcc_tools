@@ -64,17 +64,51 @@ module molden_manage
             ! Two possible scenarios while reading:
             ! 1) End of file
             if ( IOstatus < 0 ) then
-                error_flag = -ii
                 rewind(unt)
-                return
+                exit
             endif
             ! 2) Found what looked for!      
             if ( adjustl(line) == "[N_ATOMS]" ) then
                 read(unt,*) Nat 
+                rewind(unt)
+                return
+            endif
+
+        enddo
+
+        ! If no [N_ATOMS], then search for [ATOMS]
+        ! Search section
+        print*, 'Trying again'
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            call set_word_upper_case(line)
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!
+            if ( index(line,"[ATOMS]") /= 0 ) then
                 exit
             endif
 
         enddo
+        i = 0
+        do
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            if ( index(line,'[') /= 0 .or. len(trim(line)) == 0 ) exit
+            i = i+1
+        enddo
+        Nat = i
 
         rewind(unt)
         return
@@ -107,8 +141,8 @@ module molden_manage
         ! Need to understand better the MOLCAS output
         !==============================================================
 
-        integer,intent(in)  :: unt
-        integer,intent(out) :: Nat
+        integer,intent(in)    :: unt
+        integer,intent(inout) :: Nat
         character(len=*), dimension(:), intent(out) :: AtName
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
         integer,intent(out) :: error_flag
@@ -122,34 +156,14 @@ module molden_manage
         integer :: IOstatus
         !Counters
         integer :: i, ii, AtNum
-        
-        
-        ! Search section
-        ii = 0
-        do
-            ii = ii + 1
-            read(unt,'(A)',IOSTAT=IOstatus) line
-            ! Two possible scenarios while reading:
-            ! 1) End of file
-            if ( IOstatus < 0 ) then
-                error_flag = -ii
-                rewind(unt)
-                return
-            endif
-            ! 2) Found what looked for!      
-            if ( adjustl(line) == "[N_ATOMS]" ) then
-                read(unt,*) Nat 
-                exit
-            endif
 
-        enddo
-        rewind(unt)
 
         ! Search section
         ii = 0
         do
             ii = ii + 1
             read(unt,'(A)',IOSTAT=IOstatus) line
+            call set_word_upper_case(line)
             ! Two possible scenarios while reading:
             ! 1) End of file
             if ( IOstatus < 0 ) then
@@ -167,7 +181,7 @@ module molden_manage
         do i=1,Nat
             read(unt,*) AtName(i), cnull, cnull, X(i), Y(i), Z(i)
         enddo
-        if (trim(adjustl(units))=='(AU)') then
+        if (index(units,'AU') /= 0) then
             !Transform to AA
             X(1:Nat) = X(1:Nat)*BOHRtoANGS
             Y(1:Nat) = Y(1:Nat)*BOHRtoANGS

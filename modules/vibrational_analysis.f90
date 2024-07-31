@@ -208,9 +208,9 @@ module vibrational_analysis
             k=k+1
             ii = (i-1)/3+1
             jj = (j-1)/3+1
-            H(i,j) = Hlt(k)/sqrt(Mass(ii)*Mass(jj)) 
+            H(i,j) = Hlt(k)/sqrt(Mass(ii)*Mass(jj))
             H(j,i) = H(i,j)
-        enddo 
+        enddo
         enddo
 
         !Rotate Hessian to the internal frame (3Nat-6/5 coordinates)

@@ -274,7 +274,7 @@ module turbomol_manage
                 ! Accumunalte terms (isum) but cycle if the block is not read
                 isum = isum + i
                 if (i<=istart) cycle
-                ! Determine the parts we are goint to read
+                ! Determine the parts we are going to read
                 ! The j-th row is from 1:sum(1···j)
                 ! But at the current round we get for the j-th col 
                 !   istart:min(istart+i,istart+6)
