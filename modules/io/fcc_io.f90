@@ -113,7 +113,7 @@ module fcc_io
 
 
     subroutine generic_structure_reader(unt,filetype,Nat,&!AtNum, (TODO)
-                                        X,Y,Z,Mass,error_flag)
+                                        X,Y,Z,AtNum,Mass,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -135,7 +135,7 @@ module fcc_io
         integer,intent(in)              :: unt
         character(len=*),intent(in)     :: filetype
         integer,intent(inout)           :: Nat
-!         integer,dimension(:),intent(out):: AtNum (TODO)
+        integer,dimension(:),intent(out):: AtNum !(TODO)
         real(8),dimension(:),intent(out):: X,Y,Z
         real(8),dimension(:),intent(out):: Mass
         integer,intent(out),optional    :: error_flag
@@ -149,6 +149,8 @@ module fcc_io
         !Other local
         character(len=2),dimension(Nat)  :: AtName
         integer                          :: i,j
+
+        AtNum(1) = -1
 
         error_flag = 0
         select case (adjustl(filetype))
@@ -173,16 +175,9 @@ module fcc_io
             else
                 Mass(:) = 0.d0
             endif
-             ! Some wrong fchk conversion lead to Mass=0.0. If so, use atomic numbers
-             ! and get masses from database
-             if (Mass(1) < 1.d-10) then
-                 call read_fchk(unt,'Atomic numbers',data_type,N,A,IA,error_flag)
-                 do i=1,N
-                     Mass(i) = atmass_from_atnum(IA(i))
-                 enddo
-                 deallocate(IA)
-             endif
-             
+            call read_fchk(unt,'Atomic numbers',data_type,N,A,IA,error_flag)
+            AtNum = IA
+            deallocate(IA)
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_flag)
              call assign_masses(Nat,AtName,Mass,error_flag)
@@ -235,6 +230,12 @@ module fcc_io
              call supported_filetype_list('freq')
              error_flag = 99
          end select
+
+         if (AtNum(1) == -1) then
+             do i=1,Nat
+                 AtNum(i) = atnum_from_atname(AtName(i))
+             enddo
+         endif
 
          return
 

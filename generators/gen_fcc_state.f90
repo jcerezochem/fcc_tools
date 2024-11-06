@@ -21,6 +21,7 @@ program gen_fcc_state
     integer :: Nat, Nvib
     real(8)                            :: E
     real(8),dimension(:),allocatable   :: X,Y,Z,Mass
+    integer,dimension(:),allocatable   :: AtNum
     real(8),dimension(:),allocatable   :: Hlt, Freq, Grad
     real(8),dimension(:,:),allocatable :: L
     real(8),dimension(:),allocatable   :: RedMass
@@ -126,7 +127,8 @@ program gen_fcc_state
     
     
     !Allocate input data
-    allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:3*Nat))
+    allocate(X(1:3*Nat),Y(1:3*Nat),Z(1:3*Nat),Mass(1:Nat))
+    allocate(AtNum(1:Nat))
     !Allocate output data
     allocate(Freq(1:3*Nfilt))
     allocate(L(1:3*Nfilt,1:3*Nfilt))
@@ -149,13 +151,13 @@ program gen_fcc_state
     
     !Read structure
     print*, "Reading structure...", fts
-    call generic_structure_reader(I_INP,fts,Nat,X,Y,Z,Mass,error)
+    call generic_structure_reader(I_INP,fts,Nat,X,Y,Z,AtNum,Mass,error)
     if (error /= 0) then
         print*, "Error reading the geometry", error
         stop
     endif
     print'(X,A,/)', "OK"
-    
+
     if (nmfile == 'compute') then
         ! Print to fcc3 file
         print*, "  and writting geom to fcc3 file..."
@@ -169,16 +171,7 @@ program gen_fcc_state
         write(O_NEW,'(A)') 'Geometry from '//trim(adjustl(strfile))//' in xyz format (with filter: '//trim(adjustl(filter))//')'
         do ii=1,Nfilt
             i=ifilter(ii)
-            ! Replaced
-            ! call atominfo_from_atmass(Mass(i),j,atname)
-            j = atnum_from_atmass(Mass(i))
-            if (j == 0) then
-                atname = 'X'
-                write(msg,'(A,F10.4,A)') 'Element cannot be set from mass', Mass(i), '. AtNum set to 0, name set to X.'
-                call alert_msg('note',msg)
-            else
-                atname = atname_from_atnum(j)
-            endif 
+            atname = atname_from_atnum(AtNum(i))
             write(O_NEW,'(A2,5X,3(F12.8,X))') atname, X(i), Y(i), Z(i)
         enddo
         write(O_NEW,*) ""
