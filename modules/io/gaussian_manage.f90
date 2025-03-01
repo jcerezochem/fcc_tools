@@ -948,6 +948,9 @@ module gaussian_manage
         else if (adjustl(dip_type) == "magdip") then
             j=(Ntarget-1)*16 + 8
             Dip(1:3) = A(j:j+2)/(-2.d0)
+        else if (adjustl(dip_type) == "p") then
+            j=(Ntarget-1)*16 + 5
+            Dip(1:3) = A(j:j+2)
         endif
 
         if (derivatives) then
@@ -974,6 +977,8 @@ module gaussian_manage
                 else if (adjustl(dip_type) == "magdip") then
                     !Note that MagDip should be divided by -2 (see FCclasses manual)
                     DipD(jj:jj+2) = A(k+8:k+10)/(-2.d0)
+                else if (adjustl(dip_type) == "p") then
+                    DipD(jj:jj+2) = A(k+5:k+7)
                 endif
 
                 if (DipD(jj  ) == 0.d0 .and.&
