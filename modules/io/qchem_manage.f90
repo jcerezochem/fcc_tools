@@ -340,11 +340,15 @@ module qchem_manage
         !I/O
         integer :: IOstatus
         character(len=100) :: fmt
+        character :: cnull
         !Counters
-        integer :: i, j, k, ii, jini, jfin, &
+        integer :: i, j, k, ii,jj, jini, jfin,&
                    iblock, nblocks, icols
+        !Control typo of Hessian
+        logical :: is_mwc
         !Auxiliar arrays
         real(kind=8),dimension(3*Nat,3*Nat) :: Hpart
+        real(kind=8),dimension(:),allocatable :: Mass
         
         
         !Use N to store 3*Nat
@@ -366,22 +370,72 @@ module qchem_manage
                 ! 2) Found what looked for!      
                 if ( INDEX(line,"Final Hessian.") /= 0 .or. &
                      INDEX(line,"Hessian of the SCF Energy") /= 0) then
+                     is_mwc = .false.
+                    exit
+                else if ( INDEX(line,"Mass-Weighted Hessian Matrix") /= 0) then
+                    is_mwc = .true.
                     exit
                 endif
         enddo
 
-        !Hessian elements arranged in blocks of 6 columns each
-        nblocks = N/6
-        if (N /= nblocks*6) nblocks=nblocks+1
-        do iblock=1,nblocks
-            !First line contains indices (useless)
-            read(unt,'(A)') line
-            jini=(iblock-1)*6+1
-            jfin=min(N,iblock*6)
-            do i=1,N
-                read(unt,*) k, Hpart(i,jini:jfin)
+        if (.not. is_mwc) then
+            !Hessian elements arranged in blocks of 6 columns each
+            nblocks = N/6
+            if (N /= nblocks*6) nblocks=nblocks+1
+            do iblock=1,nblocks
+                !First line contains indices (useless)
+                read(unt,'(A)') line
+                jini=(iblock-1)*6+1
+                jfin=min(N,iblock*6)
+                do i=1,N
+                    read(unt,*) k, Hpart(i,jini:jfin)
+                enddo
             enddo
-        enddo
+        else
+            !Hessian elements arranged in blocks of 6 columns each
+            nblocks = N/6
+            if (N /= nblocks*6) nblocks=nblocks+1
+            do iblock=1,nblocks
+                !Two blank lines
+                read(unt,'(A)') line
+                read(unt,'(A)') line
+                jini=(iblock-1)*6+1
+                jfin=min(N,iblock*6)
+                do i=1,N
+                    read(unt,*) Hpart(i,jini:jfin)
+                enddo
+            enddo
+            ! Look for masses  and store them
+            allocate(Mass(Nat))
+            do
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Two possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    error_flag = -999
+                    rewind(unt)
+                    return
+                endif
+                ! 2) Found what looked for!
+                if ( INDEX(line,"Has Mass") /= 0) then
+                    exit
+                endif
+            enddo
+            do i = 1,Nat
+                read(line,*) cnull,cnull,cnull,cnull,cnull,cnull, Mass(i)
+                read(unt,'(A)') line
+                Mass(i) = Mass(i)
+            enddo
+            ! Now unmass-weight the Hessian elements
+            do i=1,N
+            do j=1,i
+                ii = (i-1)/3+1
+                jj = (j-1)/3+1
+                Hpart(i,j) = Hpart(i,j) * sqrt(Mass(ii)*Mass(jj))
+                Hpart(j,i) = Hpart(i,j)
+            enddo
+            enddo
+        endif
 
         !Get Hlt from the whole matrix in Hpart
         k = 0
