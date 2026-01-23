@@ -46,6 +46,7 @@ module fcc_manage
         character(len=200) :: line
         character(len=50) :: section='GEOM', &
                              section_full
+        character :: cnull
         
         do
             read(unt,'(A)',IOSTAT=IOstatus) line
@@ -59,7 +60,8 @@ module fcc_manage
             endif
             ! 2) Found what looked for!      
             if ( INDEX(line,trim(adjustl(section))) /= 0 ) then
-                read(line,'(A10)') section_full
+                read(line,'(A)') section_full
+                call split_line(section_full,' ',section_full,cnull)
                 if (adjustl(section_full) == adjustl(section)) exit
             endif
         enddo
@@ -110,7 +112,8 @@ module fcc_manage
             endif
             ! 2) Found what looked for!      
             if ( INDEX(line,trim(adjustl(section))) /= 0 ) then
-                read(line,'(A10)') section_full
+                read(line,'(A)') section_full
+                call split_line(section_full,' ',section_full,cnull)
                 if (adjustl(section_full) == adjustl(section)) exit
             endif
         enddo
@@ -126,6 +129,56 @@ module fcc_manage
         return
 
      end subroutine read_fcc_geom
+     
+    subroutine read_fcc_ener(unt,E,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Get energy from fcc file
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! E       (out) real/scalar    Number of atoms
+        !
+        !==============================================================
+
+        integer,intent(in)                        :: unt
+        real(kind=8),intent(out)                  :: E
+        integer,intent(out),optional              :: error_flag
+        !Local
+        integer :: IOstatus
+        character(len=200) :: line
+        character(len=50) :: section='ENER', &
+                             section_full
+        character :: cnull
+        
+        do
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                call alert_msg("note","Section '"//trim(adjustl(section))//"' not present in the FCC file.")
+                if (present(error_flag)) error_flag=1
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+            if ( INDEX(line,trim(adjustl(section))) /= 0 ) then
+                read(line,'(A)') section_full
+                call split_line(section_full,' ',section_full,cnull)
+                if (adjustl(section_full) == adjustl(section)) exit
+            endif
+        enddo
+
+        read(unt,*) E
+            
+        rewind(unt)
+
+        return
+
+     end subroutine read_fcc_ener
      
     subroutine read_fcc_grad(unt,Nat,Grad,error_flag)
 
@@ -165,7 +218,8 @@ module fcc_manage
             endif
             ! 2) Found what looked for!      
             if ( INDEX(line,trim(adjustl(section))) /= 0 ) then
-                read(line,'(A10)') section_full
+                read(line,'(A)') section_full
+                call split_line(section_full,' ',section_full,cnull)
                 if (adjustl(section_full) == adjustl(section)) exit
             endif
         enddo
