@@ -29,7 +29,7 @@ echo "****************************"
 (( i++ ))
 echo "TEST $i: ORCA (HESS)"
 echo "****************************"
-echo "gen_fcc_state -ft orca -i HQ_orca.out"
+echo "gen_fcc_state -ft orca -i HQ_orca.hess"
 ../generators/gen_fcc_state -ft orca -i HQ_orca.hess
 echo ""
 

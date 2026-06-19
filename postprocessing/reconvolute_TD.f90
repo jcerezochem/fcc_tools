@@ -16,7 +16,7 @@ program reconvolute_TD
     double complex,dimension(:),allocatable :: corr
     double complex :: broad, exp_w0t, exp_w0t0
     real(8) :: tt,tfin,t0,c,ci,b,bi,d,di, factor, aexp, df, dw, &
-               damp, wau, dgau, dgau2, dgau3, w0_eV, w0
+               damp, wau, dgau, dgau2, dgau3, w0_eV, w0, ls_scale
     integer :: iexp, nbroad, N, NN
     character(len=3) :: optrans
     character(len=8) :: hwhm_char
@@ -54,10 +54,11 @@ program reconvolute_TD
     
     ! Initialize
     w0_eV = -9999.d0
+    ls_scale = 1.d0
     
     ! Read command_line_options
     call parse_input(corrfile,hwhm_eV_list,broadfun_list,&
-                     do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
+                     do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV,ls_scale)
                      
     ! Initialize lists
     if (.not.allocated(hwhm_eV_list)) then
@@ -359,7 +360,7 @@ program reconvolute_TD
     allocate(w(NN))
     do i=1,NN
         !Take into account the 1/2pi factor from the FT(delta)
-        spect(i) = spect(i)/2./pi
+        spect(i) = spect(i)/2./pi * ls_scale
         w(I)     = w0_eV + dfloat(i-1)*df*fstoev 
     enddo
         
@@ -481,12 +482,12 @@ program reconvolute_TD
     contains
     
     subroutine parse_input(corrfile,hwhm_eV_list,broadfun_list,&
-                           do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV)
+                           do_gibbs,property,Eshift,de_eV,fccoutfile,w0_eV,ls_scale)
     
         character(len=*),intent(inout) :: corrfile,property,fccoutfile
         character(len=*),dimension(:),allocatable,intent(inout) ::  broadfun_list
         logical,intent(inout)          :: do_gibbs
-        real(8),intent(inout)          :: Eshift, de_eV, w0_eV
+        real(8),intent(inout)          :: Eshift, de_eV, w0_eV,ls_scale
         real(8),dimension(:),allocatable,intent(inout) :: hwhm_eV_list
 
         ! Local
@@ -551,6 +552,11 @@ program reconvolute_TD
                     read(arg,*) de_eV
                     argument_retrieved=.true.
 
+                case ("-ls-scale")
+                    call getarg(i+1, arg)
+                    read(arg,*) ls_scale
+                    argument_retrieved=.true.
+
                 case ("-fccout") 
                     call getarg(i+1, fccoutfile)
                     argument_retrieved=.true.
@@ -603,6 +609,7 @@ program reconvolute_TD
         write(0,'(A,F8.3)')' -Ead      Adiabatic energy (eV)     '   ,de_eV
         endif
         write(0,'(A)'  )   '           (to compute kIC)'
+        write(0,'(A,G8.3)')' -ls-scale Scale factor applied to LS'   ,ls_scale
         write(0,'(A)'  )   ' -fccout   Output of FCclasses job      '//trim(adjustl(fccoutfile))
         write(0,'(A)'  )   ' -h        Print help  '
         write(0,*) ''
